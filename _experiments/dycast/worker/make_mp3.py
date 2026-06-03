@@ -40,12 +40,19 @@ def main() -> int:
     )
     html_text = resp.text
 
-    # 取第一条 m3u8（优先 hd/md 完整流），还原 HTML 转义
+    # 取 m3u8，还原 HTML 转义。必须带签名参数(k=/sign=)，否则 CDN 返回 403
     cands = re.findall(r'https?:[^"\\]*?\.m3u8[^"\\]*', html_text, flags=re.IGNORECASE)
     cands = [_html.unescape(c) for c in cands]
-    # 偏好带 _hd 或 _md 的中高清主流，回退到第一条
-    pick = next((c for c in cands if "_hd" in c or "_md" in c), cands[0] if cands else None)
-    w(f"live_id={live_id} m3u8候选={len(cands)}")
+    signed = [c for c in cands if ("k=" in c or "sign=" in c)]
+    w(f"live_id={live_id} m3u8候选={len(cands)} 带签名={len(signed)}")
+    pool = signed or cands
+    # 偏好 /index.m3u8（完整播放列表）+ 中高清(hd/md)，回退第一条
+    pick = (
+        next((c for c in pool if "/index.m3u8" in c and ("_hd" in c or "_md" in c)), None)
+        or next((c for c in pool if "/index.m3u8" in c), None)
+        or next((c for c in pool if "_hd" in c or "_md" in c), None)
+        or (pool[0] if pool else None)
+    )
     if not pick:
         w("未取到 m3u8，无法导出音频")
         log.close()
