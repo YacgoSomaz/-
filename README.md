@@ -175,6 +175,7 @@ python server.py
 run_worker.py                       单房间 worker 验证
 run_multi.py                        多房间 worker 验证
 probe_audio.py                      无浏览器取流探测
+make_mp3.py                         无浏览器取流并导出 mp3 验证
 vendor/DouyinLiveWebFetcher/        第三方参考实现
 ```
 
