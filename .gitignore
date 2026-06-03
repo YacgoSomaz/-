@@ -1,0 +1,42 @@
+__pycache__/
+*.py[cod]
+
+# Runtime databases and generated data
+*.db
+*.db-*
+*.zip
+data/
+exports/
+relay_logs/
+worker_events.db
+_*.log
+_server_*.txt
+_test_out.txt
+_audio_mgr_*.txt
+_real_audio_check.txt
+_merge_check.txt
+_xlsx_verify.txt
+_simp_check.txt
+
+# Frontend dependencies and builds
+node_modules/
+dist/
+.vite/
+
+# Local media/output artifacts
+*.mp3
+*.mp4
+*.wav
+*.flv
+*.m4a
+*.aac
+*.ts
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Temporary repository review clones
+_experiments/_repo_review_*/

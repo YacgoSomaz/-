@@ -1,0 +1,21 @@
+{
+  "poll_interval_seconds": 120,
+  "max_concurrent_rooms": 8,
+  "rooms": [
+    {
+      "name": "示例账号A",
+      "room_num": "430322042715",
+      "live_url": "https://live.douyin.com/430322042715",
+      "group": "竞品-女装",
+      "priority": 1,
+      "enabled": true,
+      "watch_windows": [
+        {
+          "days": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+          "start": "08:00",
+          "end": "02:00"
+        }
+      ]
+    }
+  ]
+}
