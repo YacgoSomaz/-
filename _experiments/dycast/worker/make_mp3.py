@@ -38,10 +38,15 @@ def main() -> int:
         f.live_url + live_id,
         headers={"User-Agent": f.user_agent, "cookie": f"ttwid={f.ttwid}; __ac_nonce=0123407cc00a9e438deb4"},
     )
-    html_text = resp.text
+    # 先还原 JSON 里的 unicode 转义(/=/  &=&  \/=/)，否则 URL 会在反斜杠处被截断
+    html_text = (
+        resp.text
+        .replace("\\u002F", "/").replace("\\u002f", "/")
+        .replace("\\u0026", "&").replace("\\/", "/")
+    )
 
     # 取 m3u8，还原 HTML 转义。必须带签名参数(k=/sign=)，否则 CDN 返回 403
-    cands = re.findall(r'https?:[^"\\]*?\.m3u8[^"\\]*', html_text, flags=re.IGNORECASE)
+    cands = re.findall(r'https?://[^"\\\s]+?\.m3u8[^"\\\s]*', html_text, flags=re.IGNORECASE)
     cands = [_html.unescape(c) for c in cands]
     signed = [c for c in cands if ("k=" in c or "sign=" in c)]
     w(f"live_id={live_id} m3u8候选={len(cands)} 带签名={len(signed)}")
@@ -58,7 +63,7 @@ def main() -> int:
         log.close()
         print("FAIL: no stream url")
         return 2
-    w(f"选用流: {pick[:120]}")
+    w(f"选用流(len={len(pick)}): {pick}")
 
     ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
     cmd = [
