@@ -10,10 +10,10 @@
 
 重要结论：
 
-- 默认启动 `python server.py` 时，只会启动 dycast 批量控制台后端，不会自动运行 `worker/`。
-- `worker/` 是 Claude 尝试的另一条后端 worker 技术路线，只有手动运行 `worker/run_worker.py` 或 `worker/run_multi.py` 才会参与。
+- 默认启动 `python server.py` 时，只会启动 dycast 批量控制台后端，不会自动运行 worker 路线。
+- `_experiments/douyin_worker_route` 是 Claude 尝试的另一条后端 worker 技术路线，只有手动运行它里面的 `run_worker.py` 或 `run_multi.py` 才会参与。
 - 当前代码可以本地启动和继续验证，但不能保证一部署就能稳定绕过抖音风控。
-- 如果只是想跑现有控制台，请先忽略 `worker/` 目录。
+- 如果只是想跑现有控制台，请先忽略 `_experiments/douyin_worker_route` 目录。
 
 仓库里保留了两条主要路线，方便并行测试：
 
@@ -21,12 +21,16 @@
    - 当前主线工作目录。
    - 前端是 Vue/Vite 批量托管控制台。
    - 后端 `server.py` 提供 WebSocket 中继、SQLite 入库、导出服务、音频采集管理。
-   - `worker/` 目录里是 Claude 正在尝试的后端 worker 路线，vendor 了 `DouyinLiveWebFetcher` 作为技术验证基础。
 
 2. `_experiments/dycast_original_route_161517`
    - 从 2026-06-03 16:15 备份解压出来的原路线副本。
    - 已改成独立端口，方便和主线同时跑。
    - 用于高并发对照测试。
+
+3. `_experiments/douyin_worker_route`
+   - Claude 正在尝试的后端 worker 路线，已经从 `dycast` 主线目录分离出来。
+   - vendor 了 `DouyinLiveWebFetcher` 作为技术验证基础。
+   - 目标是减少浏览器/Vite 代理在关键链路里的参与。
 
 根目录的 `stream_url.py`、`recorder.py`、`transcriber.py` 是音频链路基础模块：取流、ffmpeg 切片录制、Whisper 转写。
 
@@ -176,7 +180,7 @@ python server.py
 
 ## 后端 worker 路线
 
-`_experiments/dycast/worker` 是新路线验证目录，目标是减少浏览器/Vite 代理在关键链路里的参与。
+`_experiments/douyin_worker_route` 是新路线验证目录，目标是减少浏览器/Vite 代理在关键链路里的参与。
 
 这个目录不会被 `server.py` 自动加载，也不会占用主线端口。它和主线是否“打架”，取决于是否手动同时运行 worker 脚本并监听同一批直播间。
 
@@ -187,6 +191,7 @@ run_worker.py                       单房间 worker 验证
 run_multi.py                        多房间 worker 验证
 probe_audio.py                      无浏览器取流探测
 make_mp3.py                         无浏览器取流并导出 mp3 验证
+record_multi_audio.py               多房间并发录音验证
 vendor/DouyinLiveWebFetcher/        第三方参考实现
 ```
 
@@ -251,6 +256,6 @@ cd -
 然后优先验证：
 
 1. 主线 `dycast` 能否正常启动。
-2. `worker/run_worker.py` 单房间是否可稳定拿弹幕。
+2. `_experiments/douyin_worker_route/run_worker.py` 单房间是否可稳定拿弹幕。
 3. 只录音不转写时，风控是否减少。
 4. 5 + 10 双实例并发时，是否比单路线 15 个更稳定。

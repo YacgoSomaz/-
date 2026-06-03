@@ -17,9 +17,12 @@ _real_audio_check.txt
 _merge_check.txt
 _xlsx_verify.txt
 _simp_check.txt
-_experiments/dycast/worker/_sample.txt
-_experiments/dycast/worker/_audio_probe.txt
-_experiments/dycast/worker/_mp3_result.txt
+_experiments/dycast/worker/
+_experiments/douyin_worker_route/_sample.txt
+_experiments/douyin_worker_route/_audio_probe.txt
+_experiments/douyin_worker_route/_mp3_result.txt
+_experiments/douyin_worker_route/_audio_multi.txt
+_experiments/douyin_worker_route/_worker_smoke.txt
 
 # Frontend dependencies and builds
 node_modules/
