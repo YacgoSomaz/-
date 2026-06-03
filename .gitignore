@@ -18,6 +18,7 @@ _merge_check.txt
 _xlsx_verify.txt
 _simp_check.txt
 _experiments/dycast/worker/_sample.txt
+_experiments/dycast/worker/_audio_probe.txt
 
 # Frontend dependencies and builds
 node_modules/
