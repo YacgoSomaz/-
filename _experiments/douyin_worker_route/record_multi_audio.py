@@ -33,9 +33,20 @@ from liveMan import DouyinLiveWebFetcher  # noqa: E402
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 OUT_LOG = _HERE / "_audio_multi.txt"
 
+# 单房间最多尝试的备用流地址条数（404/403 时换下一条）
+MAX_STREAM_TRIES = 4
 
-def extract_m3u8(html_raw: str) -> tuple[str | None, int]:
-    """从房间页 HTML 提取带签名的完整 m3u8（先还原 unicode 转义避免截断）。"""
+# 响度归一化（EBU R128）：统一各房间电平，避免有的录音明显偏小。
+# I=目标综合响度(LUFS)，TP=真峰值上限(dBTP)，LRA=响度范围。
+LOUDNORM_FILTER = "loudnorm=I=-16:TP=-1.5:LRA=11"
+
+
+def rank_m3u8(html_raw: str) -> tuple[list[str], int]:
+    """从房间页 HTML 提取带签名的 m3u8，按偏好排序返回去重候选列表。
+
+    返回 (ordered_urls, raw_count)。ordered_urls[0] 为首选，后续作为
+    404/403 时的备用流地址（同一房间通常含数十条等效候选）。
+    """
     text = (
         html_raw.replace("\\u002F", "/").replace("\\u002f", "/")
         .replace("\\u0026", "&").replace("\\/", "/")
@@ -43,13 +54,25 @@ def extract_m3u8(html_raw: str) -> tuple[str | None, int]:
     cands = [_html.unescape(c) for c in re.findall(r'https?://[^"\\\s]+?\.m3u8[^"\\\s]*', text, re.I)]
     signed = [c for c in cands if ("k=" in c or "sign=" in c)]
     pool = signed or cands
-    pick = (
-        next((c for c in pool if "/index.m3u8" in c and ("_hd" in c or "_md" in c)), None)
-        or next((c for c in pool if "/index.m3u8" in c), None)
-        or next((c for c in pool if "_hd" in c or "_md" in c), None)
-        or (pool[0] if pool else None)
-    )
-    return pick, len(cands)
+
+    def _score(url: str) -> int:
+        is_index = "/index.m3u8" in url
+        is_hdmd = ("_hd" in url) or ("_md" in url)
+        if is_index and is_hdmd:
+            return 0
+        if is_index:
+            return 1
+        if is_hdmd:
+            return 2
+        return 3
+
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for url in sorted(pool, key=_score):
+        if url not in seen:
+            seen.add(url)
+            ordered.append(url)
+    return ordered, len(cands)
 
 
 def _probe(mp3: str) -> str:
@@ -67,49 +90,64 @@ def _probe(mp3: str) -> str:
         return f"probe异常:{e!r}"
 
 
-def _rec_room(live_id: str, seconds: int, status: dict, lock: threading.Lock) -> None:
+def _rec_room(live_id: str, seconds: int, status: dict, lock: threading.Lock, normalize: bool = True) -> None:
     def _set(s: str) -> None:
         with lock:
             status[live_id] = s
 
     try:
         f = DouyinLiveWebFetcher(live_id)
+        headers = dict(f.headers)
+        headers["Referer"] = f.live_url
+        headers["cookie"] = f"ttwid={f.ttwid}; __ac_nonce=0123407cc00a9e438deb4"
         resp = f.session.get(
             f.live_url + live_id,
-            headers={"User-Agent": f.user_agent, "cookie": f"ttwid={f.ttwid}; __ac_nonce=0123407cc00a9e438deb4"},
+            headers=headers,
             timeout=15,
         )
-        pick, ncand = extract_m3u8(resp.text)
+        cands, ncand = rank_m3u8(resp.text)
     except Exception as e:  # noqa: BLE001
         _set(f"取址异常: {e!r}")
         return
-    if not pick:
+    if not cands:
         _set(f"无流地址(候选{ncand}/疑未开播)")
         return
 
     out_mp3 = str(_HERE / f"sample_audio_{live_id}.mp3")
-    cmd = [
-        FFMPEG, "-y",
-        "-headers", "Referer: https://live.douyin.com/\r\n",
-        "-i", pick,
-        "-t", str(seconds),
-        "-vn", "-ar", "16000", "-ac", "1", "-acodec", "libmp3lame",
-        out_mp3,
-    ]
-    try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=seconds + 45,
-        )
-    except subprocess.TimeoutExpired:
-        _set("ffmpeg超时")
-        return
-    size = os.path.getsize(out_mp3) if os.path.exists(out_mp3) else 0
-    if proc.returncode == 0 and size > 1024:
-        _set(f"OK 大小={size}B {_probe(out_mp3)}")
-    else:
-        tail = (proc.stderr or "")[-200:].replace("\n", " ")
-        _set(f"失败 rc={proc.returncode} 大小={size}B …{tail}")
+    # 取址成功但 CDN 可能返回 404/403（流地址过期/节点拒绝）：依次换备用候选重试。
+    tried = 0
+    last = "未尝试"
+    for pick in cands[:MAX_STREAM_TRIES]:
+        tried += 1
+        cmd = [
+            FFMPEG, "-y",
+            "-headers", "Referer: https://live.douyin.com/\r\n",
+            "-i", pick,
+            "-t", str(seconds),
+            "-vn",
+        ]
+        if normalize:
+            cmd += ["-af", LOUDNORM_FILTER]
+        cmd += ["-ar", "16000", "-ac", "1", "-acodec", "libmp3lame", out_mp3]
+        try:
+            proc = subprocess.run(
+                cmd, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=seconds + 45,
+            )
+        except subprocess.TimeoutExpired:
+            _set(f"ffmpeg超时(第{tried}次)")
+            return
+        size = os.path.getsize(out_mp3) if os.path.exists(out_mp3) else 0
+        if proc.returncode == 0 and size > 1024:
+            note = f"(换流第{tried}次成功)" if tried > 1 else ""
+            _set(f"OK 大小={size}B {_probe(out_mp3)} {note}".rstrip())
+            return
+        tail = (proc.stderr or "")[-160:].replace("\n", " ")
+        last = f"rc={proc.returncode} 大小={size}B …{tail}"
+        # 仅在像 404/403 这类拒绝时才换流；其它错误（如无候选）已无意义。
+        if not re.search(r"40[34]|Not Found|Forbidden|Server returned", tail):
+            break
+    _set(f"失败(尝试{tried}/{min(len(cands), MAX_STREAM_TRIES)}条) {last}")
 
 
 def main() -> int:
@@ -117,7 +155,9 @@ def main() -> int:
     ap.add_argument("live_ids", nargs="+")
     ap.add_argument("--seconds", type=int, default=60)
     ap.add_argument("--stagger", type=float, default=2.0)
+    ap.add_argument("--raw", action="store_true", help="录原始电平，不做响度归一化")
     args = ap.parse_args()
+    normalize = not args.raw
 
     status: dict[str, str] = {}
     lock = threading.Lock()
@@ -125,7 +165,7 @@ def main() -> int:
 
     t0 = time.time()
     for lid in args.live_ids:
-        t = threading.Thread(target=_rec_room, args=(lid, args.seconds, status, lock))
+        t = threading.Thread(target=_rec_room, args=(lid, args.seconds, status, lock, normalize))
         t.start()
         threads.append(t)
         time.sleep(args.stagger)  # 错开 HTML 取址

@@ -7,6 +7,11 @@ __pycache__/
 *.zip
 data/
 exports/
+
+# 打包构建产物（每次从空白重建，体积大，绝不入库）
+staging/
+release/
+
 relay_logs/
 worker_events.db
 _*.log
@@ -23,6 +28,10 @@ _experiments/douyin_worker_route/_audio_probe.txt
 _experiments/douyin_worker_route/_mp3_result.txt
 _experiments/douyin_worker_route/_audio_multi.txt
 _experiments/douyin_worker_route/_worker_smoke.txt
+_experiments/wechat_channels_monitor/captures/*
+!_experiments/wechat_channels_monitor/captures/.gitkeep
+_experiments/wechat_channels_monitor/notes/*
+!_experiments/wechat_channels_monitor/notes/.gitkeep
 
 # Frontend dependencies and builds
 node_modules/
@@ -37,6 +46,31 @@ dist/
 *.m4a
 *.aac
 *.ts
+
+# ASR models (large binaries) and audio pipeline outputs
+*.onnx
+*.tar.bz2
+_experiments/asr_bench/sensevoice_onnx/
+_experiments/asr_bench/sherpa-onnx-sense-voice-*/
+_experiments/douyin_worker_route/audio/
+_experiments/douyin_worker_route/rooms.json
+# 浏览器铸的抖音信任 cookie（本机会话凭证，切勿入库）
+_experiments/douyin_worker_route/browser_cookies.json
+_experiments/douyin_worker_route/_diag.log
+
+# 开发调试 / 临时文件（不入库）
+_experiments/douyin_worker_route/_scratch_*.py
+_experiments/douyin_worker_route/_scratch_*.db
+_experiments/douyin_worker_route/_wechat_transcript.txt
+_experiments/douyin_worker_route/CLAUDE_HANDOFF_*.md
+_experiments/douyin_worker_route/*.db.bak_*
+_experiments/douyin_worker_route/transcripts.db.*
+_experiments/douyin_worker_route/multi_events.db.bak_*
+_backups/
+_experiments/competitor_audit/
+
+# 本地隔离实战沙盒（整目录不参与版本管理：独立代码副本 + 运行期数据 + cookie，切勿入库）
+_experiments/douyin_live_run/
 
 # OS/editor files
 .DS_Store

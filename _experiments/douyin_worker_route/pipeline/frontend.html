@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LiveWatch 直播复盘</title>
+<link rel="stylesheet" href="/static/element-plus.css">
+<style>
+:root{
+  --primary:#444cff;--primary-soft:#eef0ff;--cyan:#05d0ff;--green:#28bd6c;
+  --pink:#ff3270;--red:#fc4f52;--ink:#151719;--text:#2e3742;--sub:#515c73;
+  --muted:#95a1af;--line:#e8edf4;--pale:#f8fcff;--canvas:#f3f7fb;--white:#fff;
+}
+*{box-sizing:border-box}html,body,#app{width:100%;height:100%;margin:0}
+body{overflow:hidden;font:14px/1.5 "Microsoft YaHei","PingFang SC",Arial,sans-serif;color:var(--text);background:var(--canvas)}
+button,input,textarea{font:inherit}
+.shell{height:100%;display:flex;background:var(--canvas)}
+.side{width:150px;flex:0 0 150px;background:#f1f5fa;display:flex;flex-direction:column;border-right:1px solid #e7edf4}
+.logo{height:100px;display:flex;flex-direction:column;justify-content:center;align-items:center;color:var(--ink);gap:5px}
+.logo-mark{width:44px;height:36px;position:relative;display:flex;align-items:center;justify-content:center;color:var(--primary)}
+.logo-mark:before,.logo-mark:after{content:"";position:absolute;border:3px solid currentColor;border-radius:50%;border-top-color:transparent;border-bottom-color:transparent}
+.logo-mark:before{width:37px;height:27px}.logo-mark:after{width:25px;height:17px}
+.logo-mark i{width:8px;height:8px;background:var(--primary);border-radius:50%}
+.logo strong{font-size:16px;letter-spacing:0}.logo small{font-size:9px;color:#8f9bad;letter-spacing:1px}
+.menu{height:calc(100vh - 270px);overflow:auto;padding-top:2px}
+.menu-item{width:90%;height:40px;margin:8px auto;padding:0 8px;display:flex;align-items:center;border-radius:10px;color:var(--sub);font-size:14px;font-weight:900;cursor:pointer;user-select:none;transition:.15s}
+.menu-item:hover{color:var(--ink);background:rgba(255,255,255,.58)}
+.menu-item.active{color:var(--primary);background:var(--white);box-shadow:0 3px 14px rgba(47,65,99,.06)}
+.menu-icon{width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:6px;color:#66758b}
+.menu-item.active .menu-icon{color:var(--primary);background:var(--primary-soft)}
+.menu-icon .el-icon{font-size:17px}
+.side-foot{height:170px;padding:9px 14px 12px;color:#7f8b9d;font-size:11px}
+.disk-line{display:flex;justify-content:space-between;margin-bottom:6px}
+.disk-track{height:4px;background:#dfe6ef;border-radius:4px;overflow:hidden;margin-bottom:13px}
+.disk-fill{height:100%;background:var(--primary);border-radius:4px}
+.foot-link{height:36px;display:flex;align-items:center;gap:8px;border-radius:8px;padding:0 7px;cursor:pointer;color:var(--sub);font-size:13px;font-weight:700}
+.foot-link:hover{background:#fff}.foot-link .el-icon{font-size:16px}.version{padding:8px 7px 0;color:#a0abba;font-size:10px}
+.app{min-width:0;flex:1;display:flex;flex-direction:column}
+.top{height:48px;flex:0 0 48px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 14px 0 20px}
+.crumb{font-size:14px;font-weight:900;color:var(--ink)}.crumb span{margin-left:9px;font-size:12px;font-weight:400;color:#a0aaba}
+.top-right{margin-left:auto;height:100%;display:flex;align-items:center;gap:8px}
+.top-status{height:28px;padding:0 10px;display:flex;align-items:center;gap:7px;color:#667386;font-size:12px;border-right:1px solid var(--line)}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(40,189,108,.12)}
+.top-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#788598;cursor:pointer}.top-icon:hover{background:#f1f5fa;color:var(--primary)}
+.content{flex:1;overflow:auto;padding:10px;background:#f2f7fb}
+.page-tools{height:56px;background:#fff;display:flex;align-items:center;padding:0 20px;border-radius:6px;margin-bottom:10px}
+.search{width:270px}.search .el-input__wrapper{box-shadow:0 0 0 1px #e4eaf1 inset;border-radius:5px}
+.page-tools .el-button{border-radius:5px}.grow{flex:1}
+.compact-status{height:48px;background:#fff;border-radius:6px;margin-bottom:10px;padding:0 20px;display:flex;align-items:center;gap:24px}.compact-item{height:26px;display:flex;align-items:center;gap:8px;padding-right:24px;border-right:1px solid var(--line);color:#647185}.compact-item:last-child{border-right:0}.compact-item strong{font-size:15px;color:var(--ink)}.compact-item.record strong{color:var(--green)}.compact-item.live strong{color:var(--pink)}
+.quiet{color:#8a96a8;font-size:12px}.quiet strong{color:var(--primary);font-size:14px;margin:0 3px}
+.overview{background:#fff;border-radius:6px;margin-bottom:10px;padding:0 20px}
+.overview-top{height:58px;display:flex;align-items:center;border-bottom:1px solid var(--line)}
+.overview-title{font-size:16px;font-weight:900;color:var(--ink);display:flex;align-items:center}.overview-title:before{content:"";width:4px;height:16px;border-radius:2px;background:var(--cyan);margin-right:9px}
+.stats-row{display:flex;height:82px;align-items:center}
+.mini-stat{min-width:150px;padding-left:18px;border-left:1px solid var(--line)}
+.mini-stat:first-child{padding-left:0;border-left:0}.mini-label{font-size:12px;color:#8995a6;margin-bottom:5px}.mini-value{font-size:24px;font-weight:900;color:var(--ink);font-variant-numeric:tabular-nums}.mini-value.live{color:var(--pink)}.mini-value.record{color:var(--green)}
+.action-strip{margin-left:auto;display:flex;gap:8px}
+.action-strip .el-button{border-radius:5px}
+.notice{margin-bottom:10px;background:#fff8e8;border:1px solid #f4d897;border-radius:6px;padding:10px 14px;color:#9b6b13;display:flex;align-items:center;gap:9px}
+.industry{background:#fff;border-radius:6px;margin-bottom:10px;overflow:hidden}
+.industry-head{height:52px;padding:0 16px;display:flex;align-items:center}
+.industry-name{font-size:16px;font-weight:900;color:#151917;display:flex;align-items:center}.industry-name:before{content:"";width:4px;height:16px;background:var(--cyan);border-radius:2px;margin-right:9px}
+.industry-meta{margin-left:10px;font-size:12px;color:#a1acba}.industry-actions{margin-left:auto;display:flex;gap:5px}
+.anchor{display:flex;align-items:center;min-width:0}.avatar,.avatar-fallback{width:40px;height:40px;flex:0 0 40px;border-radius:50%;object-fit:cover}.avatar-fallback{display:flex;align-items:center;justify-content:center;background:#eef3f8;color:#9ca8b7}
+.anchor-info{min-width:0;margin-left:12px}.anchor-name{max-width:175px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text);font-size:14px}.anchor-state{font-size:13px;color:#95a1af;margin-top:2px}.anchor-state.live{color:var(--pink)}
+.record-state{display:inline-flex;align-items:center;gap:6px;color:#8995a4}.record-state i{width:6px;height:6px;border-radius:50%;background:#a9b2bf}.record-state.recording{color:var(--green)}.record-state.recording i{background:var(--green)}.record-state.waiting{color:#e59a24}.record-state.waiting i{background:#e59a24}.record-state.error{color:var(--red)}.record-state.error i{background:var(--red)}
+.el-table{--el-table-border-color:#edf1f5;--el-table-header-bg-color:#f8fcff;--el-table-row-hover-bg-color:#fafcff;color:var(--text)}
+.el-table th.el-table__cell{height:46px;color:var(--primary);font-weight:600;font-size:13px;background:var(--primary-soft)!important;border-bottom:0!important}
+.el-table thead th .cell{display:inline-flex;align-items:center;justify-content:center;background:var(--white);padding:4px 14px;border-radius:14px;line-height:1.4;box-shadow:0 1px 4px rgba(68,76,255,.08)}.el-table td.el-table__cell{height:64px}.el-table .cell{padding-left:16px;padding-right:16px}
+.empty-panel{height:430px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#9da8b7}.empty-panel .el-icon{font-size:42px;margin-bottom:12px;color:#c1cad5}.empty-panel strong{font-size:15px;color:#69768a;margin-bottom:4px}
+.add-page{display:grid;grid-template-columns:minmax(520px,700px) 1fr;gap:10px}.panel{background:#fff;border-radius:6px;padding:20px}.panel-title{font-size:16px;color:var(--ink);font-weight:900;margin-bottom:18px;display:flex;align-items:center}.panel-title:before{content:"";width:4px;height:16px;background:var(--cyan);border-radius:2px;margin-right:9px}
+.preview{padding:16px;background:#f8fcff;border:1px solid #e7edf4;border-radius:6px;margin-top:15px}.preview-row{display:flex;margin-top:7px;font-size:12px}.preview-row label{width:70px;color:#99a5b4}.preview-row span{color:var(--text);word-break:break-all}
+.history-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:14px}.history-toolbar .el-button{border-radius:5px}
+.page-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.page-grid.three{grid-template-columns:repeat(3,minmax(0,1fr))}
+.summary-box{background:#fff;border-radius:6px;padding:18px;min-height:116px}.summary-icon{width:40px;height:40px;border-radius:8px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;margin-bottom:12px}.summary-icon .el-icon{font-size:20px}.summary-label{font-size:12px;color:#8c98a9}.summary-value{font-size:24px;color:var(--ink);font-weight:900;margin-top:3px}.summary-hint{font-size:11px;color:#a1abba;margin-top:3px}
+.section-space{margin-top:10px}.plain-list{background:#fff;border-radius:6px;padding:0 20px}.plain-row{min-height:58px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px}.plain-row:last-child{border-bottom:0}.plain-row-icon{width:32px;height:32px;border-radius:7px;background:#f2f6fb;color:#748299;display:flex;align-items:center;justify-content:center}.plain-row-main{flex:1}.plain-row-title{font-weight:700;color:var(--text)}.plain-row-desc{font-size:12px;color:#9aa5b4;margin-top:2px}
+.word-layout{display:grid;grid-template-columns:320px 1fr;gap:10px}.word-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}.word-tag{display:inline-flex;align-items:center;gap:5px;border:1px solid #e3e9f1;border-radius:4px;padding:5px 8px;color:#59667a;background:#fbfdff}.word-tag button{border:0;background:none;color:#a3adba;cursor:pointer;padding:0}.word-tag button:hover{color:var(--red)}
+.setting-group{background:#fff;border-radius:6px;margin-bottom:10px;padding:0 20px}.setting-head{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;font-size:15px;color:var(--ink);font-weight:900}.setting-row{min-height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center}.setting-row:last-child{border-bottom:0}.setting-name{font-weight:700}.setting-desc{font-size:12px;color:#9aa5b4;margin-top:2px}.setting-value{margin-left:auto;display:flex;align-items:center;gap:8px;color:#687588}.health-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}.health-dot.bad{background:var(--red)}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-radius:6px;padding:22px 16px;margin-bottom:10px}.step{position:relative;text-align:center;color:#738095}.step:not(:last-child):after{content:"";position:absolute;height:1px;background:#dfe6ef;top:16px;left:62%;right:-38%}.step-num{width:32px;height:32px;border-radius:50%;margin:0 auto 8px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:900}.step-title{font-weight:700;color:var(--text);font-size:13px}.step-desc{font-size:11px;margin-top:3px}
+.faq{background:#fff;border-radius:6px;padding:4px 20px}.faq .el-collapse{border:0}.faq .el-collapse-item__header{font-weight:700;color:var(--text);border-bottom-color:var(--line)}.faq .el-collapse-item__wrap{border-bottom-color:var(--line)}.faq .el-collapse-item__content{color:#748195;line-height:1.9}
+@media(max-width:900px){.side{width:126px;flex-basis:126px}.add-page{grid-template-columns:1fr}.mini-stat{min-width:110px}.content{padding:7px}}
+.tour-overlay{position:fixed;inset:0;z-index:10000;pointer-events:auto}
+.tour-spotlight{position:fixed;z-index:10001;border-radius:8px;box-shadow:0 0 0 9999px rgba(0,0,0,.55);transition:all .35s cubic-bezier(.4,0,.2,1);pointer-events:none}
+.tour-spotlight.center{width:0;height:0;top:50%;left:50%;box-shadow:0 0 0 9999px rgba(0,0,0,.55)}
+.tour-tip{position:fixed;z-index:10002;background:#fff;border-radius:14px;padding:28px 28px 22px;width:360px;box-shadow:0 12px 40px rgba(0,0,0,.22);animation:tourIn .3s ease}
+@keyframes tourIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.tour-tip .tour-step{font-size:11px;color:var(--primary);font-weight:700;margin-bottom:6px;letter-spacing:.5px}
+.tour-tip .tour-title{font-size:17px;font-weight:900;color:var(--ink);margin-bottom:8px}
+.tour-tip .tour-desc{font-size:13px;color:var(--sub);line-height:1.7;margin-bottom:20px}
+.tour-tip .tour-actions{display:flex;align-items:center;justify-content:space-between}
+.tour-tip .tour-skip{border:0;background:none;color:#a0abba;font-size:13px;cursor:pointer;padding:0}
+.tour-tip .tour-skip:hover{color:var(--sub)}
+.tour-tip .tour-next{height:36px;padding:0 22px;border:0;border-radius:8px;background:var(--primary);color:#fff;font-size:14px;font-weight:700;cursor:pointer;transition:.15s}
+.tour-tip .tour-next:hover{filter:brightness(1.12)}
+.tour-dots{display:flex;gap:5px;justify-content:center;margin-bottom:18px}
+.tour-dots i{width:6px;height:6px;border-radius:50%;background:#dce2ea;transition:.2s}
+.tour-dots i.active{width:18px;background:var(--primary)}
+.export-overlay{position:fixed;inset:0;background:rgba(21,23,25,.45);z-index:9999;display:flex;align-items:center;justify-content:center}
+.export-card{background:#fff;border-radius:12px;padding:32px 44px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.18);min-width:320px}
+.export-card .title{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:16px}
+.export-card .desc{font-size:13px;color:var(--sub);margin-bottom:20px}
+.export-track{height:6px;background:#edf1f5;border-radius:3px;overflow:hidden}
+.export-fill{height:100%;background:linear-gradient(90deg,var(--primary),var(--cyan));border-radius:3px;transition:width .3s ease;min-width:4%}
+.export-pct{margin-top:10px;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<div id="app">
+<div v-if="exporting.active" class="export-overlay">
+  <div class="export-card">
+    <div class="title">{{exporting.title}}</div>
+    <div class="desc">{{exporting.desc}}</div>
+    <div class="export-track"><div class="export-fill" :style="{width:exporting.pct+'%'}"></div></div>
+    <div class="export-pct">{{exporting.pct < 100 ? exporting.pct+'%' : '正在保存文件…'}}</div>
+  </div>
+</div>
+<div v-if="tour.active" class="tour-overlay" @click.self.prevent></div>
+<div v-if="tour.active" class="tour-spotlight" :class="{center:!tour.rect}" :style="tour.rect?{top:tour.rect.top-8+'px',left:tour.rect.left-8+'px',width:tour.rect.width+16+'px',height:tour.rect.height+16+'px'}:{}"></div>
+<div v-if="tour.active" class="tour-tip" :style="{top:tour.tipY+'px',left:tour.tipX+'px'}">
+  <div class="tour-step">步骤 {{tour.idx+1}} / {{tourSteps.length}}</div>
+  <div class="tour-title">{{tourSteps[tour.idx].title}}</div>
+  <div class="tour-desc">{{tourSteps[tour.idx].desc}}</div>
+  <div class="tour-dots"><i v-for="(_,i) in tourSteps" :key="i" :class="{active:i===tour.idx}"></i></div>
+  <div class="tour-actions"><button class="tour-skip" @click="endTour">跳过引导</button><button class="tour-next" @click="nextTour">{{tour.idx<tourSteps.length-1?'下一步 →':'开始使用'}}</button></div>
+</div>
+<div class="shell">
+  <aside class="side">
+    <div class="logo"><div class="logo-mark"><i></i></div><strong>LiveWatch</strong><small>直播复盘助手</small></div>
+    <nav class="menu">
+      <div v-for="item in navs" :key="item.key" class="menu-item" :class="{active:view===item.key}" @click="view=item.key">
+        <span class="menu-icon"><el-icon><component :is="item.icon"/></el-icon></span><span>{{item.label}}</span>
+      </div>
+    </nav>
+    <div class="side-foot">
+      <div class="disk-line"><span>磁盘空间</span><span>{{diag.disk_text}}</span></div>
+      <div class="disk-track"><div class="disk-fill" :style="{width:diskPercent+'%'}"></div></div>
+      <div class="foot-link" :class="{active:view==='settings'}" @click="view='settings'"><el-icon><Setting/></el-icon><span>系统设置</span></div>
+      <div class="version">LiveWatch v1.0.0<br>本地数据 · 本地转写</div>
+    </div>
+  </aside>
+  <main class="app">
+    <header class="top">
+      <div class="crumb">{{activeNav.label}}<span>{{activeNav.desc}}</span></div>
+      <div class="top-right">
+        <div class="top-status"><i class="pulse"></i><span>服务运行中</span></div>
+        <div class="top-icon" title="刷新" @click="refreshAll"><el-icon><Refresh/></el-icon></div>
+        <div class="top-icon" title="帮助"><el-icon><QuestionFilled/></el-icon></div>
+      </div>
+    </header>
+    <section class="content">
+      <template v-if="view==='dashboard'">
+        <div class="compact-status"><div class="compact-item"><span>所有主播</span><strong>{{(rooms||[]).length}}</strong></div><div class="compact-item live"><span>直播中</span><strong>{{liveCount}}</strong></div><div class="compact-item record"><span>录制中</span><strong>{{recordCount}}</strong></div><span class="grow"></span><span class="quiet">同时监听上限 {{maxActiveRooms}} 个</span></div>
+        <div class="page-tools">
+          <el-input v-model="keyword" class="search" placeholder="输入主播名称" clearable><template #prefix><el-icon><Search/></el-icon></template></el-input>
+          <el-button type="primary" style="margin-left:8px">查询</el-button>
+          <span class="grow"></span><el-button @click="startAll"><el-icon><VideoPlay/></el-icon>&nbsp;全部开始</el-button><el-button @click="stopAll"><el-icon><VideoPause/></el-icon>&nbsp;全部停止</el-button><el-button type="primary" @click="view='add'"><el-icon><Plus/></el-icon>&nbsp;添加主播</el-button>
+        </div>
+        <div v-if="risk.active||cookieNotice" class="notice"><el-icon><WarningFilled/></el-icon><span>{{risk.active?(risk.reason||'检测到验证页，监听任务已进入冷却。'):cookieNotice}}</span><span class="grow"></span><el-button size="small" @click="remint">重新验证</el-button></div>
+        <div class="industry">
+          <div class="industry-head"><div class="industry-name">全部主播</div><span class="industry-meta">{{(filteredRooms||[]).length}} 位主播</span><div class="industry-actions"><el-button size="small" text @click="dlSummary"><el-icon><Download/></el-icon>&nbsp;导出汇总</el-button></div></div>
+          <el-table :data="filteredRooms" empty-text="暂无主播，请先添加主播" style="width:100%">
+            <el-table-column label="主播" min-width="220">
+              <template #default="{row}"><div class="anchor"><img v-if="row.avatar_url" :src="row.avatar_url" class="avatar" @error="row.avatar_url=''"><div v-else class="avatar-fallback"><el-icon><UserFilled/></el-icon></div><div class="anchor-info"><div class="anchor-name">{{row.anchor_name||'主播资料待补充'}}</div><div class="anchor-state" :class="{live:isLive(row)}">{{anchorStatus(row)}} · {{row.rid}}</div></div></div></template>
+            </el-table-column>
+            <el-table-column label="是否自动录制" width="140" align="center"><template #default="{row}"><el-switch :model-value="row.active" @change="v=>toggleRoom(row.rid,v)"/></template></el-table-column>
+            <el-table-column label="录制状态" width="130" align="center"><template #default="{row}"><span class="record-state" :class="stateClass(row)"><i></i>{{phaseText(row.phase)}}</span></template></el-table-column>
+            <el-table-column label="操作" width="270" align="right"><template #default="{row}"><el-button size="small" text type="primary" @click="dlExcel(row.rid)">查看数据</el-button><el-button size="small" text :loading="refreshingAnchors.has(row.rid)" @click="refreshAnchor(row)">刷新资料</el-button><el-button size="small" text @click="row.active?stopRoom(row.rid):startRoom(row.rid)">{{row.active?'停止':'开始'}}</el-button><el-popconfirm title="确定移除该主播？" @confirm="delRoom(row.rid)"><template #reference><el-button size="small" text type="danger">删除</el-button></template></el-popconfirm></template></el-table-column>
+          </el-table>
+        </div>
+      </template>
+
+      <template v-else-if="view==='add'">
+        <div class="add-page">
+          <div class="panel"><div class="panel-title">添加主播</div>
+            <el-form label-position="top"><el-form-item label="主播分享链接或直播号"><el-input v-model="addText" type="textarea" :rows="5" placeholder="粘贴抖音分享文案、直播链接，或直接输入直播号"/></el-form-item></el-form>
+            <el-button type="primary" :loading="resolving" @click="doResolve">解析主播</el-button>
+            <el-button v-if="resolved" :loading="adding" @click="doAdd">添加到主播列表</el-button>
+            <div v-if="addErr" style="color:var(--red);margin-top:12px">{{addErr}}</div>
+            <div v-if="resolved" class="preview"><div class="anchor"><img v-if="resolved.avatar_url" :src="resolved.avatar_url" class="avatar" @error="resolved.avatar_url=''"><div v-else class="avatar-fallback"><el-icon><UserFilled/></el-icon></div><div class="anchor-info"><div class="anchor-name">{{resolved.anchor_name||'主播资料暂未取得'}}</div><div class="anchor-state" :class="{live:resolved.is_live===true}">{{resolved.is_live===true?'正在直播':resolved.is_live===false?'当前未开播':'直播状态待确认'}}</div></div></div><div class="preview-row"><label>直播号</label><span>{{resolved.web_id||resolved.room_id}}</span></div><div class="preview-row"><label>来源链接</label><span>{{resolved.source_url}}</span></div></div>
+          </div>
+          <div class="panel"><div class="panel-title">主播管理说明</div><div style="color:#7d899a;line-height:2">添加后可在数据大盘中开启自动录制。主播开播后，监听、录音、转写和声纹标注均在本机完成。</div></div>
+        </div>
+      </template>
+
+      <template v-else-if="view==='review'">
+        <div class="page-grid three">
+          <div class="summary-box"><div class="summary-icon"><el-icon><Document/></el-icon></div><div class="summary-label">累计话术片段</div><div class="summary-value">{{dataTotals.transcripts}}</div><div class="summary-hint">已完成本地转写</div></div>
+          <div class="summary-box"><div class="summary-icon"><el-icon><ChatDotRound/></el-icon></div><div class="summary-label">累计弹幕 / 事件</div><div class="summary-value">{{dataTotals.events}}</div><div class="summary-hint">来自直播间实时监听</div></div>
+          <div class="summary-box"><div class="summary-icon"><el-icon><Headset/></el-icon></div><div class="summary-label">录音片段</div><div class="summary-value">{{dataTotals.audio}}</div><div class="summary-hint">原始音频留存在本机</div></div>
+        </div>
+        <div class="panel section-space"><div class="panel-title">智能复盘</div><div class="history-toolbar"><el-button type="primary" @click="dlSummary"><el-icon><Download/></el-icon>&nbsp;下载全部汇总</el-button><el-button @click="dlSelected"><el-icon><Files/></el-icon>&nbsp;下载所选主播</el-button><el-button @click="toggleAllHist">全选 / 取消</el-button></div>
+          <el-table ref="ht" :data="dataRooms" @selection-change="s=>selData=s"><el-table-column type="selection" width="46"/><el-table-column label="主播" min-width="180"><template #default="{row}">{{row.nickname||row.rid}}</template></el-table-column><el-table-column label="话术" prop="transcripts" width="100" align="center"/><el-table-column label="弹幕 / 事件" prop="events" width="120" align="center"/><el-table-column label="录音" prop="audio_files" width="100" align="center"/><el-table-column label="操作" width="180" align="right"><template #default="{row}"><el-button text type="primary" @click="dlExcel(row.rid)">导出数据</el-button><el-popconfirm title="确定彻底清除该主播数据？" @confirm="clearData(row.rid)"><template #reference><el-button text type="danger">清除</el-button></template></el-popconfirm></template></el-table-column></el-table>
+        </div>
+      </template>
+
+      <template v-else-if="view==='pre'">
+        <div class="steps"><div class="step"><div class="step-num">1</div><div class="step-title">添加主播</div><div class="step-desc">识别主播与直播号</div></div><div class="step"><div class="step-num">2</div><div class="step-title">完成验证</div><div class="step-desc">准备可信 Cookie</div></div><div class="step"><div class="step-num">3</div><div class="step-title">启动托管</div><div class="step-desc">等待主播开播</div></div><div class="step"><div class="step-num">4</div><div class="step-title">导出复盘</div><div class="step-desc">查看话术和直播数据</div></div></div>
+        <div class="page-grid">
+          <div class="panel"><div class="panel-title">主播准备状态</div><el-table :data="rooms" max-height="460"><el-table-column label="主播" min-width="160"><template #default="{row}">{{row.anchor_name||row.rid}}</template></el-table-column><el-table-column label="托管状态" width="105" align="center"><template #default="{row}"><span class="record-state" :class="stateClass(row)"><i></i>{{row.active?'已托管':'未托管'}}</span></template></el-table-column><el-table-column label="操作" width="100" align="right"><template #default="{row}"><el-button text type="primary" @click="toggleRoom(row.rid,!row.active)">{{row.active?'停止':'启动'}}</el-button></template></el-table-column></el-table></div>
+          <div><div class="setting-group"><div class="setting-head">运行检查</div><div class="setting-row"><div><div class="setting-name">信任 Cookie</div><div class="setting-desc">用于访问直播页和获取音频流</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.cookie_ok}"></i>{{diag.cookie_text}}<el-button size="small" @click="remint">重新验证</el-button></div></div><div class="setting-row"><div><div class="setting-name">本地转写模型</div><div class="setting-desc">SenseVoice 本地语音转文字</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.models_ok}"></i>{{diag.models_text}}</div></div><div class="setting-row"><div><div class="setting-name">磁盘空间</div><div class="setting-desc">录音和数据库均保存在本机</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.disk_ok}"></i>{{diag.disk_text}}</div></div></div></div>
+        </div>
+      </template>
+
+      <template v-else-if="view==='cloud'">
+        <div class="page-grid three"><div class="summary-box"><div class="summary-icon"><el-icon><FolderOpened/></el-icon></div><div class="summary-label">历史主播</div><div class="summary-value">{{(dataRooms||[]).length}}</div><div class="summary-hint">已有本地数据的主播</div></div><div class="summary-box"><div class="summary-icon"><el-icon><Headset/></el-icon></div><div class="summary-label">本地录音</div><div class="summary-value">{{dataTotals.audio}}</div><div class="summary-hint">可在导出表中溯源</div></div><div class="summary-box"><div class="summary-icon"><el-icon><Coin/></el-icon></div><div class="summary-label">磁盘剩余</div><div class="summary-value">{{diag.disk_text}}</div><div class="summary-hint">数据不会上传至云端</div></div></div>
+        <div class="panel section-space"><div class="panel-title">本地数据空间</div><div class="history-toolbar"><el-button type="primary" @click="dlSummary"><el-icon><Download/></el-icon>&nbsp;下载汇总 Excel</el-button><el-button @click="exportAll"><el-icon><FolderOpened/></el-icon>&nbsp;生成全部导出文件</el-button></div><el-table :data="dataRooms"><el-table-column label="主播 / 房间" min-width="200"><template #default="{row}">{{row.nickname||row.rid}}<div class="anchor-state">{{row.rid}}</div></template></el-table-column><el-table-column label="话术" prop="transcripts" width="100" align="center"/><el-table-column label="弹幕" prop="events" width="100" align="center"/><el-table-column label="录音文件" prop="audio_files" width="120" align="center"/><el-table-column label="操作" width="140" align="right"><template #default="{row}"><el-button text type="primary" @click="dlExcel(row.rid)">导出 Excel</el-button></template></el-table-column></el-table></div>
+      </template>
+
+      <template v-else-if="view==='words'">
+        <div class="word-layout"><div class="panel"><div class="panel-title">添加本地关键词</div><el-input v-model="wordInput" placeholder="输入关键词" @keyup.enter="addWord"/><el-select v-model="wordType" style="width:100%;margin-top:10px"><el-option label="重点词" value="重点词"/><el-option label="产品词" value="产品词"/><el-option label="风险词" value="风险词"/></el-select><el-button type="primary" style="width:100%;margin-top:12px" @click="addWord">添加到词库</el-button></div><div class="panel"><div class="panel-title">本地词库</div><div class="quiet">词库保存在本机浏览器中，后续可用于话术高亮和复盘筛选。</div><div class="word-tags"><span v-for="(w,i) in words" :key="w.text+w.type" class="word-tag">{{w.text}} · {{w.type}}<button @click="removeWord(i)">×</button></span><span v-if="!(words&&words.length)" class="quiet">暂未添加关键词</span></div></div></div>
+      </template>
+
+      <template v-else-if="view==='help'">
+        <div class="panel"><div class="panel-title">帮助中心</div><div class="faq"><el-collapse><el-collapse-item title="如何开始监听一个主播？" name="1"><div>进入「添加主播」，粘贴抖音分享文案或直播链接，解析并添加后，在数据大盘开启自动录制。</div></el-collapse-item><el-collapse-item title="为什么需要重新验证 Cookie？" name="2"><div>抖音偶尔会要求完成滑块验证。只有用户主动点击「重新验证」时才会打开浏览器，后台不会反复弹窗。</div></el-collapse-item><el-collapse-item title="录音和转写结果保存在哪里？" name="3"><div>全部保存在本机数据目录。可在「智能复盘」下载总表，也可在「云空间」查看各房间的数据数量。</div></el-collapse-item><el-collapse-item title="软件会上传直播数据吗？" name="4"><div>当前版本不上传录音、弹幕、话术或 Cookie；监听、转写、声纹和导出均在本机执行。</div></el-collapse-item></el-collapse></div></div>
+      </template>
+
+      <template v-else-if="view==='settings'">
+        <div class="setting-group"><div class="setting-head">运行环境</div><div class="setting-row"><div><div class="setting-name">信任 Cookie</div><div class="setting-desc">仅在用户主动验证后更新</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.cookie_ok}"></i>{{diag.cookie_text}}<el-button size="small" @click="remint">重新验证</el-button></div></div><div class="setting-row"><div><div class="setting-name">本地模型</div><div class="setting-desc">转写模型与声纹模型状态</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.models_ok}"></i>{{diag.models_text}}</div></div><div class="setting-row"><div><div class="setting-name">后台任务</div><div class="setting-desc">录音、转写与声纹处理队列</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.queue_ok}"></i>{{diag.queue_text}}</div></div></div>
+        <div class="setting-group"><div class="setting-head">网络与代理</div><div class="setting-row"><div><div class="setting-name">代理服务器</div><div class="setting-desc" style="max-width:320px;word-break:break-all">{{proxyUrl||'未配置（直连）'}}</div></div><div class="setting-value"><el-input v-model="proxyInput" placeholder="http://127.0.0.1:10809" size="small" style="width:220px;margin-right:8px" @keyup.enter="saveProxy"/><el-button size="small" type="primary" @click="saveProxy">保存</el-button><el-button size="small" @click="testProxy" :loading="proxyTesting">测试</el-button><el-button size="small" v-if="proxyUrl" @click="clearProxy">清除</el-button></div></div><div class="setting-row"><div><div class="setting-name">连接策略</div><div class="setting-desc">WSS 端点随机轮换 + 10s 心跳间隔，降低风控识别概率</div></div><div class="setting-value"><i class="health-dot"></i>已启用</div></div></div>
+        <div class="setting-group"><div class="setting-head">数据与存储</div><div class="setting-row"><div><div class="setting-name">导出路径</div><div class="setting-desc" style="max-width:320px;word-break:break-all">{{exportDir||'默认'}}</div></div><div class="setting-value"><el-button size="small" @click="pickExportDir">更改目录</el-button><el-button size="small" @click="openExportDir">打开目录</el-button></div></div><div class="setting-row"><div><div class="setting-name">磁盘剩余</div><div class="setting-desc">空间不足时建议及时导出并归档录音</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.disk_ok}"></i>{{diag.disk_text}}</div></div><div class="setting-row"><div><div class="setting-name">历史数据</div><div class="setting-desc">清除操作将永久删除对应房间的数据库和音频</div></div><div class="setting-value">{{(dataRooms||[]).length}} 个主播<el-button size="small" @click="view='review'">管理数据</el-button></div></div></div>
+      </template>
+    </section>
+  </main>
+</div>
+</div>
+<script src="/static/vue.global.prod.js"></script>
+<script src="/static/element-plus.full.min.js"></script>
+<script src="/static/element-plus-icons.iife.min.js"></script>
+<script>
+const {createApp,ref,reactive,computed,onMounted,onUnmounted,watch}=Vue;
+const {ElMessage}=ElementPlus;
+const app=createApp({setup(){
+  const view=ref('dashboard'),keyword=ref(''),rooms=ref([]),dataRooms=ref([]),selData=ref([]),ht=ref(null),maxActiveRooms=ref(5);
+  const navs=[{key:'dashboard',label:'数据大盘',desc:'主播监听与录制状态',icon:'DataBoard'},{key:'add',label:'添加主播',desc:'添加并管理主播',icon:'CirclePlusFilled'},{key:'pre',label:'播前分析',desc:'直播准备与历史参考',icon:'TrendCharts'},{key:'review',label:'智能复盘',desc:'话术、弹幕与直播数据',icon:'DataAnalysis'},{key:'cloud',label:'云空间',desc:'数据同步与存储',icon:'Cloudy'},{key:'words',label:'本地词库',desc:'关键词与行业词库',icon:'Collection'},{key:'help',label:'帮助中心',desc:'使用说明与常见问题',icon:'QuestionFilled'},{key:'settings',label:'系统设置',desc:'本地服务与模型设置',icon:'Setting'}];
+  const activeNav=computed(()=>navs.find(n=>n.key===view.value)||navs[0]);
+  const risk=reactive({active:false,until_ts:0,reason:''}),diag=reactive({disk_text:'检查中',free_gb:0,cookie_ok:false,cookie_text:'检查中',models_ok:false,models_text:'检查中',disk_ok:true,queue_ok:true,queue_text:'检查中'}),cookieNotice=ref('');
+  const addText=ref(''),resolved=ref(null),resolving=ref(false),adding=ref(false),addErr=ref('');
+  const refreshingAnchors=reactive(new Set());
+  const wordInput=ref(''),wordType=ref('重点词'),words=ref([]);
+  const exporting=reactive({active:false,title:'',desc:'',pct:0});
+  const exportDir=ref('');
+  const proxyUrl=ref(''),proxyInput=ref(''),proxyTesting=ref(false);
+  const tourSteps=[
+    {title:'欢迎使用 LiveWatch',desc:'这是一款本地直播复盘工具，帮你自动录制、转写、分析抖音直播。跟着引导 3 分钟完成初始设置。',view:null,sel:null},
+    {title:'第一步：添加主播',desc:'点击这里进入添加页面，粘贴抖音分享链接或直播间地址，系统会自动识别主播。',view:'dashboard',sel:'.page-tools .el-button--primary:last-child'},
+    {title:'粘贴链接并解析',desc:'在输入框粘贴主播的抖音分享文案或直播链接，点击"解析"即可识别主播信息。',view:'add',sel:'.add-page .panel:first-child'},
+    {title:'验证信任 Cookie',desc:'首次使用需要验证一次抖音 Cookie，系统会弹出浏览器让你完成滑块验证，之后自动缓存。',view:'pre',sel:'.setting-row .el-button'},
+    {title:'启动监控',desc:'回到数据大盘，点击"全部开始"即可启动自动录制。系统会定期轮询主播是否开播，开播后自动录音和采集弹幕。',view:'dashboard',sel:'.page-tools .el-button:nth-child(4)'},
+    {title:'导出复盘数据',desc:'录制完成后，来「智能复盘」下载话术、弹幕和直播数据的 Excel 汇总表。',view:'review',sel:'.history-toolbar .el-button--primary'},
+    {title:'设置导出路径',desc:'在系统设置中可以自定义导出文件夹，文件直接保存到你指定的位置。',view:'settings',sel:'.setting-group:nth-child(2) .setting-row:first-child'},
+    {title:'一切就绪！',desc:'引导结束。现在你可以开始添加主播，体验完整的直播复盘流程了。祝使用愉快！',view:'dashboard',sel:null}
+  ];
+  const tour=reactive({active:false,idx:0,rect:null,tipX:0,tipY:0});
+  function positionTour(){
+    const step=tourSteps[tour.idx];
+    if(!step.sel){tour.rect=null;tour.tipX=Math.max(40,window.innerWidth/2-180);tour.tipY=Math.max(60,window.innerHeight/2-120);return}
+    const el=document.querySelector(step.sel);
+    if(!el){tour.rect=null;tour.tipX=Math.max(40,window.innerWidth/2-180);tour.tipY=Math.max(60,window.innerHeight/2-120);return}
+    const r=el.getBoundingClientRect();
+    tour.rect={top:r.top,left:r.left,width:r.width,height:r.height};
+    let tx=r.left,ty=r.bottom+20;
+    if(ty+260>window.innerHeight)ty=Math.max(10,r.top-270);
+    if(tx+360>window.innerWidth)tx=Math.max(10,window.innerWidth-380);
+    tour.tipX=tx;tour.tipY=ty;
+  }
+  function startTour(){tour.idx=0;tour.active=true;const step=tourSteps[0];if(step.view&&step.view!==view.value)view.value=step.view;setTimeout(positionTour,80)}
+  function nextTour(){
+    if(tour.idx>=tourSteps.length-1){endTour();return}
+    tour.idx++;const step=tourSteps[tour.idx];
+    if(step.view&&step.view!==view.value)view.value=step.view;
+    setTimeout(positionTour,80);
+  }
+  function endTour(){tour.active=false;localStorage.setItem('livewatch_tour_done','1')}
+  const PM={stopped:'未录制',stopping:'停止中',starting:'启动中',waiting:'等待开播',recording:'录制中',reconnecting:'重连中',risk_cooldown:'风控冷却',needs_verification:'等待验证',error:'异常'};
+  const phaseText=p=>PM[p]||p||'未知';
+  const isLive=r=>['recording','reconnecting'].includes(r.phase);
+  const filteredRooms=computed(()=>{const k=keyword.value.trim().toLowerCase();const rs=Array.isArray(rooms.value)?rooms.value:[];return k?rs.filter(r=>(r.anchor_name||'').toLowerCase().includes(k)||String(r.rid).includes(k)):rs});
+  const recordCount=computed(()=>(Array.isArray(rooms.value)?rooms.value:[]).filter(r=>r.phase==='recording').length);
+  const liveCount=computed(()=>(Array.isArray(rooms.value)?rooms.value:[]).filter(isLive).length);
+  const dataTotals=computed(()=>(Array.isArray(dataRooms.value)?dataRooms.value:[]).reduce((a,r)=>({transcripts:a.transcripts+(r.transcripts||0),events:a.events+(r.events||0),audio:a.audio+(r.audio_files||0)}),{transcripts:0,events:0,audio:0}));
+  const diskPercent=computed(()=>Math.max(8,Math.min(100,(diag.free_gb||0)/2)));
+  const anchorStatus=r=>r.phase==='recording'?'正在直播':r.phase==='reconnecting'?'直播连接中断':r.phase==='waiting'?'等待主播开播':r.phase==='starting'?'正在检查直播状态':r.phase==='stopped'?'未启动监听':phaseText(r.phase);
+  const stateClass=r=>r.phase==='recording'?'recording':['waiting','starting','reconnecting','needs_verification'].includes(r.phase)?'waiting':['error','risk_cooldown'].includes(r.phase)?'error':'';
+  async function refresh(){try{const d=await(await fetch('/api/status')).json();rooms.value=d.rooms||[];maxActiveRooms.value=d.limits?.max_active_rooms||5;risk.active=!!d.risk_control?.active;risk.until_ts=d.risk_control?.until_ts||0;risk.reason=d.risk_control?.reason||''}catch(e){}}
+  async function refreshData(){try{dataRooms.value=(await(await fetch('/api/data/rooms')).json()).rooms||[]}catch(e){}}
+  async function refreshDiag(){try{const d=await(await fetch('/api/diagnostics')).json();diag.free_gb=d.storage?.free_gb||0;diag.disk_text=diag.free_gb+' GB';diag.disk_ok=diag.free_gb>=10;const s=d.cookie?.state;diag.cookie_ok=s==='ready';diag.cookie_text={ready:'可用',expired:'需要刷新',missing:'尚未验证',invalid:'数据无效'}[s]||'未知';diag.models_ok=!!d.models?.ready;diag.models_text=d.models?.ready?'全部就绪':'模型不完整';const tp=d.queues?.transcription_pending||0,sp=d.queues?.speaker_pending||0;diag.queue_text='转写 '+tp+' / 声纹 '+sp;diag.queue_ok=tp<20&&sp<20;cookieNotice.value=['missing','invalid'].includes(s)?'当前没有可用的信任 Cookie，请先完成验证。':s==='expired'?'信任 Cookie 已超过刷新周期，请重新验证。':''}catch(e){}}
+  const post=u=>fetch(u,{method:'POST'}),del=u=>fetch(u,{method:'DELETE'});
+  async function startRoom(rid){await post('/api/rooms/'+rid+'/start');refresh()}async function stopRoom(rid){await post('/api/rooms/'+rid+'/stop');refresh()}
+  async function startAll(){await post('/api/start_all');refresh()}async function stopAll(){await post('/api/stop_all');refresh()}
+  async function toggleRoom(rid,v){v?await startRoom(rid):await stopRoom(rid)}async function delRoom(rid){await del('/api/rooms/'+rid);refresh()}
+  async function _saveFile(endpoint,body,title){
+    exporting.active=true;exporting.title=title;exporting.desc='正在生成文件，请稍候…';exporting.pct=10;
+    try{
+      const resp=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});
+      exporting.pct=80;
+      if(!resp.ok){const e=await resp.text();ElMessage.error('导出失败：'+e);return}
+      const r=await resp.json();exporting.pct=100;exporting.desc='文件已保存';
+      ElMessage({message:'已保存到 exports 文件夹',type:'success',duration:4000});
+      try{await fetch('/api/open-folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:r.dir})})}catch(e){}
+    }catch(e){ElMessage.error('导出失败：'+e.message)}finally{setTimeout(()=>{exporting.active=false},600)}
+  }
+  function dlExcel(rid){_saveFile('/api/export/save/'+encodeURIComponent(rid),null,'主播数据')}
+  function dlSummary(){_saveFile('/api/export/save/summary',null,'直播复盘汇总')}
+  function dlSelected(){const ids=selData.value.map(r=>r.rid);if(!ids.length)return ElMessage.warning('请先勾选主播');_saveFile('/api/export/save/selection',{rids:ids},'所选主播汇总')}
+  async function exportAll(){const r=await(await post('/api/export')).json();ElMessage.success('已生成 '+r.rooms+' 个主播的导出文件')}
+  async function clearData(rid){await del('/api/data/'+rid);ElMessage.success('已清除');refreshData()}
+  async function remint(){try{const r=await(await post('/api/cookie/remint')).json();ElMessage.info(r.message||'验证完成');refreshDiag()}catch(e){ElMessage.error('无法启动验证浏览器')}}
+  function toggleAllHist(){ht.value?.toggleAllSelection()}
+  async function doResolve(){if(!addText.value.trim())return ElMessage.warning('请粘贴链接或输入直播号');resolving.value=true;resolved.value=null;addErr.value='';try{const r=await(await fetch('/api/anchor/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input_text:addText.value})})).json();r.ok?resolved.value=r.anchor:addErr.value=r.error||'解析失败'}catch(e){addErr.value='解析失败'}finally{resolving.value=false}}
+  async function doAdd(){const a=resolved.value,rid=a?.web_id||a?.room_id;if(!rid)return;adding.value=true;try{await fetch('/api/anchors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(a)});ElMessage.success('已添加主播');addText.value='';resolved.value=null;view.value='dashboard';refresh()}finally{adding.value=false}}
+  async function fetchExportDir(){try{exportDir.value=(await(await fetch('/api/export-dir')).json()).dir||''}catch(e){}}
+  async function pickExportDir(){try{const r=await(await fetch('/api/pick-folder',{method:'POST'})).json();if(!r.ok)return;await fetch('/api/export-dir',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({dir:r.dir})});exportDir.value=r.dir;ElMessage.success('导出路径已更新')}catch(e){ElMessage.error('选择文件夹失败')}}
+  async function openExportDir(){try{await fetch('/api/open-folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:exportDir.value||''})})}catch(e){}}
+  async function fetchProxy(){try{const r=await(await fetch('/api/proxy')).json();proxyUrl.value=r.proxy||'';proxyInput.value=r.proxy||''}catch(e){}}
+  async function saveProxy(){const u=proxyInput.value.trim();try{await fetch('/api/proxy',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:u})});proxyUrl.value=u;ElMessage.success(u?'代理已保存':'已切换为直连')}catch(e){ElMessage.error('保存代理失败')}}
+  async function clearProxy(){proxyInput.value='';await saveProxy()}
+  async function testProxy(){proxyTesting.value=true;try{const r=await(await fetch('/api/proxy/test',{method:'POST'})).json();r.ok?ElMessage.success('连通成功 ('+r.proxy+', HTTP '+r.status+')'):ElMessage.error('连接失败：'+r.error)}catch(e){ElMessage.error('测试请求异常')}finally{proxyTesting.value=false}}
+  async function refreshAnchor(row){if(refreshingAnchors.has(row.rid))return;refreshingAnchors.add(row.rid);try{const text=row.source_url||('https://live.douyin.com/'+row.rid);const r=await(await fetch('/api/anchor/resolve',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input_text:text})})).json();if(!r.ok)throw new Error(r.error||'解析失败');await fetch('/api/anchors',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(r.anchor)});ElMessage.success(r.anchor.anchor_name?'主播资料已更新':'已更新直播状态，暂未取得昵称');refresh()}catch(e){ElMessage.error('刷新主播资料失败')}finally{refreshingAnchors.delete(row.rid)}}
+  function saveWords(){localStorage.setItem('livewatch_words',JSON.stringify(words.value))}
+  function addWord(){const text=wordInput.value.trim();if(!text)return;if(!words.value.some(w=>w.text===text&&w.type===wordType.value))words.value.push({text,type:wordType.value});wordInput.value='';saveWords()}
+  function removeWord(i){words.value.splice(i,1);saveWords()}
+  function refreshAll(){refresh();refreshData();refreshDiag();fetchExportDir();fetchProxy();ElMessage.success('已刷新')}
+  let timer;onMounted(()=>{try{const _pw=JSON.parse(localStorage.getItem('livewatch_words')||'[]');words.value=Array.isArray(_pw)?_pw:[]}catch(e){}refreshAll();timer=setInterval(refresh,3000);if(!localStorage.getItem('livewatch_tour_done')&&!window.pywebview)setTimeout(startTour,800)});onUnmounted(()=>clearInterval(timer));watch(view,v=>{if(['review','cloud','settings'].includes(v))refreshData();if(['pre','settings'].includes(v))refreshDiag()});
+  return{view,keyword,rooms,dataRooms,selData,ht,maxActiveRooms,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,diskPercent,addText,resolved,resolving,adding,addErr,refreshingAnchors,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,tour,tourSteps,phaseText,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,exportAll,clearData,remint,toggleAllHist,doResolve,doAdd,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,clearProxy,startTour,nextTour,endTour}
+}});
+window.__liveApp=app;
+app.config.errorHandler=(err,_vm,info)=>{console.error('[VUE]',info,err);const pre=document.createElement('pre');pre.textContent=info+'\n\n'+err.stack;pre.style.cssText='position:fixed;inset:0;padding:24px;background:#fff;color:#c00;font-size:12px;overflow:auto;z-index:9999;white-space:pre-wrap;word-break:break-all';document.body.appendChild(pre)};
+app.use(ElementPlus);for(const[k,c]of Object.entries(ElementPlusIconsVue))app.component(k,c);app.mount('#app');
+</script>
+</body>
+</html>

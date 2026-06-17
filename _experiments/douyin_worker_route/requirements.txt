@@ -1,0 +1,11 @@
+requests
+websocket-client
+fastapi
+uvicorn
+openpyxl
+playwright
+sherpa-onnx
+imageio-ffmpeg
+numpy
+PyExecJS
+python-betterproto

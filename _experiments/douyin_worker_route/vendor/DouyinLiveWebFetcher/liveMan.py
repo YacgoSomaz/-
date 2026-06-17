@@ -13,6 +13,9 @@ import random
 import re
 import string
 import subprocess
+import sys
+
+_NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
 import threading
 import time
 import execjs
@@ -45,11 +48,12 @@ def execute_js(js_file: str):
 @contextmanager
 def patched_popen_encoding(encoding='utf-8'):
     original_popen_init = subprocess.Popen.__init__
-    
+
     def new_popen_init(self, *args, **kwargs):
         kwargs['encoding'] = encoding
+        kwargs.setdefault('creationflags', _NO_WINDOW)
         original_popen_init(self, *args, **kwargs)
-    
+
     with patch.object(subprocess.Popen, '__init__', new_popen_init):
         yield
 
@@ -80,6 +84,7 @@ def generateSignature(wss, script_file='sign.js'):
         proc = subprocess.run(
             ["node", cli, md5_param],
             capture_output=True, text=True, encoding="utf-8", timeout=30,
+            creationflags=_NO_WINDOW,
         )
         sig = (proc.stdout or "").strip()
         if not sig:
@@ -106,7 +111,7 @@ def generateMsToken(length=182):
 
 
 class DouyinLiveWebFetcher:
-    
+
     def __init__(self, live_id, abogus_file='a_bogus.js'):
         """
         直播间弹幕抓取对象
@@ -120,10 +125,22 @@ class DouyinLiveWebFetcher:
         self.live_id = live_id
         self.host = "https://www.douyin.com/"
         self.live_url = "https://live.douyin.com/"
-        self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
-        self.headers = {
-            'User-Agent': self.user_agent
-        }
+
+        try:
+            from pipeline.fingerprint import USER_AGENT, PAGE_HEADERS
+            self.user_agent = USER_AGENT
+            self.headers = dict(PAGE_HEADERS)
+        except ImportError:
+            self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0"
+            self.headers = {'User-Agent': self.user_agent}
+
+        try:
+            from pipeline.proxy_conf import requests_proxies
+            proxies = requests_proxies()
+            if proxies:
+                self.session.proxies.update(proxies)
+        except ImportError:
+            pass
     
     def start(self):
         self._connectWebSocket()
@@ -139,11 +156,8 @@ class DouyinLiveWebFetcher:
         """
         if self.__ttwid:
             return self.__ttwid
-        headers = {
-            "User-Agent": self.user_agent,
-        }
         try:
-            response = self.session.get(self.live_url, headers=headers)
+            response = self.session.get(self.live_url, headers=self.headers)
             response.raise_for_status()
         except Exception as err:
             print("【X】Request the live url error: ", err)
@@ -160,10 +174,9 @@ class DouyinLiveWebFetcher:
         if self.__room_id:
             return self.__room_id
         url = self.live_url + self.live_id
-        headers = {
-            "User-Agent": self.user_agent,
-            "cookie": f"ttwid={self.ttwid}&msToken={generateMsToken()}; __ac_nonce=0123407cc00a9e438deb4",
-        }
+        headers = dict(self.headers)
+        headers["Referer"] = self.live_url
+        headers["cookie"] = f"ttwid={self.ttwid}&msToken={generateMsToken()}; __ac_nonce=0123407cc00a9e438deb4"
         try:
             response = self.session.get(url, headers=headers)
             response.raise_for_status()
@@ -240,29 +253,46 @@ class DouyinLiveWebFetcher:
         """
         连接抖音直播间websocket服务器，请求直播间数据
         """
-        wss = ("wss://webcast100-ws-web-lq.douyin.com/webcast/im/push/v2/?app_name=douyin_web"
+        try:
+            from pipeline.fingerprint import pick_wss_host, WSS_BROWSER_VERSION, WS_HEADERS
+            wss_host = pick_wss_host()
+            bv = WSS_BROWSER_VERSION
+            ws_extra = dict(WS_HEADERS)
+        except ImportError:
+            wss_host = "webcast100-ws-web-lq.douyin.com"
+            bv = ("5.0%20(Windows%20NT%2010.0;%20Win64;%20x64)%20AppleWebKit/537.36%20"
+                  "(KHTML,%20like%20Gecko)%20Chrome/140.0.0.0%20Safari/537.36")
+            ws_extra = {}
+
+        now_ms = int(time.time() * 1000)
+        wss = (f"wss://{wss_host}/webcast/im/push/v2/?app_name=douyin_web"
                "&version_code=180800&webcast_sdk_version=1.0.14-beta.0"
                "&update_version_code=1.0.14-beta.0&compress=gzip&device_platform=web&cookie_enabled=true"
                "&screen_width=1536&screen_height=864&browser_language=zh-CN&browser_platform=Win32"
                "&browser_name=Mozilla"
-               "&browser_version=5.0%20(Windows%20NT%2010.0;%20Win64;%20x64)%20AppleWebKit/537.36%20(KHTML,"
-               "%20like%20Gecko)%20Chrome/126.0.0.0%20Safari/537.36"
+               f"&browser_version={bv}"
                "&browser_online=true&tz_name=Asia/Shanghai"
-               "&cursor=d-1_u-1_fh-7392091211001140287_t-1721106114633_r-1"
+               f"&cursor=d-1_u-1_fh-7392091211001140287_t-{now_ms}_r-1"
                f"&internal_ext=internal_src:dim|wss_push_room_id:{self.room_id}|wss_push_did:7319483754668557238"
-               f"|first_req_ms:1721106114541|fetch_time:1721106114633|seq:1|wss_info:0-1721106114633-0-0|"
+               f"|first_req_ms:{now_ms - 92}|fetch_time:{now_ms}|seq:1|wss_info:0-{now_ms}-0-0|"
                f"wrds_v:7392094459690748497"
                f"&host=https://live.douyin.com&aid=6383&live_id=1&did_rule=3&endpoint=live_pc&support_wrds=1"
                f"&user_unique_id=7319483754668557238&im_path=/webcast/im/fetch/&identity=audience"
                f"&need_persist_msg_count=15&insert_task_id=&live_reason=&room_id={self.room_id}&heartbeatDuration=0")
-        
+
         signature = generateSignature(wss)
         wss += f"&signature={signature}"
-        
-        headers = {
-            "cookie": f"ttwid={self.ttwid}",
-            'user-agent': self.user_agent,
-        }
+
+        ws_extra["cookie"] = f"ttwid={self.ttwid}"
+        headers = ws_extra
+
+        proxy_kw = {}
+        try:
+            from pipeline.proxy_conf import ws_proxy_kwargs
+            proxy_kw = ws_proxy_kwargs()
+        except ImportError:
+            pass
+
         self.ws = websocket.WebSocketApp(wss,
                                          header=headers,
                                          on_open=self._wsOnOpen,
@@ -270,14 +300,14 @@ class DouyinLiveWebFetcher:
                                          on_error=self._wsOnError,
                                          on_close=self._wsOnClose)
         try:
-            self.ws.run_forever()
+            self.ws.run_forever(**proxy_kw)
         except Exception:
             self.stop()
             raise
     
     def _sendHeartbeat(self):
         """
-        发送心跳包
+        发送心跳包（10s 间隔，降低高频信号被风控识别的概率）
         """
         while True:
             try:
@@ -288,7 +318,7 @@ class DouyinLiveWebFetcher:
                 print("【X】心跳包检测错误: ", e)
                 break
             else:
-                time.sleep(5)
+                time.sleep(10)
     
     def _wsOnOpen(self, ws):
         """
