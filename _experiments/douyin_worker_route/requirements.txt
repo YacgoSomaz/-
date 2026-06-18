@@ -8,4 +8,4 @@ sherpa-onnx
 imageio-ffmpeg
 numpy
 PyExecJS
-python-betterproto
+betterproto
