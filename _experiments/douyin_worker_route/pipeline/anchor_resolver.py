@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import html as html_lib
 import logging
 import re
 from dataclasses import dataclass
@@ -117,6 +118,9 @@ def resolve_anchor(
 
     fields = _classify(final_url)
     page = _parse_page(page_html, failures) if page_html else {}
+    is_live = page.get("is_live")
+    if is_live is None and _text_says_live(text):
+        is_live = True
 
     if failures:
         log.debug("anchor 解析降级：input=%r failures=%s", text[:60], failures)
@@ -127,9 +131,9 @@ def resolve_anchor(
         anchor_name=page.get("nickname") or name_hint,
         avatar_url=page.get("avatar_url"),
         sec_user_id=fields.get("sec_user_id") or page.get("sec_user_id"),
-        web_id=fields.get("web_id"),
+        web_id=fields.get("web_id") or page.get("web_id"),
         room_id=fields.get("room_id") or page.get("room_id"),
-        is_live=page.get("is_live"),
+        is_live=is_live,
     )
 
 
@@ -158,6 +162,11 @@ def _name_from_text(text: str) -> str | None:
         return None
     name = m.group(1).strip()
     return name or None
+
+
+def _text_says_live(text: str) -> bool:
+    """Douyin share copy can explicitly say live even when the landing page omits status."""
+    return any(marker in text for marker in ("正在直播", "正在开播", "直播中"))
 
 
 # ---------------------------------------------------------------- 跳转跟随（SSRF 防护）
@@ -214,7 +223,7 @@ def _follow(
                 return url, "", failures
             url = nxt
             continue
-        return url, getattr(resp, "text", "") or "", failures
+        return url, _response_text(resp), failures
 
     failures.append("too_many_redirects")
     return url, "", failures
@@ -228,6 +237,18 @@ def _header(resp: object, name: str) -> str:
     if getter is None:
         return ""
     return getter(name) or getter(name.lower()) or ""
+
+
+def _response_text(resp: object) -> str:
+    """Decode Douyin pages as UTF-8 first; requests may guess GBK/ISO and garble names."""
+    content = getattr(resp, "content", None)
+    if isinstance(content, bytes) and content:
+        for enc in ("utf-8", "utf-8-sig"):
+            try:
+                return content.decode(enc)
+            except UnicodeDecodeError:
+                pass
+    return getattr(resp, "text", "") or ""
 
 
 def _safe_close(session: requests.Session) -> None:
@@ -290,7 +311,21 @@ _ENDED_MARKERS = ("直播已结束", "本场直播已结束", "已下播")
 
 _ROOMID_RES = (
     re.compile(r'"roomId"\s*:\s*"(\d+)"'),
+    re.compile(r'"roomIdStr"\s*:\s*"(\d+)"'),
+    re.compile(r'"room_id_str"\s*:\s*"(\d+)"'),
     re.compile(r'roomId\\":\\"(\d+)'),
+    re.compile(r'roomIdStr\\":\\"(\d+)'),
+)
+_WEBID_RES = (
+    re.compile(r'"webRid"\s*:\s*"(\d+)"'),
+    re.compile(r'"web_rid"\s*:\s*"(\d+)"'),
+    re.compile(r'webRid\\":\\"(\d+)'),
+    re.compile(r'https?://live\.douyin\.com/(\d+)'),
+)
+_SECUID_RES = (
+    re.compile(r'"sec_user_id"\s*:\s*"([^"]+)"'),
+    re.compile(r'sec_user_id=([^"&\\]+)'),
+    re.compile(r'sec_user_id\\?=([^"&\\]+)'),
 )
 _NICK_RES = (
     re.compile(r'"nickname"\s*:\s*"([^"]{1,40})"'),
@@ -302,6 +337,7 @@ _AVATAR_RES = (
     re.compile(r'"avatar_thumb"\s*:\s*\{.*?"url_list"\s*:\s*\[\s*"([^"]+)"', re.DOTALL),
     re.compile(r'avatar_thumb\\":\{.*?url_list\\":\[\\"([^"\\]+)', re.DOTALL),
     re.compile(r'"avatarThumb"\s*:\s*\{.*?"urlList"\s*:\s*\[\s*"([^"]+)"', re.DOTALL),
+    re.compile(r'avatarThumb\\":\{.*?urlList\\":\[\\"([^"\\]+)', re.DOTALL),
 )
 _STATUS_RES = (
     re.compile(r'"roomStore"\s*:\s*\{.*?"roomInfo"\s*:\s*\{.*?"room"\s*:\s*\{.*?"status"\s*:\s*(\d+)', re.DOTALL),
@@ -323,6 +359,8 @@ def _parse_page(html: str, failures: list[str]) -> dict[str, object]:
     normalized = _decode_page_value(html)
     out: dict[str, object] = {}
     out.update(_first_group(normalized, _ROOMID_RES, "room_id"))
+    out.update(_first_group(normalized, _WEBID_RES, "web_id"))
+    out.update(_first_group(normalized, _SECUID_RES, "sec_user_id"))
     nickname = _first_valid_match(normalized, _NICK_RES)
     if nickname:
         out["nickname"] = _decode_page_value(nickname)
@@ -367,9 +405,21 @@ def _first_valid_match(html: str, patterns: tuple[re.Pattern, ...]) -> str | Non
 
 
 def _decode_page_value(value: str) -> str:
-    return (
+    decoded = (
         value.replace("\\u002F", "/")
         .replace("\\u002f", "/")
+        .replace("\\u0026", "&")
+        .replace("\\u003d", "=")
+        .replace("\\u003D", "=")
         .replace("\\/", "/")
         .replace('\\"', '"')
     )
+    try:
+        decoded = re.sub(
+            r"\\u([0-9a-fA-F]{4})",
+            lambda m: chr(int(m.group(1), 16)),
+            decoded,
+        )
+    except Exception:
+        pass
+    return html_lib.unescape(decoded)

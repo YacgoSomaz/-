@@ -153,6 +153,35 @@ class DirectLinkTests(unittest.TestCase):
         self.assertEqual(result.room_id, "7400000000000000000")
         self.assertEqual(result.sec_user_id, sec)
 
+    def test_short_link_to_reflow_extracts_web_rid_and_utf8_metadata(self):
+        reflow = "https://webcast.amemv.com/webcast/reflow/7657092134238948159"
+        page = (
+            '{"livingRoomAttrs":{"roomIdStr":"7657092134238948159"},'
+            '"owner":{"nickname":"昆明牛肝菌","avatarThumb":{"urlList":'
+            '["https://p3.douyinpic.com/avatar.jpeg"]}},'
+            '"webRid":"321626457549",'
+            '"shareUrl":"https://webcast.amemv.com/douyin/webcast/reflow/765?'
+            'sec_user_id=MS4wLjABAAAA56jg3J3UGZLT9tivQyy0dDjn"}'
+        )
+        session = FakeSession(
+            {
+                "https://v.douyin.com/t8RwRhD0kwk/": _redirect(reflow),
+                reflow: FakeResponse(text=page),
+            }
+        )
+
+        result = resolve_anchor(
+            "【昆明牛肝菌】正在直播 https://v.douyin.com/t8RwRhD0kwk/ 8@8.com",
+            session=session,
+        )
+
+        self.assertEqual(result.web_id, "321626457549")
+        self.assertEqual(result.room_id, "7657092134238948159")
+        self.assertEqual(result.anchor_name, "昆明牛肝菌")
+        self.assertEqual(result.avatar_url, "https://p3.douyinpic.com/avatar.jpeg")
+        self.assertEqual(result.sec_user_id, "MS4wLjABAAAA56jg3J3UGZLT9tivQyy0dDjn")
+        self.assertIs(result.is_live, True)
+
 
 class SsrfGuardTests(unittest.TestCase):
     def test_off_domain_redirect_is_not_followed(self):
