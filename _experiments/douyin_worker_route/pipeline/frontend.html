@@ -84,6 +84,7 @@ button,input,textarea{font:inherit}
 .ai-workspace{height:calc(100vh - 68px);max-height:calc(100vh - 68px);align-items:stretch;overflow:hidden}.ai-left,.ai-right{height:calc(100vh - 68px);max-height:calc(100vh - 68px);min-height:0;overflow:hidden}.ai-select-panel{flex:1 1 auto;min-height:0}.word-cloud{flex:0 0 190px;max-height:190px}.word-cloud-body{max-height:136px}.ai-agent{height:170px;flex:0 0 170px}.ai-events{height:119px}.ai-report{flex:0 0 176px;min-height:176px}.ai-report-html{max-height:130px}.ai-chat{flex:1 1 auto;min-height:0}.ai-chat-body{min-height:0;overflow:auto}
 .setting-group{background:#fff;border-radius:6px;margin-bottom:10px;padding:0 20px}.setting-head{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;font-size:15px;color:var(--ink);font-weight:900}.setting-row{min-height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center}.setting-row:last-child{border-bottom:0}.setting-name{font-weight:700}.setting-desc{font-size:12px;color:#9aa5b4;margin-top:2px}.setting-value{margin-left:auto;display:flex;align-items:center;gap:8px;color:#687588}.health-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}.health-dot.bad{background:var(--red)}
 .steps{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-radius:6px;padding:22px 16px;margin-bottom:10px}.step{position:relative;text-align:center;color:#738095}.step:not(:last-child):after{content:"";position:absolute;height:1px;background:#dfe6ef;top:16px;left:62%;right:-38%}.step-num{width:32px;height:32px;border-radius:50%;margin:0 auto 8px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:900}.step-title{font-weight:700;color:var(--text);font-size:13px}.step-desc{font-size:11px;margin-top:3px}
+.perf-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}.perf-filters{background:#fff;border-radius:6px;padding:14px 16px;display:grid;grid-template-columns:220px 140px 140px 160px 160px auto;gap:10px;align-items:center}.perf-score{font-size:22px;font-weight:900;color:var(--primary);font-variant-numeric:tabular-nums}.perf-score.pending{font-size:13px;color:#8a96a8;line-height:1.2}.rating-tag{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;background:#eef0ff;color:var(--primary);font-weight:800;font-size:12px}.rating-tag.good{background:#ebfff4;color:#14a45a}.rating-tag.warn{background:#fff8e8;color:#b7791f}.rating-tag.bad{background:#fff0f0;color:#d94343}.rating-tag.gray{background:#eef2f7;color:#718096}.perf-summary-cell{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.55;color:#41516a}.perf-detail{display:grid;grid-template-columns:330px minmax(0,1fr);gap:10px}.perf-hero{background:#fff;border-radius:6px;padding:18px}.perf-hero-main{display:flex;gap:12px;align-items:center;margin-bottom:16px}.perf-hero-title{font-size:16px;font-weight:900;color:var(--ink)}.perf-big-score{font-size:48px;line-height:1;font-weight:900;color:var(--primary);margin:8px 0}.perf-meta{font-size:12px;color:#718096;line-height:1.9}.perf-ai-rule{margin-top:12px;padding:10px 12px;border-radius:6px;background:#f7fbff;color:#57708f;font-size:12px;line-height:1.7}.dim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px}.dim-card{background:#fff;border-radius:6px;padding:14px;border-top:3px solid var(--cyan)}.dim-name{font-weight:900;color:var(--ink)}.dim-score{font-size:24px;font-weight:900;color:var(--primary);margin:6px 0}.dim-text{font-size:12px;color:#6b778a;line-height:1.65}.perf-section{background:#fff;border-radius:6px;padding:16px;margin-bottom:10px}.perf-section-title{font-weight:900;color:var(--ink);font-size:15px;margin-bottom:12px;display:flex;align-items:center}.perf-section-title:before{content:"";width:4px;height:16px;background:var(--cyan);border-radius:2px;margin-right:9px}.evidence-list{display:grid;gap:8px}.evidence-item{border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:#fbfdff;font-size:12px;line-height:1.7}.evidence-head{display:flex;gap:8px;align-items:center;color:#718096;margin-bottom:4px}.risk-high{color:#d94343;font-weight:800}.question-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.small-list{display:flex;flex-wrap:wrap;gap:8px}.small-pill{background:#f5f7ff;border-radius:999px;padding:5px 9px;font-size:12px;color:#5261d8}.perf-empty{height:220px;display:flex;align-items:center;justify-content:center;color:#9aa5b4}.perf-back{margin-bottom:10px}
 .faq{background:#fff;border-radius:6px;padding:4px 20px}.faq .el-collapse{border:0}.faq .el-collapse-item__header{font-weight:700;color:var(--text);border-bottom-color:var(--line)}.faq .el-collapse-item__wrap{border-bottom-color:var(--line)}.faq .el-collapse-item__content{color:#748195;line-height:1.9}
 @media(max-width:900px){.side{width:126px;flex-basis:126px}.add-page{grid-template-columns:1fr}.mini-stat{min-width:110px}.content{padding:7px}}
 .tour-overlay{position:fixed;inset:0;z-index:10000;pointer-events:auto}
@@ -246,10 +247,63 @@ button,input,textarea{font:inherit}
       </template>
 
       <template v-else-if="view==='pre'">
-        <div class="steps"><div class="step"><div class="step-num">1</div><div class="step-title">添加主播</div><div class="step-desc">识别主播与直播号</div></div><div class="step"><div class="step-num">2</div><div class="step-title">完成验证</div><div class="step-desc">准备可信 Cookie</div></div><div class="step"><div class="step-num">3</div><div class="step-title">启动托管</div><div class="step-desc">等待主播开播</div></div><div class="step"><div class="step-num">4</div><div class="step-title">导出复盘</div><div class="step-desc">查看话术和直播数据</div></div></div>
-        <div class="page-grid">
-          <div class="panel"><div class="panel-title">主播准备状态</div><el-table ref="preHt" :data="rooms" max-height="460" style="width:100%"><el-table-column label="主播" min-width="160"><template #default="{row}">{{row.anchor_name||row.rid}}</template></el-table-column><el-table-column label="托管状态" width="105" align="center"><template #default="{row}"><span class="record-state" :class="stateClass(row)"><i></i>{{row.active?'已托管':'未托管'}}</span></template></el-table-column><el-table-column label="操作" width="100" align="right"><template #default="{row}"><el-button text type="primary" @click="toggleRoom(row.rid,!row.active)">{{row.active?'停止':'启动'}}</el-button></template></el-table-column></el-table></div>
-          <div><div class="setting-group"><div class="setting-head">运行检查</div><div class="setting-row"><div><div class="setting-name">登录状态</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.cookie_ok}"></i>{{diag.cookie_text}}<el-button size="small" @click="remint">重新登录</el-button></div></div><div class="setting-row"><div><div class="setting-name">语音转文字</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.models_ok}"></i>{{diag.models_text}}</div></div><div class="setting-row"><div><div class="setting-name">磁盘空间</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.disk_ok}"></i>{{diag.disk_text}}</div></div></div></div>
+        <div v-if="!perfDetail" class="perf-layout">
+          <div class="perf-filters">
+            <el-input v-model="perfFilters.keyword" placeholder="筛选主播" clearable><template #prefix><el-icon><Search/></el-icon></template></el-input>
+            <el-select v-model="perfFilters.rating" clearable placeholder="评级"><el-option v-for="r in perfRatings" :key="r" :label="r" :value="r"/></el-select>
+            <el-select v-model="perfFilters.score" clearable placeholder="评分区间"><el-option label="85-100" value="85"/><el-option label="75-84" value="75"/><el-option label="60-74" value="60"/><el-option label="45-59" value="45"/><el-option label="0-44" value="0"/></el-select>
+            <el-select v-model="perfFilters.risk" clearable placeholder="敏感词"><el-option label="有敏感词候选" value="risk"/><el-option label="暂无敏感词" value="safe"/></el-select>
+            <el-select v-model="perfFilters.transcribed" clearable placeholder="转写状态"><el-option label="已完成转写" value="yes"/><el-option label="暂无转写" value="no"/></el-select>
+            <div style="text-align:right"><el-button :loading="perfLoading" @click="fetchPerformance"><el-icon><Refresh/></el-icon>&nbsp;刷新分析</el-button><el-button type="primary" :loading="perfAnalyzing" @click="analyzeReadyPerformance">分析已结束直播</el-button></div>
+          </div>
+          <div class="industry">
+            <div class="industry-head"><div class="industry-name">效能分析场次</div><span class="industry-meta">按直播效能分排序</span></div>
+            <el-table ref="preHt" :data="filteredPerformance" empty-text="暂无可分析直播数据" style="width:100%">
+              <el-table-column label="主播" min-width="190"><template #default="{row}"><div class="anchor"><img v-if="row.avatar_url" :src="row.avatar_url" class="avatar"><div v-else class="avatar-fallback"><el-icon><UserFilled/></el-icon></div><div class="anchor-info"><div class="anchor-name">{{row.anchor_name}}</div><div class="anchor-state">{{row.rid}}</div></div></div></template></el-table-column>
+              <el-table-column label="效能分" width="110" align="center"><template #default="{row}"><span class="perf-score" :class="{pending:row.score_available===false}">{{scoreText(row)}}</span></template></el-table-column>
+              <el-table-column label="评级" width="90" align="center"><template #default="{row}"><span class="rating-tag" :class="ratingClass(row.rating)">{{row.rating}}</span></template></el-table-column>
+              <el-table-column label="AI状态" width="105" align="center"><template #default="{row}"><span class="rating-tag" :class="statusClass(row.analysis_status)">{{row.data_status||row.analysis_status_text}}</span></template></el-table-column>
+              <el-table-column label="赛道" width="120" align="center"><template #default="{row}">{{row.track||row.score_template||'待AI识别'}}</template></el-table-column>
+              <el-table-column label="累计观看" width="95" align="center"><template #default="{row}">{{metricText(row.metrics?.total_viewers)}}</template></el-table-column>
+              <el-table-column label="峰值在线" width="95" align="center"><template #default="{row}">{{metricText(row.metrics?.peak_online)}}</template></el-table-column>
+              <el-table-column label="进场/member" width="105" align="center"><template #default="{row}">{{metricText(row.metrics?.enter_events)}}</template></el-table-column>
+              <el-table-column label="弹幕数" width="85" align="center"><template #default="{row}">{{metricText(row.metrics?.danmu_count)}}</template></el-table-column>
+              <el-table-column label="弹幕/分钟" width="100" align="center"><template #default="{row}">{{rateText(row.metrics?.danmu_per_min)}}</template></el-table-column>
+              <el-table-column label="点赞数" width="85" align="center"><template #default="{row}">{{metricText(row.metrics?.like_events)}}</template></el-table-column>
+              <el-table-column label="social" width="80" align="center"><template #default="{row}">{{metricText(row.metrics?.social_events)}}</template></el-table-column>
+              <el-table-column label="fansclub" width="90" align="center"><template #default="{row}">{{metricText(row.metrics?.fansclub_events)}}</template></el-table-column>
+              <el-table-column label="敏感词扣分" width="105" align="center"><template #default="{row}">{{row.risk_deduction??'暂无'}}</template></el-table-column>
+              <el-table-column label="AI 简短结论" min-width="300"><template #default="{row}"><div class="perf-summary-cell">{{row.ai_summary}}</div></template></el-table-column>
+              <el-table-column label="操作" width="170" align="right" fixed="right"><template #default="{row}"><el-button text type="primary" @click="openPerformance(row.session_id)">详情</el-button><el-button v-if="canAnalyzePerformance(row)" text type="primary" :loading="perfAnalyzing===row.session_id" @click="analyzePerformance(row.session_id)">AI分析</el-button></template></el-table-column>
+            </el-table>
+          </div>
+        </div>
+        <div v-else>
+          <div class="perf-back"><el-button @click="perfDetail=null"><el-icon><ArrowLeft/></el-icon>&nbsp;返回场次列表</el-button></div>
+          <div class="perf-detail">
+            <div class="perf-hero">
+              <div class="perf-hero-main"><div class="avatar-fallback"><el-icon><UserFilled/></el-icon></div><div><div class="perf-hero-title">{{perfDetail.anchor_name}}</div><div class="anchor-state">{{perfDetail.rid}}</div></div></div>
+              <div class="quiet">直播效能分</div><div class="perf-big-score">{{scoreText(perfDetail)}}</div>
+              <div><span class="rating-tag" :class="ratingClass(perfDetail.rating)">{{perfDetail.rating}}</span> <span class="rating-tag" :class="statusClass(perfDetail.analysis_status)" style="margin-left:6px">{{perfDetail.data_status}}</span></div>
+              <div class="perf-meta" style="margin-top:12px">
+                <div>直播时间：{{perfDetail.live_time}}</div><div>直播时长：{{perfDetail.duration_text}}</div><div>监听完整度：{{perfDetail.monitor_completeness}}%</div><div>赛道：{{perfDetail.track}}</div><div>评分模板：{{perfDetail.score_template}}</div><div>内容与互动效能分：{{perfDetail.positive_score??'暂无'}}</div><div>敏感词扣分：{{perfDetail.risk_deduction??'暂无'}}</div><div>数据缺失扣分：{{perfDetail.data_missing_deduction??'暂无'}}</div><div>AI 置信度：{{perfDetail.ai_confidence}}</div>
+              </div>
+              <div class="perf-ai-rule">直播下播后，系统会等待 5 分钟确认没有新录音和新转写落袋；测试阶段单场超过 15 分钟即可采用 AI 效能分析。系统只给出效能分和证据，不替用户判断是否合作；不同赛道建议在同类主播之间比较。</div>
+              <div style="margin-top:12px"><el-button v-if="canAnalyzePerformance(perfDetail)" type="primary" :loading="perfAnalyzing===perfDetail.session_id" @click="analyzePerformance(perfDetail.session_id)">开始 / 重新AI分析</el-button></div>
+              <div v-if="perfDetail.ai_confidence==='低'" class="notice" style="margin-top:12px">本场数据不完整，AI 分析结果仅供参考。</div>
+            </div>
+            <div>
+              <div class="perf-section"><div class="perf-section-title">顶部结论</div><div>{{perfDetail.ai_summary}}</div></div>
+              <div class="dim-grid"><div v-for="d in perfDetail.dimensions" :key="d.key||d.name" class="dim-card"><div class="dim-name">{{d.name}}</div><div class="dim-score">{{d.score}}<span class="quiet"> / {{d.max_score}}</span></div><div class="dim-text"><b>AI理由：</b>{{d.reason||(d.positive_reasons||[]).join('；')||'暂无数据'}}</div><div class="dim-text"><b>扣分：</b>{{(d.negative_reasons||[]).join('；')||'暂无明显扣分'}}</div><div class="dim-text"><b>观察点：</b>{{(d.suggestions||[]).join('；')||'暂无'}}</div></div></div>
+              <div v-if="!perfDetail.dimensions.length" class="perf-section"><div class="quiet">{{perfDetail.analysis_status_text}}</div></div>
+            </div>
+          </div>
+          <div class="perf-section"><div class="perf-section-title">高价值证据</div><div class="question-grid"><div><b>高光片段</b><div class="evidence-list"><div v-for="s in perfDetail.highlight_segments" class="evidence-item"><div class="evidence-head">{{s.start_time}} · {{s.type}} · {{s.audio_path}}</div><div>{{s.speech||s.ai_judgement}}</div><div class="quiet">{{s.suggestion}}</div></div><div v-if="!perfDetail.highlight_segments.length" class="quiet">暂无数据</div></div></div><div><b>低信息候选 / 敏感词候选</b><div class="evidence-list"><div v-for="s in [...perfDetail.low_efficiency_segments,...perfDetail.risk_segments]" class="evidence-item"><div class="evidence-head">{{s.start_time}} · {{s.type}} <span v-if="s.risk_level" class="risk-high">{{s.risk_level}}</span></div><div>{{s.speech||s.ai_judgement}}</div><div class="quiet">{{s.suggestion}}</div></div><div v-if="!(perfDetail.low_efficiency_segments.length+perfDetail.risk_segments.length)" class="quiet">暂无数据</div></div></div></div></div>
+          <div class="perf-section"><div class="perf-section-title">高频用户反馈</div><div class="question-grid"><div><b>高频用户问题</b><div class="small-list"><span v-for="q in perfDetail.frequent_questions" class="small-pill">{{q.question}} · {{q.count}}</span><span v-if="!perfDetail.frequent_questions.length" class="quiet">暂无数据</span></div></div><div><b>高意图弹幕</b><div class="evidence-list"><div v-for="m in perfDetail.high_intent_danmu.slice(0,6)" class="evidence-item">{{m.user}}：{{m.content}}</div><div v-if="!perfDetail.high_intent_danmu.length" class="quiet">暂无数据</div></div></div></div></div>
+          <div class="perf-section"><div class="perf-section-title">未充分回应问题</div><el-table :data="perfDetail.unanswered_questions" empty-text="暂无明显未回应问题" style="width:100%"><el-table-column label="问题" prop="question"/><el-table-column label="出现次数" prop="count" width="100"/><el-table-column label="回应次数" prop="response_count" width="100"/><el-table-column label="状态" prop="status" width="120"/><el-table-column label="建议" prop="suggestion"/></el-table></div>
+          <div class="perf-section"><div class="perf-section-title">敏感词片段</div><el-table :data="perfDetail.risk_segments" empty-text="暂未命中敏感词候选" style="width:100%"><el-table-column label="时间点" prop="start_time" width="170"/><el-table-column label="敏感词类型" prop="risk_type" width="140"/><el-table-column label="等级" prop="risk_level" width="80"/><el-table-column label="原始话术" prop="speech"/><el-table-column label="复核说明" prop="suggestion"/></el-table></div>
+          <div class="perf-section"><div class="perf-section-title">数据完整性</div><div class="small-list"><span class="small-pill">直播总时长 {{perfDetail.data_integrity.total_duration}} 秒</span><span class="small-pill">成功录制 {{perfDetail.data_integrity.recorded_duration}} 秒</span><span class="small-pill">成功转写 {{perfDetail.data_integrity.transcribed_duration}} 秒</span><span class="small-pill">弹幕 {{perfDetail.data_integrity.danmu_count}}</span><span class="small-pill">断流 {{perfDetail.data_integrity.disconnect_count}}</span><span class="small-pill">短片段 {{perfDetail.data_integrity.short_segment_count}}</span><span class="small-pill">残段 {{perfDetail.data_integrity.broken_segment_count}}</span><span class="small-pill">转写失败 {{perfDetail.data_integrity.failed_transcripts}}</span><span class="small-pill">AI置信度 {{perfDetail.data_integrity.confidence}}</span></div></div>
+          <div class="perf-section"><div class="perf-section-title">关键数据</div><div class="small-list"><span class="small-pill">累计观看 {{metricText(perfDetail.metrics?.total_viewers)}}</span><span class="small-pill">峰值在线 {{metricText(perfDetail.metrics?.peak_online)}}</span><span class="small-pill">平均在线 {{metricText(perfDetail.metrics?.avg_online)}}</span><span class="small-pill">进场/member {{metricText(perfDetail.metrics?.enter_events)}}</span><span class="small-pill">弹幕/分钟 {{rateText(perfDetail.metrics?.danmu_per_min)}}</span><span class="small-pill">点赞/分钟 {{rateText(perfDetail.metrics?.like_per_min)}}</span><span class="small-pill">social {{metricText(perfDetail.metrics?.social_events)}}</span><span class="small-pill">fansclub {{metricText(perfDetail.metrics?.fansclub_events)}}</span></div></div>
         </div>
       </template>
 
@@ -313,7 +367,7 @@ const app=createApp({setup(){
   const lastOk=ref(0);  // 最近一次成功刷新的秒戳；服务断连后据此冻结时长，避免假跳
   // 录制时长 HH:MM:SS；since=0 或非录制态返回空串。数据陈旧(>8s 没刷到)则冻结在最后已知时刻。
   const fmtDur=since=>{if(!since)return '';const end=(clock.value-lastOk.value>8)?lastOk.value:clock.value;const s=Math.max(0,end-since);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0')};
-  const navs=[{key:'dashboard',label:'数据大盘',desc:'主播监听与录制状态',icon:'DataBoard'},{key:'add',label:'添加主播',desc:'添加并管理主播',icon:'CirclePlusFilled'},{key:'pre',label:'播前分析',desc:'直播准备与历史参考',icon:'TrendCharts'},{key:'review',label:'AI复盘',desc:'智能报告、词云与追问',icon:'DataAnalysis'},{key:'cloud',label:'云空间',desc:'数据同步与存储',icon:'Cloudy'},{key:'words',label:'本地词库',desc:'关键词与行业词库',icon:'Collection'},{key:'help',label:'帮助中心',desc:'使用说明与常见问题',icon:'QuestionFilled'},{key:'settings',label:'系统设置',desc:'本地服务与模型设置',icon:'Setting'}];
+  const navs=[{key:'dashboard',label:'数据大盘',desc:'主播监听与录制状态',icon:'DataBoard'},{key:'add',label:'添加主播',desc:'添加并管理主播',icon:'CirclePlusFilled'},{key:'pre',label:'效能分析',desc:'直播效能评分',icon:'TrendCharts'},{key:'review',label:'AI复盘',desc:'智能报告、词云与追问',icon:'DataAnalysis'},{key:'cloud',label:'云空间',desc:'数据同步与存储',icon:'Cloudy'},{key:'words',label:'本地词库',desc:'关键词与行业词库',icon:'Collection'},{key:'help',label:'帮助中心',desc:'使用说明与常见问题',icon:'QuestionFilled'},{key:'settings',label:'系统设置',desc:'本地服务与模型设置',icon:'Setting'}];
   const activeNav=computed(()=>navs.find(n=>n.key===view.value)||navs[0]);
   const risk=reactive({active:false,until_ts:0,reason:''}),diag=reactive({disk_text:'检查中',free_gb:0,cookie_ok:false,cookie_text:'检查中',models_ok:false,models_text:'检查中',disk_ok:true,queue_ok:true,queue_text:'检查中'}),cookieNotice=ref('');
   const addText=ref(''),resolved=ref(null),resolving=ref(false),adding=ref(false),addErr=ref('');
@@ -328,11 +382,31 @@ const app=createApp({setup(){
   const aiReportHtml=computed(()=>mdToHtml(aiPreview.value));
   const aiBriefHtml=computed(()=>mdToHtml(aiBrief.value?'# 复盘简报\n\n'+aiBrief.value:reportBrief(aiPreview.value)));
   const videoQuality=ref('hd'),videoQualityChoices=ref([]);
+  const performanceSessions=ref([]),perfDetail=ref(null),perfLoading=ref(false),perfAnalyzing=ref('');
+  const perfFilters=reactive({keyword:'',rating:'',score:'',risk:'',transcribed:''});
+  const perfRatings=['优秀','良好','一般','较弱','低分','数据不足','待分析'];
+  const filteredPerformance=computed(()=>{
+    let rows=Array.isArray(performanceSessions.value)?performanceSessions.value:[];
+    const kw=perfFilters.keyword.trim();
+    if(kw)rows=rows.filter(r=>(r.anchor_name||r.rid||'').includes(kw)||(r.rid||'').includes(kw));
+    if(perfFilters.rating)rows=rows.filter(r=>r.rating===perfFilters.rating);
+    if(perfFilters.score){
+      const s=Number(perfFilters.score),v=r=>r.overall_score==null?-1:Number(r.overall_score)||0;
+      rows=rows.filter(r=>s===85?v(r)>=85:s===75?v(r)>=75&&v(r)<85:s===60?v(r)>=60&&v(r)<75:s===45?v(r)>=45&&v(r)<60:v(r)<45);
+    }
+    if(perfFilters.risk)rows=rows.filter(r=>perfFilters.risk==='risk'?(r.risk_count||0)>0:(r.risk_count||0)===0);
+    if(perfFilters.transcribed)rows=rows.filter(r=>perfFilters.transcribed==='yes'?!!r.transcribed:!r.transcribed);
+    return rows;
+  });
+  const scoreText=row=>row&&row.score_available===false?'暂无评分':(row?.overall_score??'暂无');
+  const metricText=v=>v===null||v===undefined||v===''||Number(v)===0?'暂无':String(v);
+  const rateText=v=>v===null||v===undefined||v===''||Number(v)===0?'暂无':Number(v).toFixed(1);
   const tourSteps=[
     {title:'欢迎使用直播复盘侠',desc:'自动录制抖音直播，转成文字，方便复盘。跟着走一遍，1 分钟上手。',view:null,sel:null},
     {title:'第一步：添加主播',desc:'点这里进入添加页面。',view:'dashboard',sel:'.page-tools .el-button--primary:last-child'},
     {title:'粘贴链接',desc:'粘贴直播间链接或直播号，点「解析主播」识别。',view:'add',sel:'.add-page .panel:first-child'},
-    {title:'登录抖音',desc:'首次使用点这里登录一次抖音，按提示完成即可，之后自动记住。',view:'pre',sel:'.setting-row .el-button'},
+    {title:'登录抖音',desc:'首次使用需要登录一次抖音，按提示完成即可，之后会自动记住。',view:'settings',sel:'.setting-row .el-button'},
+    {title:'查看效能分析',desc:'这里会基于已采集数据给直播效能评分。',view:'pre',sel:'.perf-filters'},
     {title:'开始录制',desc:'回到数据大盘点「全部开始」，主播开播即自动录音。',view:'dashboard',sel:'.page-tools .el-button:nth-child(4)'},
     {title:'导出数据',desc:'录完后在「AI复盘」下载 Excel 汇总表。',view:'review',sel:'.history-toolbar .el-button--primary'},
     {title:'先看个示例',desc:'还没数据？点「查看示例导出」生成一份演示 Excel 看看效果。',view:'review',sel:'.sample-export-btn'},
@@ -375,6 +449,32 @@ const app=createApp({setup(){
   const stateClass=r=>r.phase==='recording'?'recording':['waiting','starting','reconnecting','needs_verification'].includes(r.phase)?'waiting':['error','risk_cooldown'].includes(r.phase)?'error':'';
   async function refresh(){try{const d=await(await fetch('/api/status')).json();rooms.value=d.rooms||[];pending.value=d.pending||[];maxActiveRooms.value=d.limits?.max_active_rooms||5;risk.active=!!d.risk_control?.active;risk.until_ts=d.risk_control?.until_ts||0;risk.reason=d.risk_control?.reason||'';lastOk.value=Math.floor(Date.now()/1000)}catch(e){}}
   async function refreshData(){try{dataRooms.value=(await(await fetch('/api/data/rooms')).json()).rooms||[];relayoutTables()}catch(e){}}
+  async function fetchPerformance(){perfLoading.value=true;try{const r=await(await fetch('/api/performance/sessions')).json();performanceSessions.value=r.sessions||[];relayoutTables()}catch(e){ElMessage.error('效能分析加载失败')}finally{perfLoading.value=false}}
+  async function openPerformance(id){perfLoading.value=true;try{const r=await(await fetch('/api/performance/sessions/'+encodeURIComponent(id))).json();perfDetail.value=r.session||null;nextTick(()=>{const el=document.querySelector('.content');if(el)el.scrollTop=0})}catch(e){ElMessage.error('效能详情加载失败')}finally{perfLoading.value=false}}
+  function canAnalyzePerformance(row){return ['ready','stale','failed'].includes(row?.analysis_status)}
+  async function analyzePerformance(id){
+    if(!id)return;perfAnalyzing.value=id;
+    try{
+      const resp=await fetch('/api/performance/sessions/'+encodeURIComponent(id)+'/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({force:true})});
+      const r=await resp.json();if(!resp.ok)throw new Error(r.detail||'AI分析失败');
+      perfDetail.value=r.session||perfDetail.value;
+      await fetchPerformance();
+      ElMessage.success((r.session?.analysis_status==='done')?'AI效能分析已完成':(r.session?.analysis_status_text||'已提交AI分析'));
+    }catch(e){ElMessage.error('AI效能分析失败：'+(e.message||e))}
+    finally{perfAnalyzing.value=''}
+  }
+  async function analyzeReadyPerformance(){
+    perfAnalyzing.value='batch';
+    try{
+      const resp=await fetch('/api/performance/analyze-ready',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({limit:1})});
+      const r=await resp.json();if(!resp.ok)throw new Error(r.detail||'扫描失败');
+      await fetchPerformance();
+      ElMessage.success((r.analyzed||[]).length?'已完成 '+r.analyzed.length+' 场AI分析':'暂无满足条件的已结束直播');
+    }catch(e){ElMessage.error('扫描AI效能分析失败：'+(e.message||e))}
+    finally{perfAnalyzing.value=''}
+  }
+  function ratingClass(r){return r==='优秀'||r==='良好'?'good':r==='一般'||r==='较弱'||r==='数据不足'?'warn':'bad'}
+  function statusClass(s){return ['done'].includes(s)?'good':['ready','stale','waiting_stable','analyzing'].includes(s)?'warn':['failed'].includes(s)?'bad':'gray'}
   async function refreshDiag(){try{const d=await(await fetch('/api/diagnostics')).json();diag.free_gb=d.storage?.free_gb||0;diag.disk_text=diag.free_gb+' GB';diag.disk_ok=diag.free_gb>=10;const s=d.cookie?.state;diag.cookie_ok=s==='ready';diag.cookie_text={ready:'已登录',expired:'需重新登录',missing:'未登录',invalid:'登录失效'}[s]||'未知';diag.models_ok=!!d.models?.ready;diag.models_text=d.models?.ready?'就绪':'未就绪';const tp=d.queues?.transcription_pending||0,sp=d.queues?.speaker_pending||0;diag.queue_text=(tp+sp)>0?'处理中':'空闲';diag.queue_ok=tp<20&&sp<20;cookieNotice.value=['missing','invalid'].includes(s)?'请先登录抖音。':s==='expired'?'登录已过期，请重新登录。':''}catch(e){}}
   const post=u=>fetch(u,{method:'POST'}),del=u=>fetch(u,{method:'DELETE'});
   async function startRoom(rid){await post('/api/rooms/'+rid+'/start');refresh()}async function stopRoom(rid){await post('/api/rooms/'+rid+'/stop');refresh()}
@@ -515,7 +615,7 @@ const app=createApp({setup(){
   function saveWords(){localStorage.setItem('livewatch_words',JSON.stringify(words.value))}
   function addWord(){const text=wordInput.value.trim();if(!text)return;if(!words.value.some(w=>w.text===text&&w.type===wordType.value))words.value.push({text,type:wordType.value});wordInput.value='';saveWords()}
   function removeWord(i){words.value.splice(i,1);saveWords()}
-  function refreshAll(){refresh();refreshData();refreshDiag();fetchExportDir();fetchProxy();fetchAiConfig();fetchVideoQuality();ElMessage.success('已刷新')}
+  function refreshAll(){refresh();refreshData();fetchPerformance();refreshDiag();fetchExportDir();fetchProxy();fetchAiConfig();fetchVideoQuality();ElMessage.success('已刷新')}
   function _onTourKey(e){if(tour.active&&e.key==='Escape')endTour()}
   function _onTourResize(){if(tour.active)positionTour()}
   let timer,clockTimer;onMounted(()=>{
@@ -526,8 +626,8 @@ const app=createApp({setup(){
     if(!localStorage.getItem('livewatch_tour_done')){setTimeout(()=>{try{startTour()}catch(e){}},800)}
   });
   onUnmounted(()=>{clearInterval(timer);clearInterval(clockTimer);window.removeEventListener('keydown',_onTourKey);window.removeEventListener('resize',_onTourResize)});
-  watch(view,v=>{if(['review','cloud','settings'].includes(v))refreshData();if(v==='review')setTimeout(refreshWordCloud,120);if(['pre','settings'].includes(v))refreshDiag();if(['review','cloud','pre'].includes(v))relayoutTables()});
-  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addText,resolved,resolving,adding,addErr,refreshingAnchors,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportDir,aiReportFile,aiQuestion,aiEvents,aiMessages,aiWords,videoQuality,videoQualityChoices,saveVideoQuality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,refreshWordCloud,freqWidth,openAiReportDir,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
+  watch(view,v=>{if(['review','cloud','settings'].includes(v))refreshData();if(v==='review')setTimeout(refreshWordCloud,120);if(v==='pre')fetchPerformance();if(['pre','settings'].includes(v))refreshDiag();if(['review','cloud','pre'].includes(v))relayoutTables()});
+  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addText,resolved,resolving,adding,addErr,refreshingAnchors,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportDir,aiReportFile,aiQuestion,aiEvents,aiMessages,aiWords,videoQuality,videoQualityChoices,performanceSessions,perfDetail,perfLoading,perfAnalyzing,perfFilters,perfRatings,filteredPerformance,scoreText,metricText,rateText,ratingClass,statusClass,canAnalyzePerformance,analyzePerformance,analyzeReadyPerformance,openPerformance,fetchPerformance,saveVideoQuality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,refreshWordCloud,freqWidth,openAiReportDir,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
 }});
 window.__liveApp=app;
 app.config.errorHandler=(err,_vm,info)=>{

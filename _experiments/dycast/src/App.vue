@@ -2,9 +2,11 @@
   <div class="app-shell">
     <nav class="app-tabs">
       <button :class="{ active: view === 'batch' }" type="button" @click="view = 'batch'">批量托管</button>
+      <button :class="{ active: view === 'worker' }" type="button" @click="view = 'worker'">话术+弹幕后端</button>
       <button :class="{ active: view === 'single' }" type="button" @click="view = 'single'">单房间调试</button>
     </nav>
     <BatchView v-if="view === 'batch'" />
+    <WorkerView v-else-if="view === 'worker'" />
     <IndexView v-else />
   </div>
 </template>
@@ -12,10 +14,11 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import BatchView from './views/BatchView.vue';
+import WorkerView from './views/WorkerView.vue';
 import IndexView from './views/IndexView.vue';
 import { printInfo, printSKMCJ } from './utils/logUtil';
 
-const view = ref<'batch' | 'single'>('batch');
+const view = ref<'batch' | 'worker' | 'single'>('batch');
 
 setTimeout(() => {
   console?.clear();

@@ -2,14 +2,14 @@
   <main class="batch-view">
     <section class="batch-header">
       <div>
-        <p class="eyebrow">24h 批量托管</p>
-        <h1>直播间监听控制台</h1>
+        <p class="eyebrow">低并发手动监听</p>
+        <h1>直播间手动监听台</h1>
       </div>
       <div class="header-actions">
-        <input ref="fileInput" class="file-input" type="file" accept=".csv,text/csv" @change="handleFileChange" />
-        <button class="btn secondary" type="button" @click="pickCsv">导入 CSV</button>
-        <button class="btn" type="button" :disabled="rooms.length === 0 || running" @click="startDaemon">开始托管</button>
-        <button class="btn danger" type="button" :disabled="!running" @click="stopDaemon">停止托管</button>
+        <button class="btn" type="button" :disabled="rooms.length === 0 || listeningCount >= maxConcurrentRooms" @click="startAvailableRooms">
+          连接空闲房间
+        </button>
+        <button class="btn danger" type="button" :disabled="listeningCount === 0" @click="stopAllRooms">全部停止</button>
         <a class="btn ghost" :href="exportExcelUrl" target="_blank" rel="noreferrer">导出 Excel</a>
         <a class="btn ghost" :href="exportConsoleUrl" target="_blank" rel="noreferrer">导出控制台</a>
       </div>
@@ -17,20 +17,26 @@
 
     <section class="control-band">
       <label class="field">
+        <span>直播号或直播间链接</span>
+        <input v-model.trim="manualRoomSource" placeholder="430322042715 或 https://live.douyin.com/..." @keydown.enter.prevent="addManualRoom" />
+      </label>
+      <label class="field compact">
+        <span>主播备注</span>
+        <input v-model.trim="manualName" placeholder="可选" @keydown.enter.prevent="addManualRoom" />
+      </label>
+      <label class="field compact">
+        <span>分组</span>
+        <input v-model.trim="manualGroup" placeholder="可选" @keydown.enter.prevent="addManualRoom" />
+      </label>
+      <button class="btn secondary" type="button" @click="addManualRoom">添加</button>
+      <label class="field">
         <span>转发地址</span>
         <input v-model="relayUrl" placeholder="ws://localhost:8775" />
       </label>
       <label class="field compact">
-        <span>轮询秒数</span>
-        <input v-model.number="pollIntervalSeconds" type="number" min="30" max="600" />
-      </label>
-      <label class="field compact">
         <span>并发上限</span>
-        <input v-model.number="maxConcurrentRooms" type="number" min="1" max="50" />
+        <input v-model.number="maxConcurrentRooms" type="number" min="1" max="5" />
       </label>
-      <button class="btn secondary" type="button" :disabled="rooms.length === 0 || polling" @click="runPollCycle">
-        立即轮询
-      </button>
       <button class="btn ghost" type="button" :disabled="rooms.length === 0" @click="clearRooms">清空清单</button>
     </section>
 
@@ -48,23 +54,23 @@
         <strong>{{ listeningCount }}</strong>
       </article>
       <article class="stat">
-        <span>已开播</span>
-        <strong>{{ liveCount }}</strong>
+        <span>空闲</span>
+        <strong>{{ idleCount }}</strong>
       </article>
       <article class="stat">
         <span>消息数</span>
         <strong>{{ totalMessages }}</strong>
       </article>
       <article class="stat">
-        <span>下次轮询</span>
-        <strong>{{ nextPollLabel }}</strong>
+        <span>并发上限</span>
+        <strong>{{ maxConcurrentRooms }}</strong>
       </article>
     </section>
 
     <section class="log-panel">
       <div class="panel-title">
-        <h2>托管状态</h2>
-        <span>{{ running ? '运行中' : '未启动' }}</span>
+        <h2>监听状态</h2>
+        <span>手动连接，不自动轮询</span>
       </div>
       <div class="table-wrap">
         <table>
@@ -77,7 +83,7 @@
               <th>标题/昵称</th>
               <th>弹幕</th>
               <th>最后消息</th>
-              <th>最近检查</th>
+              <th>连接时间</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -100,17 +106,17 @@
                 <small>聊天 {{ room.chatCount }}</small>
               </td>
               <td class="last-message">{{ room.lastMessage || '-' }}</td>
-              <td>{{ formatTime(room.lastCheckedAt) }}</td>
+              <td>{{ formatTime(room.connectedAt) }}</td>
               <td class="row-actions">
-                <button class="icon-btn" type="button" :disabled="room.status === 'listening'" @click="checkOne(room)">查</button>
-                <button class="icon-btn" type="button" :disabled="room.status === 'listening'" @click="startRoom(room)">连</button>
+                <button class="icon-btn" type="button" :disabled="!canStartRoom(room)" @click="startRoom(room)">连</button>
                 <button class="icon-btn danger-text" type="button" :disabled="room.status !== 'listening'" @click="stopRoom(room, '手动停止')">
                   停
                 </button>
+                <button class="icon-btn danger-text" type="button" :disabled="room.status === 'listening'" @click="removeRoom(room)">删</button>
               </td>
             </tr>
             <tr v-if="rooms.length === 0">
-              <td class="empty" colspan="9">导入 CSV 后开始托管。CSV 可包含 room_num、live_url、name、group、priority 字段。</td>
+              <td class="empty" colspan="9">手动添加直播号后点击“连”。本页面不自动轮询开播状态。</td>
             </tr>
           </tbody>
         </table>
@@ -120,9 +126,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { CastMethod, DyCast, DyCastCloseCode, RoomStatus, type DyLiveInfo, type DyMessage } from '@/core/dycast';
-import { getLiveInfo } from '@/core/request';
 import SkMessage from '@/components/Message';
 
 type WatchStatus = 'idle' | 'checking' | 'offline' | 'waiting' | 'connecting' | 'listening' | 'ended' | 'error';
@@ -158,19 +163,14 @@ const STORAGE_KEY = 'dycast.batch.rooms.v1';
 const SETTINGS_KEY = 'dycast.batch.settings.original-route.v1';
 
 const rooms = ref<WatchRoom[]>(loadRooms());
-const running = ref(false);
-const polling = ref(false);
-const nextPollAt = ref<number | null>(null);
-const clockTick = ref(Date.now());
 const guardMessage = ref('');
 const relayUrl = ref('ws://localhost:8775');
 const exportBaseUrl = ref('http://localhost:8776');
-const pollIntervalSeconds = ref(600);
-const maxConcurrentRooms = ref(10);
-const fileInputRef = useTemplateRef<HTMLInputElement>('fileInput');
+const maxConcurrentRooms = ref(3);
+const manualRoomSource = ref('');
+const manualName = ref('');
+const manualGroup = ref('');
 const runtimes = new Map<string, RuntimeRoom>();
-let pollTimer: number | undefined;
-let countdownTimer: number | undefined;
 
 loadSettings();
 
@@ -182,14 +182,8 @@ const sortedRooms = computed(() =>
   })
 );
 const listeningCount = computed(() => rooms.value.filter(room => room.status === 'listening').length);
-const liveCount = computed(() => rooms.value.filter(room => room.status === 'listening' || room.status === 'waiting').length);
+const idleCount = computed(() => rooms.value.filter(room => ['idle', 'offline', 'ended', 'error'].includes(room.status)).length);
 const totalMessages = computed(() => rooms.value.reduce((sum, room) => sum + room.messageCount, 0));
-const nextPollLabel = computed(() => {
-  clockTick.value;
-  if (!running.value || !nextPollAt.value) return '-';
-  const delta = Math.max(0, Math.ceil((nextPollAt.value - Date.now()) / 1000));
-  return `${delta}s`;
-});
 const exportRoot = computed(() => exportBaseUrl.value.replace(/\/$/, ''));
 const exportExcelUrl = computed(() => `${exportRoot.value}/export/messages.xlsx?category=chat`);
 const exportConsoleUrl = computed(() => `${exportRoot.value}/`);
@@ -201,7 +195,7 @@ watch(
   },
   { deep: true }
 );
-watch([relayUrl, exportBaseUrl, pollIntervalSeconds, maxConcurrentRooms], persistSettings);
+watch([relayUrl, exportBaseUrl, maxConcurrentRooms], persistSettings);
 
 function loadRooms(): WatchRoom[] {
   try {
@@ -226,8 +220,7 @@ function loadSettings() {
     const settings = JSON.parse(raw);
     relayUrl.value = settings.relayUrl || relayUrl.value;
     exportBaseUrl.value = settings.exportBaseUrl || exportBaseUrl.value;
-    pollIntervalSeconds.value = Number(settings.pollIntervalSeconds || pollIntervalSeconds.value);
-    maxConcurrentRooms.value = Number(settings.maxConcurrentRooms || maxConcurrentRooms.value);
+    maxConcurrentRooms.value = clampConcurrency(Number(settings.maxConcurrentRooms || maxConcurrentRooms.value));
   } catch {}
 }
 
@@ -242,108 +235,9 @@ function persistSettings() {
     JSON.stringify({
       relayUrl: relayUrl.value,
       exportBaseUrl: exportBaseUrl.value,
-      pollIntervalSeconds: pollIntervalSeconds.value,
-      maxConcurrentRooms: maxConcurrentRooms.value
+      maxConcurrentRooms: clampConcurrency(maxConcurrentRooms.value)
     })
   );
-}
-
-function pickCsv() {
-  fileInputRef.value?.click();
-}
-
-async function handleFileChange(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  const text = await file.text();
-  const imported = parseRoomsCsv(text);
-  mergeRooms(imported);
-  input.value = '';
-  SkMessage.success(`已导入 ${imported.length} 个直播号`);
-}
-
-function parseRoomsCsv(text: string): WatchRoom[] {
-  const rows = parseCsv(text).filter(row => row.some(cell => cell.trim()));
-  if (rows.length === 0) return [];
-
-  const first = rows[0].map(normalizeHeader);
-  const hasHeader = first.some(cell => ['room_num', 'live_url', 'name', 'group', 'priority'].includes(cell));
-  const body = hasHeader ? rows.slice(1) : rows;
-  const header = hasHeader ? first : [];
-
-  return body
-    .map((row, index) => {
-      const get = (key: string, fallbackIndex: number) => {
-        const idx = header.indexOf(key);
-        return (idx >= 0 ? row[idx] : row[fallbackIndex] || '').trim();
-      };
-      const roomSource = get('room_num', 0) || get('live_url', 0);
-      const roomNum = extractRoomNum(roomSource);
-      if (!roomNum) return null;
-      const name = get('name', 1);
-      return createRoom({
-        name,
-        roomNum,
-        liveUrl: get('live_url', 2) || `https://live.douyin.com/${roomNum}`,
-        group: get('group', 3),
-        priority: Number(get('priority', 4) || index + 1)
-      });
-    })
-    .filter((room): room is WatchRoom => Boolean(room));
-}
-
-function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let cell = '';
-  let quoted = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
-    if (char === '"' && quoted && next === '"') {
-      cell += '"';
-      i += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === ',' && !quoted) {
-      row.push(cell);
-      cell = '';
-    } else if ((char === '\n' || char === '\r') && !quoted) {
-      if (char === '\r' && next === '\n') i += 1;
-      row.push(cell);
-      rows.push(row);
-      row = [];
-      cell = '';
-    } else {
-      cell += char;
-    }
-  }
-  row.push(cell);
-  rows.push(row);
-  return rows;
-}
-
-function normalizeHeader(value: string) {
-  const lower = value.trim().toLowerCase();
-  const map: Record<string, string> = {
-    room: 'room_num',
-    roomid: 'room_num',
-    room_id: 'room_num',
-    roomnum: 'room_num',
-    '直播号': 'room_num',
-    '房间号': 'room_num',
-    url: 'live_url',
-    liveurl: 'live_url',
-    '直播间': 'live_url',
-    '链接': 'live_url',
-    '主播': 'name',
-    nickname: 'name',
-    '名称': 'name',
-    '分组': 'group',
-    '优先级': 'priority'
-  };
-  return map[lower] || lower;
 }
 
 function extractRoomNum(value: string) {
@@ -366,105 +260,50 @@ function createRoom(input: Pick<WatchRoom, 'name' | 'roomNum' | 'liveUrl' | 'gro
   };
 }
 
-function mergeRooms(imported: WatchRoom[]) {
-  const byRoom = new Map(rooms.value.map(room => [room.roomNum, room]));
-  for (const item of imported) {
-    const existing = byRoom.get(item.roomNum);
-    if (existing) {
-      Object.assign(existing, {
-        name: item.name || existing.name,
-        liveUrl: item.liveUrl || existing.liveUrl,
-        group: item.group || existing.group,
-        priority: item.priority || existing.priority,
-        enabled: true
-      });
-    } else {
-      rooms.value.push(item);
-    }
+function addManualRoom() {
+  const roomNum = extractRoomNum(manualRoomSource.value);
+  if (!roomNum) {
+    SkMessage.error('请输入有效的直播号或直播间链接');
+    return;
   }
-}
-
-function startDaemon() {
-  guardMessage.value = '';
-  running.value = true;
-  SkMessage.success('批量托管已启动');
-  void runPollCycle();
-  startTimers();
-}
-
-function stopDaemon() {
-  running.value = false;
-  window.clearTimeout(pollTimer);
-  window.clearInterval(countdownTimer);
-  for (const room of rooms.value) stopRoom(room, '托管停止');
-  nextPollAt.value = null;
-  SkMessage.info('批量托管已停止');
-}
-
-function startTimers() {
-  window.clearTimeout(pollTimer);
-  window.clearInterval(countdownTimer);
-  countdownTimer = window.setInterval(() => {
-    clockTick.value = Date.now();
-  }, 1000);
-  scheduleNextPoll();
-}
-
-function scheduleNextPoll() {
-  if (!running.value) return;
-  const seconds = Math.max(30, Number(pollIntervalSeconds.value) || 60);
-  nextPollAt.value = Date.now() + seconds * 1000;
-  window.clearTimeout(pollTimer);
-  pollTimer = window.setTimeout(() => {
-    void runPollCycle();
-    scheduleNextPoll();
-  }, seconds * 1000);
-}
-
-async function runPollCycle() {
-  if (polling.value || guardMessage.value) return;
-  polling.value = true;
-  try {
-    const candidates = rooms.value
-      .filter(room => room.enabled && !['listening', 'connecting', 'checking'].includes(room.status))
-      .sort((a, b) => a.priority - b.priority);
-    for (const room of candidates) {
-      if (listeningCount.value >= maxConcurrentRooms.value) {
-        if (room.status !== 'listening') room.status = 'waiting';
-        continue;
-      }
-      await checkOne(room, true);
-      await sleep(1800 + Math.floor(Math.random() * 1200));
-    }
-  } finally {
-    polling.value = false;
+  const existing = rooms.value.find(room => room.roomNum === roomNum);
+  if (existing) {
+    existing.name = manualName.value || existing.name;
+    existing.group = manualGroup.value || existing.group;
+    existing.enabled = true;
+    SkMessage.info('直播号已存在，已更新备注');
+  } else {
+    rooms.value.push(
+      createRoom({
+        name: manualName.value,
+        roomNum,
+        liveUrl: `https://live.douyin.com/${roomNum}`,
+        group: manualGroup.value,
+        priority: rooms.value.length + 1
+      })
+    );
+    SkMessage.success('已添加直播号');
   }
+  manualRoomSource.value = '';
+  manualName.value = '';
+  manualGroup.value = '';
 }
 
-async function checkOne(room: WatchRoom, autoStart = false) {
-  if (room.status === 'listening' || room.status === 'connecting') return;
-  room.status = 'checking';
-  room.error = '';
-  room.lastCheckedAt = Date.now();
-  try {
-    const info = await getLiveInfo(room.roomNum);
-    applyInfo(room, info);
-    if (info.status === RoomStatus.LIVING) {
-      room.status = 'waiting';
-      if (autoStart && listeningCount.value < maxConcurrentRooms.value) await startRoom(room);
-    } else {
-      room.status = 'offline';
-    }
-  } catch (err) {
-    room.status = 'error';
-    const message = err instanceof Error ? err.message : String(err);
-    room.error = message;
-    if (message.includes('验证码') || message.includes('风控')) {
-      guardMessage.value = '检测到抖音验证码/风控中间页，已暂停自动轮询。请先在浏览器完成验证，或等待一段时间后再开始托管。';
-      running.value = false;
-      window.clearTimeout(pollTimer);
-      nextPollAt.value = null;
-    }
+function clampConcurrency(value: number) {
+  if (!Number.isFinite(value)) return 3;
+  return Math.min(5, Math.max(1, Math.floor(value)));
+}
+
+function canStartRoom(room: WatchRoom) {
+  return room.status !== 'listening' && room.status !== 'connecting' && listeningCount.value < clampConcurrency(maxConcurrentRooms.value);
+}
+
+async function startAvailableRooms() {
+  const limit = clampConcurrency(maxConcurrentRooms.value);
+  for (const room of sortedRooms.value) {
+    if (listeningCount.value >= limit) break;
+    if (canStartRoom(room)) await startRoom(room);
+    await sleep(1500);
   }
 }
 
@@ -499,7 +338,7 @@ async function startRoom(room: WatchRoom) {
       room.status = 'error';
       room.error = reason || '连接关闭';
     } else {
-      room.status = running.value ? 'offline' : 'idle';
+      room.status = 'idle';
     }
     runtimes.delete(room.uid);
   });
@@ -519,7 +358,7 @@ function stopRoom(room: WatchRoom, reason = '停止监听') {
   closeRelay(runtime);
   runtime.cast?.close(DyCastCloseCode.NORMAL, reason);
   runtimes.delete(room.uid);
-  room.status = running.value ? 'offline' : 'idle';
+  room.status = 'idle';
 }
 
 function openRelay(room: WatchRoom, info?: DyLiveInfo) {
@@ -543,7 +382,7 @@ function openRelay(room: WatchRoom, info?: DyLiveInfo) {
     room.error = '转发连接错误';
   });
   relay.addEventListener('close', () => {
-    if (room.status === 'listening' && running.value) {
+    if (room.status === 'listening') {
       window.setTimeout(() => openRelay(room, info), 3000);
     }
   });
@@ -595,9 +434,19 @@ function applyInfo(room: WatchRoom, info?: DyLiveInfo) {
 }
 
 function clearRooms() {
-  stopDaemon();
+  stopAllRooms();
   rooms.value = [];
   localStorage.removeItem(STORAGE_KEY);
+}
+
+function removeRoom(room: WatchRoom) {
+  stopRoom(room, '删除房间');
+  rooms.value = rooms.value.filter(item => item.uid !== room.uid);
+}
+
+function stopAllRooms() {
+  for (const room of rooms.value) stopRoom(room, '全部停止');
+  SkMessage.info('已停止所有监听');
 }
 
 function statusText(status: WatchStatus) {
@@ -624,7 +473,7 @@ function sleep(ms: number) {
 }
 
 onBeforeUnmount(() => {
-  stopDaemon();
+  stopAllRooms();
 });
 </script>
 

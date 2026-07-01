@@ -53,7 +53,18 @@ dist/
 _experiments/asr_bench/sensevoice_onnx/
 _experiments/asr_bench/sherpa-onnx-sense-voice-*/
 _experiments/douyin_worker_route/audio/
+_experiments/douyin_worker_route/video/
 _experiments/douyin_worker_route/rooms.json
+# 内网穿透工具与公网验收脚本（二进制 + 含访问密码，切勿入库）
+_experiments/douyin_worker_route/cloudflared.exe
+_experiments/douyin_worker_route/公网验收.ps1
+# 待开播主播清单（含 sec_user_id，用户数据，切勿入库）
+_experiments/douyin_worker_route/pending_anchors.json
+# 视频画质设置 + 录制的视频（用户数据/大文件，切勿入库）
+_experiments/douyin_worker_route/video_quality.txt
+_experiments/douyin_worker_route/video/
+# AI provider config (contains API key; local only)
+_experiments/douyin_worker_route/ai_config.json
 # 浏览器铸的抖音信任 cookie（本机会话凭证，切勿入库）
 _experiments/douyin_worker_route/browser_cookies.json
 _experiments/douyin_worker_route/_diag.log

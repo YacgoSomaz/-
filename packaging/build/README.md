@@ -1,0 +1,52 @@
+# 直播复盘侠打包构建链
+
+把 `_experiments/douyin_worker_route` 的最新源码打成 **完全离线、程序/数据分离、普通用户安装即用**
+的 Windows 安装程序。**不改业务监听逻辑**，只新增打包层与少量路径解析（开发态行为完全不变）。
+
+## 文件清单
+
+| 文件 | 作用 |
+|------|------|
+| `livewatch_launcher.py` | PyInstaller 桌面客户端入口。注入数据/资源路径，启动 uvicorn 后端，并用 WebView2 独立窗口与系统托盘承载控制台。 |
+| `build_release.ps1` | **一键可重复构建**。每次从空白 staging 重建：白名单拷源码→内置 node+模型→PyInstaller 打包→安全扫描→ISCC 编译安装程序。 |
+| `check_release.ps1` | 构建产物安全扫描。发现 Cookie / 数据库 / 音频 / 日志 / 开发房间号 → 立即 `exit 1` 让构建失败。 |
+| `livewatch.iss` | Inno Setup 脚本。装到安装目录；覆盖升级保数据；卸载默认保留数据 + 明确「完全删除」选项。 |
+| `smoke_test.ps1` | 全新目录安装冒烟测试：启动、模型路径、数据目录、覆盖升级保数据。 |
+| `assets/README_使用说明.md` | 随安装包分发的最终用户说明。 |
+
+## 程序 / 数据 / 资源 三分离
+
+| 类别 | 位置 | 谁写 |
+|------|------|------|
+| 程序源码 + Node | `<安装目录>\app\` | 安装程序（只读） |
+| 模型与验证浏览器 | `<安装目录>\models\`、`<安装目录>\browsers\` | 安装程序（只读） |
+| 运行时（Python/FFmpeg/各依赖） | `<安装目录>\_internal\`、`LiveWatchLauncher.exe` | 安装程序（只读） |
+| 用户数据 | `%LOCALAPPDATA%\LiveWatch\data\`（cookie、rooms.json、`*.db`、`audio\`、`exports\`、`logs\`） | 运行时 |
+
+路径解析在 `pipeline/config.py`：两个环境变量未设置时（开发态）全部回退原相对路径，**行为零变化**；
+设置后（打包态）数据落 `DATA_DIR`、模型落 `RESOURCE_DIR`。
+
+## 构建命令
+
+```powershell
+# 前置：Python + PyInstaller、Node（取 node.exe）、Inno Setup 6（提供 ISCC.exe）
+pwsh -File packaging\build\build_release.ps1 -Version 1.0.0
+
+# 只产 staging、不编译安装程序：
+pwsh -File packaging\build\build_release.ps1 -SkipInstaller
+
+# 单独跑安全扫描 / 冒烟测试：
+pwsh -File packaging\build\check_release.ps1 -Target staging\LiveWatch
+pwsh -File packaging\build\smoke_test.ps1
+```
+
+产物：`release\LiveWatchSetup_<版本>.exe`
+
+## 可重复性
+
+- 每次构建先 `Remove-Item` 清空 `staging\`，再全自动重建——**没有任何手工复制步骤**。
+- 源码用**白名单**拷贝（仅 `pipeline\*.py`、`vendor\`、`run_worker.py`），天然排除 `audio\`、`*.db`、
+  `browser_cookies.json`、`rooms.json`、`exports\`、日志、样本、`__pycache__`、`_scratch*`。
+- 安全扫描是构建的**强制关卡**，扫到任何敏感物即让整个构建失败。
+
+

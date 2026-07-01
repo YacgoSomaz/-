@@ -1,7 +1,7 @@
 <template>
   <div class="app-shell">
     <nav class="app-tabs">
-      <button :class="{ active: view === 'batch' }" type="button" @click="view = 'batch'">批量托管</button>
+      <button :class="{ active: view === 'batch' }" type="button" @click="view = 'batch'">手动监听</button>
       <button :class="{ active: view === 'single' }" type="button" @click="view = 'single'">单房间调试</button>
     </nav>
     <BatchView v-if="view === 'batch'" />

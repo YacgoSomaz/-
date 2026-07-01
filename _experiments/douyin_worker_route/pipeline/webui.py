@@ -16,6 +16,8 @@ import base64
 import json
 import os
 import secrets
+import threading
+import time
 from pathlib import Path
 from urllib.parse import quote
 
@@ -25,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_report, browser_cookies, config, diagnostics
+from . import ai_report, browser_cookies, config, diagnostics, performance_analysis
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import MAX_ACTIVE_ROOMS, RoomManager
@@ -69,6 +71,22 @@ _mgr = RoomManager()
 _FRONTEND = Path(__file__).with_name("frontend.html")
 _STATIC = Path(__file__).with_name("static")
 app.mount("/static", StaticFiles(directory=_STATIC), name="static")
+
+
+def _performance_ai_loop() -> None:
+    """Analyze finished/stable sessions in the background without blocking pages."""
+    if os.environ.get("LIVEWATCH_DISABLE_PERF_AI_LOOP"):
+        return
+    while True:
+        try:
+            performance_analysis.analyze_ready_sessions(limit=1)
+        except Exception:
+            # Background analysis must never take down recording/control APIs.
+            pass
+        time.sleep(60)
+
+
+threading.Thread(target=_performance_ai_loop, name="performance-ai-loop", daemon=True).start()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -323,6 +341,42 @@ def api_ai_report_download(filename: str = Query(...)) -> Response:
 def api_data_rooms() -> JSONResponse:
     """历史数据清单，与当前监听清单解耦。"""
     return JSONResponse({"rooms": export_mod.data_room_summaries()})
+
+
+@app.get("/api/performance/sessions")
+def api_performance_sessions() -> JSONResponse:
+    """效能分析首页：当前版本按直播号聚合为可分析场次。"""
+    return JSONResponse({"sessions": performance_analysis.list_session_summaries()})
+
+
+@app.get("/api/performance/sessions/{session_id}")
+def api_performance_session_detail(session_id: str) -> JSONResponse:
+    """单场效能详情。当前 session_id 即直播号；后续可替换为真实场次 id。"""
+    try:
+        detail = performance_analysis.build_session_analysis(session_id, include_detail=True)
+    except Exception as exc:  # noqa: BLE001  页面不因单房间脏数据崩溃
+        raise HTTPException(status_code=500, detail=f"效能分析失败：{exc}") from exc
+    return JSONResponse({"session": detail})
+
+
+@app.post("/api/performance/sessions/{session_id}/analyze")
+def api_performance_session_analyze(session_id: str, force: bool = Body(default=True, embed=True)) -> JSONResponse:
+    """手动触发/重跑单场 AI 效能分析。"""
+    try:
+        detail = performance_analysis.analyze_room(session_id, force=bool(force))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"AI效能分析失败：{exc}") from exc
+    return JSONResponse({"session": detail})
+
+
+@app.post("/api/performance/analyze-ready")
+def api_performance_analyze_ready(limit: int = Body(default=1, embed=True)) -> JSONResponse:
+    """手动扫描已下播且稳定超过 5 分钟的直播，最多分析 limit 场。"""
+    try:
+        result = performance_analysis.analyze_ready_sessions(limit=max(1, min(int(limit), 5)))
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"扫描AI效能分析失败：{exc}") from exc
+    return JSONResponse(result)
 
 
 @app.post("/api/data/clear-all")
