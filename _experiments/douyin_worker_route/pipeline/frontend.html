@@ -111,7 +111,7 @@ button,input,textarea{font:inherit}
     <div class="title">{{exporting.title}}</div>
     <div class="desc">{{exporting.desc}}</div>
     <div class="export-track"><div class="export-fill" :style="{width:exporting.pct+'%'}"></div></div>
-    <div class="export-pct">{{exporting.pct < 100 ? exporting.pct+'%' : '正在保存文件…'}}</div>
+    <div class="export-pct">{{exportPctText}}</div>
   </div>
 </div>
 <div v-if="tour.active" class="tour-overlay" @click.self.prevent></div>
@@ -121,7 +121,7 @@ button,input,textarea{font:inherit}
   <div class="tour-title">{{tourSteps[tour.idx].title}}</div>
   <div class="tour-desc">{{tourSteps[tour.idx].desc}}</div>
   <div class="tour-dots"><i v-for="(_,i) in tourSteps" :key="i" :class="{active:i===tour.idx}"></i></div>
-  <div class="tour-actions"><button class="tour-skip" @click="endTour">跳过引导</button><button class="tour-next" @click="nextTour">{{tour.idx<tourSteps.length-1?'下一步 →':'开始使用'}}</button></div>
+  <div class="tour-actions"><button class="tour-skip" @click="endTour">跳过引导</button><button class="tour-next" @click="nextTour">{{tourNextText}}</button></div>
 </div>
 <div class="shell">
   <aside class="side">
@@ -279,6 +279,8 @@ const app=createApp({setup(){
   const liveCount=computed(()=>(Array.isArray(rooms.value)?rooms.value:[]).filter(isLive).length);
   const dataTotals=computed(()=>(Array.isArray(dataRooms.value)?dataRooms.value:[]).reduce((a,r)=>({transcripts:a.transcripts+(r.transcripts||0),events:a.events+(r.events||0),audio:a.audio+(r.audio_files||0)}),{transcripts:0,events:0,audio:0}));
   const diskPercent=computed(()=>Math.max(8,Math.min(100,(diag.free_gb||0)/2)));
+  const exportPctText=computed(()=>exporting.pct<100?exporting.pct+'%':'正在保存文件…');
+  const tourNextText=computed(()=>tour.idx<tourSteps.length-1?'下一步':'开始使用');
   const anchorStatus=r=>r.phase==='recording'?'正在直播':r.phase==='reconnecting'?'直播连接中断':r.phase==='waiting'?'等待主播开播':r.phase==='starting'?'正在检查直播状态':r.phase==='stopped'?'未启动监听':phaseText(r.phase);
   const stateClass=r=>r.phase==='recording'?'recording':['waiting','starting','reconnecting','needs_verification'].includes(r.phase)?'waiting':['error','risk_cooldown'].includes(r.phase)?'error':'';
   async function refresh(){try{const d=await(await fetch('/api/status')).json();rooms.value=d.rooms||[];maxActiveRooms.value=d.limits?.max_active_rooms||5;risk.active=!!d.risk_control?.active;risk.until_ts=d.risk_control?.until_ts||0;risk.reason=d.risk_control?.reason||''}catch(e){}}
@@ -321,7 +323,7 @@ const app=createApp({setup(){
   function removeWord(i){words.value.splice(i,1);saveWords()}
   function refreshAll(){refresh();refreshData();refreshDiag();fetchExportDir();fetchProxy();ElMessage.success('已刷新')}
   let timer;onMounted(()=>{try{const _pw=JSON.parse(localStorage.getItem('livewatch_words')||'[]');words.value=Array.isArray(_pw)?_pw:[]}catch(e){}refreshAll();timer=setInterval(refresh,3000);if(!localStorage.getItem('livewatch_tour_done')&&!window.pywebview)setTimeout(startTour,800)});onUnmounted(()=>clearInterval(timer));watch(view,v=>{if(['review','cloud','settings'].includes(v))refreshData();if(['pre','settings'].includes(v))refreshDiag()});
-  return{view,keyword,rooms,dataRooms,selData,ht,maxActiveRooms,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,diskPercent,addText,resolved,resolving,adding,addErr,refreshingAnchors,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,tour,tourSteps,phaseText,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,exportAll,clearData,remint,toggleAllHist,doResolve,doAdd,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,clearProxy,startTour,nextTour,endTour}
+  return{view,keyword,rooms,dataRooms,selData,ht,maxActiveRooms,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,diskPercent,exportPctText,tourNextText,addText,resolved,resolving,adding,addErr,refreshingAnchors,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,tour,tourSteps,phaseText,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,exportAll,clearData,remint,toggleAllHist,doResolve,doAdd,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,clearProxy,startTour,nextTour,endTour}
 }});
 window.__liveApp=app;
 app.config.errorHandler=(err,_vm,info)=>{console.error('[VUE]',info,err);const pre=document.createElement('pre');pre.textContent=info+'\n\n'+err.stack;pre.style.cssText='position:fixed;inset:0;padding:24px;background:#fff;color:#c00;font-size:12px;overflow:auto;z-index:9999;white-space:pre-wrap;word-break:break-all';document.body.appendChild(pre)};
