@@ -166,6 +166,17 @@ class SqliteSink:
     def total(self) -> int:
         return sum(self.counts.values())
 
+    def clear_all(self) -> None:
+        """清空所有弹幕/事件与房间昵称（一键清除数据用）。库文件保留，只删行。"""
+        with self._lock:
+            for table in ("events", "room_meta"):
+                try:
+                    self._conn.execute(f"DELETE FROM {table}")
+                except sqlite3.Error:
+                    pass
+            self._conn.commit()
+            self.counts.clear()
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
@@ -180,6 +191,7 @@ class WorkerFetcher(DouyinLiveWebFetcher):
         self._method_counts: dict[str, int] = {}
         self._room_status: int | None = None  # 房间页 room.status：2=在播，其余=已下播/未开播
         self._anchor_nick: str | None = None   # 房间页解析的主播昵称（导出区分房间用）
+        self._anchor_avatar: str | None = None  # 房间页解析的主播头像 URL（开播时直播间页可靠取得）
         self._page_state = "unknown"
         # a_bogus.js 用绝对路径，避免 cwd 变化导致找不到
         self.abogus_file = str(_VENDOR / "a_bogus.js")
@@ -201,13 +213,13 @@ class WorkerFetcher(DouyinLiveWebFetcher):
         """Return cached trusted ttwid only; background workers never mint one."""
         return self._cached_ttwid
 
-    def _fetch_room_page(self, cookie_header: str) -> tuple[str | None, int | None, str | None]:
-        """带指定 cookie 抓房间页，解析 (roomId, room.status, 主播昵称)。抓不到（验证页）返回 (None, None, None)。
+    def _fetch_room_page(self, cookie_header: str) -> tuple[str | None, int | None, str | None, str | None]:
+        """带指定 cookie 抓房间页，解析 (roomId, room.status, 主播昵称, 主播头像)。抓不到返回全 None。
 
-        三者同源取自 roomStore→roomInfo（与前端 parseLiveHtml 一致）：
+        四者同源取自 roomStore→roomInfo（与前端 parseLiveHtml 一致）：
           room.status：2=直播中，其余（含取不到）按已下播/未开播处理。关键：房间页在主播
                        下播后仍会短暂保留 roomId，单看 roomId 不能判断在播，必须读 status。
-          anchor.nickname：主播昵称，导出时用来区分各房间。
+          anchor.nickname / avatar_thumb：主播昵称与头像，导出区分房间 + 前端展示用。
         """
         try:
             headers = dict(self.headers)
@@ -219,7 +231,7 @@ class WorkerFetcher(DouyinLiveWebFetcher):
                 timeout=15,
             )
         except Exception:  # noqa: BLE001
-            return None, None, None
+            return None, None, None, None
         text = resp.text
         self._page_state = classify_room_page(text)
         m = re.search(r'roomId..:..(\d+)', text)
@@ -235,7 +247,12 @@ class WorkerFetcher(DouyinLiveWebFetcher):
             unesc, re.DOTALL,
         )
         nick = _decode_unicode_escapes(nm.group(1)) if nm else None
-        return rid, status, nick
+        am = re.search(
+            r'"anchor":\{.*?"avatar_thumb":\{.*?"url_list":\["(.*?)"',
+            unesc, re.DOTALL,
+        )
+        avatar = am.group(1).replace("\\u002F", "/").replace("\\/", "/") if am else None
+        return rid, status, nick, avatar
 
     @property
     def room_id(self) -> str | None:
@@ -247,10 +264,11 @@ class WorkerFetcher(DouyinLiveWebFetcher):
         cached = self.__dict__.get("_DouyinLiveWebFetcher__room_id")
         if cached:
             return cached
-        rid, status, nick = self._fetch_room_page(browser_cookies.cached_cookie_header())
+        rid, status, nick, avatar = self._fetch_room_page(browser_cookies.cached_cookie_header())
         self._DouyinLiveWebFetcher__room_id = rid
         self._room_status = status
         self._anchor_nick = nick
+        self._anchor_avatar = avatar
         return rid
 
     @property
@@ -263,6 +281,13 @@ class WorkerFetcher(DouyinLiveWebFetcher):
         if self._anchor_nick is None:
             _ = self.room_id
         return self._anchor_nick or ""
+
+    @property
+    def anchor_avatar(self) -> str:
+        """主播头像 URL；与昵称同源于同一次房间页解析，不额外发请求。"""
+        if self._anchor_avatar is None:
+            _ = self.room_id
+        return self._anchor_avatar or ""
 
     @property
     def is_live(self) -> bool:

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import random
+import shutil
 import sqlite3
 import threading
 import time
@@ -22,7 +23,7 @@ from pathlib import Path
 
 from run_worker import WorkerFetcher, SqliteSink  # noqa: E402
 
-from . import browser_cookies, config
+from . import browser_cookies, config, profile_watch
 from .audio_capture import record_room_muxer
 from .sensevoice_engine import SenseVoiceEngine
 from .speaker_worker import process_once as process_speakers_once
@@ -31,6 +32,7 @@ from .transcribe_batch import process_once
 from .transcript_store import TranscriptStore
 
 ROOMS_JSON = config.ROOMS_JSON
+PENDING_JSON = config.PENDING_JSON
 # 退避分两类，绝不混用：未开播/无 room_id 必须长退避，否则 N 个未播房间 5 秒一轮
 # 持续打房间页，会把后端自己送进风控；带抖动错开各房间，避免同一时刻齐发。
 NOT_LIVE_BACKOFF_SEC = 90       # 未开播/取不到 room_id/连接前异常：长退避基准
@@ -44,6 +46,15 @@ TRANSCRIBE_POLL_SEC = 10
 TRANSCRIBE_INIT_RETRY_SEC = 30
 AUDIO_IDLE_SLEEP_SEC = 3
 AUDIO_FAIL_BACKOFF_SEC = 12
+# 「录制中」必须和真有 mp3 落袋挂钩：超过此秒数没有新封口段，判为「空挂」（下播后 WSS 反复
+# 重连但音频流已断），状态层据此显示为「等待开播」而非假的「录制中」，并清零录制时长。
+# 段时长 SEGMENT_SEC(60s) + 转写/封口延迟，留足余量取 150s。
+RECORDING_STALE_SEC = 150
+# 录制看门狗：「该录却长时间没新段」的房间自动强制重连（重拉流 + 重连 WSS）。
+# 这覆盖「主播在播但 mp3 不落袋」（取流卡死/电脑待机唤醒后连接已死但未察觉）。
+WATCHDOG_POLL_SEC = 30           # 看门狗巡检间隔
+WATCHDOG_STALE_SEC = 150         # 超过此秒没新段即判卡死，触发重连（与显示矫正阈值一致）
+WATCHDOG_RESTART_COOLDOWN_SEC = 150  # 同一房间两次强制重连的最小间隔，防重连风暴
 
 
 @dataclass
@@ -56,14 +67,32 @@ class RoomState:
     source_url: str = ""
     sec_user_id: str = ""
     active: bool = False
+    record_video: bool = False   # 是否同时录制视频（默认仅录音；按房间开关）
     status: str = "未启动"
     phase: str = "stopped"
     connected: bool = False
     next_retry_ts: int = 0
     last_segment_ts: int = 0
+    added_ts: int = 0            # 添加时间（毫秒），大盘按此排序，保持添加先后顺序
+    recording_since: int = 0    # 本次连续录制起始秒戳；用于显示「录了多久」，下播/断开归零
+    last_restart_ts: int = 0    # 看门狗上次强制重连本房间的秒戳，用于节流，避免重连风暴
     thread: threading.Thread | None = field(default=None, repr=False)
     audio_thread: threading.Thread | None = field(default=None, repr=False)
     stop: threading.Event | None = field(default=None, repr=False)
+
+
+@dataclass
+class PendingAnchor:
+    """待开播主播：只有 sec_user_id，后台定期探测主页，开播后抠出直播号转为正式房间。"""
+
+    sec_user_id: str
+    anchor_name: str = ""
+    avatar_url: str = ""
+    source_url: str = ""
+    added_ts: int = 0
+    last_check_ts: int = 0
+    next_check_ts: int = 0   # 0 = 尽快探测（新登记/手动触发）
+    last_status: str = "等待探测"
 
 
 class RoomManager:
@@ -83,11 +112,22 @@ class RoomManager:
         self._transcribe_thread: threading.Thread | None = None
         self._speaker_stop = threading.Event()
         self._speaker_thread: threading.Thread | None = None
+        self._watchdog_stop = threading.Event()
+        self._watchdog_thread: threading.Thread | None = None
         self._errors = ErrorRegistry()
         self._risk_cooldown = GlobalCooldown()
         self._control_epoch = 0
 
+        # 待开播主播：键为 sec_user_id。轮询线程懒启动（首次登记待开播时才起）。
+        self._pending: dict[str, PendingAnchor] = {}
+        self._pending_started = False
+        self._pending_stop = threading.Event()
+        self._pending_thread: threading.Thread | None = None
+
         self._load_rooms()
+        self._load_pending()
+        if self._pending:  # 重启后若有遗留待开播主播，恢复轮询
+            self._start_pending_watch()
 
     # ---------- 房间列表持久化 ----------
 
@@ -98,7 +138,7 @@ class RoomManager:
             ids = json.loads(ROOMS_JSON.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return
-        for item in ids:
+        for index, item in enumerate(ids, start=1):
             if isinstance(item, dict):
                 rid = str(item.get("rid") or "").strip()
                 if not rid:
@@ -109,11 +149,14 @@ class RoomManager:
                     avatar_url=str(item.get("avatar_url") or ""),
                     source_url=str(item.get("source_url") or ""),
                     sec_user_id=str(item.get("sec_user_id") or ""),
+                    record_video=bool(item.get("record_video") or False),
+                    # 旧库无 added_ts：按文件顺序补小序号，保持原有先后；新增的用毫秒戳，排其后。
+                    added_ts=int(item.get("added_ts") or index),
                 )
             else:
                 rid = str(item).strip()
                 if rid:
-                    self._rooms[rid] = RoomState(rid=rid)
+                    self._rooms[rid] = RoomState(rid=rid, added_ts=index)
 
     def _save_rooms(self) -> None:
         rooms = [
@@ -123,11 +166,54 @@ class RoomManager:
                 "avatar_url": state.avatar_url,
                 "source_url": state.source_url,
                 "sec_user_id": state.sec_user_id,
+                "record_video": state.record_video,
+                "added_ts": state.added_ts,
             }
-            for state in sorted(self._rooms.values(), key=lambda room: room.rid)
+            for state in sorted(self._rooms.values(), key=lambda room: (room.added_ts, room.rid))
         ]
         try:
             ROOMS_JSON.write_text(json.dumps(rooms, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+
+    # ---------- 待开播清单持久化 ----------
+
+    def _load_pending(self) -> None:
+        if not PENDING_JSON.exists():
+            return
+        try:
+            items = json.loads(PENDING_JSON.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            sid = str(item.get("sec_user_id") or "").strip()
+            if not sid:
+                continue
+            self._pending[sid] = PendingAnchor(
+                sec_user_id=sid,
+                anchor_name=str(item.get("anchor_name") or ""),
+                avatar_url=str(item.get("avatar_url") or ""),
+                source_url=str(item.get("source_url") or ""),
+                added_ts=int(item.get("added_ts") or 0),
+                last_status=str(item.get("last_status") or "等待探测"),
+            )
+
+    def _save_pending(self) -> None:
+        items = [
+            {
+                "sec_user_id": p.sec_user_id,
+                "anchor_name": p.anchor_name,
+                "avatar_url": p.avatar_url,
+                "source_url": p.source_url,
+                "added_ts": p.added_ts,
+                "last_status": p.last_status,
+            }
+            for p in sorted(self._pending.values(), key=lambda a: a.added_ts)
+        ]
+        try:
+            PENDING_JSON.write_text(json.dumps(items, ensure_ascii=False, indent=2), encoding="utf-8")
         except OSError:
             pass
 
@@ -141,6 +227,46 @@ class RoomManager:
         self._transcribe_thread.start()
         self._speaker_thread = threading.Thread(target=self._speaker_loop, daemon=True)
         self._speaker_thread.start()
+        self._watchdog_thread = threading.Thread(target=self._watchdog_loop, daemon=True)
+        self._watchdog_thread.start()
+
+    def _watchdog_loop(self) -> None:
+        """录制看门狗：定期巡检，对「该录却长时间没新段」的房间强制重连（重拉流 + 重连 WSS）。
+
+        覆盖「主播在播但 mp3 不落袋」：取流卡死、ffmpeg 僵死、电脑待机唤醒后连接已死未察觉等。
+        重连本身就是诊断信号——记到 recent_errors，让根因（卡了多久、多频繁）可见。
+        """
+        while not self._watchdog_stop.is_set():
+            now = int(time.time())
+            stale_rids: list[tuple[str, int]] = []
+            with self._lock:
+                for st in self._rooms.values():
+                    if not (st.active and st.phase == "recording" and st.recording_since):
+                        continue
+                    fresh = max(st.last_segment_ts, st.recording_since)
+                    age = now - fresh
+                    if age > WATCHDOG_STALE_SEC and (now - st.last_restart_ts) > WATCHDOG_RESTART_COOLDOWN_SEC:
+                        st.last_restart_ts = now
+                        stale_rids.append((st.rid, age))
+            for rid, age in stale_rids:
+                if self._watchdog_stop.is_set():
+                    break
+                self._errors.record(
+                    f"recording_stall:{rid}",
+                    RuntimeError(f"在线但 {age}s 无新段，已自动重连直播间"),
+                )
+                # 同时打到服务器日志，便于排查根因（卡了多久、哪个房间、多频繁）
+                print(f"[看门狗] 房间 {rid} 录制卡死 {age}s 无新段 → 强制重连", flush=True)
+                self.restart_room(rid)
+            self._watchdog_stop.wait(WATCHDOG_POLL_SEC)
+
+    def restart_room(self, rid: str) -> bool:
+        """强制重连某房间：停掉旧线程→重新拉流+连 WSS。保持在监听清单中（区别于 stop_room 的下线）。"""
+        if not self.stop_room(rid):
+            return False
+        # 给旧线程一点时间退出（fetcher.stop() 解阻塞弹幕长连 + ffmpeg 收尾），再重启
+        time.sleep(2)
+        return self.start_room(rid)
 
     def _active_ids(self) -> list[str]:
         with self._lock:
@@ -201,6 +327,11 @@ class RoomManager:
                 st = self._rooms.get(rid)
                 return not bool(st and st.active and st.connected)
 
+        def _wants_video() -> bool:
+            with self._lock:
+                st = self._rooms.get(rid)
+                return bool(st and st.record_video)
+
         while not stop.is_set():
             with self._lock:
                 st = self._rooms.get(rid)
@@ -223,6 +354,7 @@ class RoomManager:
                     on_gap=_on_gap,
                     can_fetch=lambda: not self._risk_cooldown.active(),
                     on_risk_control=_on_risk_control,
+                    record_video=_wants_video,
                 )
             except Exception as exc:  # noqa: BLE001
                 self._errors.record(f"audio:{rid}", exc)
@@ -257,16 +389,120 @@ class RoomManager:
                 self._errors.record("speaker", exc)
             self._speaker_stop.wait(config.SPEAKER_POLL_SEC)
 
+    # ---------- 待开播主播开播探测 ----------
+
+    def _start_pending_watch(self) -> None:
+        """待开播主页探测已下线：主页 headless 探测对多数主播取不到资料、且要内置 ~300MB
+        headless 浏览器。改为在播时用直播号/直播间链接添加（直播间页可靠取得资料）。
+        保留 add_pending/pending_status 等接口与数据结构以兼容旧 pending_anchors.json，但不再轮询。"""
+        return  # 不启动轮询线程，零浏览器活动
+
+    def _pending_watch_loop(self) -> None:
+        """串行探测到期的待开播主播；撞验证页则全局冷却，绝不并发开浏览器。"""
+        while not self._pending_stop.is_set():
+            if self._risk_cooldown.active():
+                # 风控冷却期间不碰任何页面请求，与弹幕线一致
+                self._pending_stop.wait(config.PROFILE_LOOP_TICK_SEC)
+                continue
+            now = int(time.time())
+            with self._lock:
+                due = [p.sec_user_id for p in self._pending.values() if p.next_check_ts <= now]
+            for sid in due:
+                if self._pending_stop.is_set() or self._risk_cooldown.active():
+                    break
+                self._check_one_pending(sid)
+                # 两次浏览器探测之间留间隔，绝不并发
+                self._pending_stop.wait(config.PROFILE_CHECK_GAP_SEC)
+            self._pending_stop.wait(config.PROFILE_LOOP_TICK_SEC)
+
+    def _check_one_pending(self, sid: str) -> None:
+        """探测单个待开播主播；开播则转为正式监听房间并自动启动。"""
+        import random
+
+        with self._lock:
+            if sid not in self._pending:
+                return
+
+        try:
+            result = profile_watch.check_profile(
+                sid,
+                timeout_sec=config.PROFILE_RENDER_TIMEOUT_SEC,
+                cookie_jar=browser_cookies.cached_jar(),
+            )
+        except Exception as exc:  # noqa: BLE001  探测异常不让轮询线崩
+            self._errors.record(f"profile_watch:{sid}", exc)
+            result = {"ok": False, "state": "error"}
+
+        now = int(time.time())
+        delay = config.PROFILE_POLL_SEC + random.uniform(0, config.PROFILE_POLL_JITTER_SEC)
+        state = str(result.get("state") or "error")
+
+        if state == "challenge":
+            # 探测撞验证页：进全局冷却，所有线程暂停页面请求
+            self._risk_cooldown.trigger(RISK_COOLDOWN_SEC, "待开播探测命中抖音验证页")
+
+        web_id = str(result.get("web_id") or "").strip()
+        if state == "live" and web_id:
+            nickname = str(result.get("nickname") or "").strip()
+            promoted = self._promote_pending(sid, web_id, nickname)
+            if promoted:
+                return  # 已转正并从待开播移除
+
+        nickname = str(result.get("nickname") or "").strip()
+        with self._lock:
+            p = self._pending.get(sid)
+            if p is None:
+                return
+            # 离线探测也能拿到昵称——补上空白昵称，待开播列表立刻有名字可显示
+            if nickname and not p.anchor_name:
+                p.anchor_name = nickname
+            p.last_check_ts = now
+            p.next_check_ts = int(now + delay)
+            p.last_status = {
+                "live": "已开播，正在转入监听",
+                "offline": "未开播，持续监测中",
+                "challenge": "探测遇验证页，稍后重试",
+                "error": "探测失败，稍后重试",
+            }.get(state, "监测中")
+            self._save_pending()
+
+    def _promote_pending(self, sid: str, web_id: str, nickname: str) -> bool:
+        """待开播主播开播：登记为正式房间、自动启动、移出待开播清单。"""
+        with self._lock:
+            p = self._pending.get(sid)
+            if p is None:
+                return False
+            meta = {
+                "anchor_name": nickname or p.anchor_name,
+                "avatar_url": p.avatar_url,
+                "source_url": p.source_url or f"https://live.douyin.com/{web_id}",
+                "sec_user_id": sid,
+            }
+        # add_room / start_room 自带锁，必须在锁外调用
+        self.add_room(web_id, meta)
+        self.start_room(web_id)
+        with self._lock:
+            self._pending.pop(sid, None)
+            self._save_pending()
+        return True
+
     # ---------- 单房间弹幕长连 ----------
 
     def _danmu_loop(self, rid: str, stop: threading.Event) -> None:
         def _set(status: str, connected: bool, phase: str, next_retry_ts: int = 0) -> None:
             with self._lock:
-                if rid in self._rooms:
-                    self._rooms[rid].status = status
-                    self._rooms[rid].connected = connected
-                    self._rooms[rid].phase = phase
-                    self._rooms[rid].next_retry_ts = next_retry_ts
+                st = self._rooms.get(rid)
+                if st is not None:
+                    st.status = status
+                    st.connected = connected
+                    st.phase = phase
+                    st.next_retry_ts = next_retry_ts
+                    # 录制时长：进入 recording 时起表（跨短暂 reconnecting 不重置）；其余状态归零。
+                    if phase == "recording":
+                        if st.recording_since == 0:
+                            st.recording_since = int(time.time())
+                    elif phase != "reconnecting":
+                        st.recording_since = 0
 
         def _backoff(base: float, jitter: float, status: str, phase: str) -> None:
             delay = base + random.uniform(0, jitter)
@@ -360,11 +596,25 @@ class RoomManager:
                         pass
 
                 threading.Thread(target=_watch, daemon=True).start()
-                # 落主播昵称（房间页解析所得），导出时用来区分各房间，光看房间号不直观
+                # 开播自动取资料：直播间页（fetcher 已抓）可靠取得昵称+头像，回写房间状态与 room_meta。
+                # 这解决了主页 headless 探测拿不到资料的问题——开播后直播间页是可靠数据源。
                 try:
                     self._sink.set_room_meta(rid, fetcher.anchor_nick)
                 except Exception:  # noqa: BLE001
                     pass
+                nick = (fetcher.anchor_nick or "").strip()
+                avatar = (fetcher.anchor_avatar or "").strip()
+                changed = False
+                if nick or avatar:
+                    with self._lock:
+                        st = self._rooms.get(rid)
+                        if st is not None:
+                            if nick and st.anchor_name != nick:
+                                st.anchor_name = nick; changed = True
+                            if avatar and st.avatar_url != avatar:
+                                st.avatar_url = avatar; changed = True
+                if changed:
+                    self._save_rooms()
                 _set("正在监听并录音", True, "recording")
                 was_connected = True
                 fetcher.start()  # 阻塞直到 WS 关闭
@@ -415,9 +665,75 @@ class RoomManager:
                 avatar_url=str(metadata.get("avatar_url") or "").strip(),
                 source_url=str(metadata.get("source_url") or "").strip(),
                 sec_user_id=str(metadata.get("sec_user_id") or "").strip(),
+                added_ts=int(time.time() * 1000),  # 毫秒戳：大盘按添加先后排序
             )
         self._save_rooms()
         return True
+
+    def set_record_video(self, rid: str, enabled: bool) -> bool:
+        """切换房间是否录制视频。录制循环每次取流重启时实时读取，故下次重连即生效；
+        想立即生效可停止再启动该房间（强制 record_room_muxer 重新进入）。"""
+        rid = rid.strip()
+        with self._lock:
+            st = self._rooms.get(rid)
+            if st is None or st.record_video == bool(enabled):
+                changed = False
+            else:
+                st.record_video = bool(enabled)
+                changed = True
+        if changed:
+            self._save_rooms()
+        return changed
+
+    # ---------- 待开播主播对外操作 ----------
+
+    def add_pending(self, sec_user_id: str, metadata: dict[str, object] | None = None) -> dict[str, object]:
+        """登记一个待开播主播（只有 sec_user_id）。返回 {ok, reason}。"""
+        sid = (sec_user_id or "").strip()
+        if not sid:
+            return {"ok": False, "reason": "缺少 sec_user_id"}
+        metadata = metadata or {}
+        with self._lock:
+            if sid in self._pending:
+                return {"ok": False, "reason": "该主播已在待开播清单中"}
+            if len(self._pending) >= config.MAX_PENDING_ANCHORS:
+                return {"ok": False, "reason": f"待开播主播已达上限（{config.MAX_PENDING_ANCHORS}）"}
+            self._pending[sid] = PendingAnchor(
+                sec_user_id=sid,
+                anchor_name=str(metadata.get("anchor_name") or "").strip(),
+                avatar_url=str(metadata.get("avatar_url") or "").strip(),
+                source_url=str(metadata.get("source_url") or "").strip(),
+                added_ts=int(time.time()),
+                next_check_ts=0,  # 尽快做第一次探测
+                last_status="等待探测",
+            )
+            self._save_pending()
+        self._start_pending_watch()
+        return {"ok": True}
+
+    def remove_pending(self, sec_user_id: str) -> bool:
+        sid = (sec_user_id or "").strip()
+        with self._lock:
+            existed = self._pending.pop(sid, None) is not None
+            if existed:
+                self._save_pending()
+        return existed
+
+    def pending_status(self) -> list[dict[str, object]]:
+        with self._lock:
+            items = list(self._pending.values())
+        return [
+            {
+                "sec_user_id": p.sec_user_id,
+                "anchor_name": p.anchor_name,
+                "avatar_url": p.avatar_url,
+                "source_url": p.source_url,
+                "added_ts": p.added_ts,
+                "last_check_ts": p.last_check_ts,
+                "status": p.last_status,
+            }
+            for p in sorted(items, key=lambda a: a.added_ts)
+        ]
 
     def remove_room(self, rid: str) -> bool:
         self.stop_room(rid)
@@ -469,6 +785,52 @@ class RoomManager:
     def stop_all(self) -> int:
         return sum(self.stop_room(rid) for rid in list(self._rooms.keys()))
 
+    def clear_all_data(self) -> dict[str, object]:
+        """一键清除所有录制数据：停止全部录制 → 清空库 → 删 audio/video/exports。
+
+        保留：主播列表、登录 cookie、待开播、模型、各项设置。库文件保留只删行（避免文件锁），
+        目录整删后重建。正在写的极个别 ffmpeg 段文件若被占用会跳过，不影响整体清除。
+        """
+        self.stop_all()
+        time.sleep(2)  # 等录音线/ffmpeg 退出，释放 audio 文件占用
+        # 1) 清库（用管理器自己持有的连接，绕开文件锁）
+        try:
+            self._sink.clear_all()
+        except Exception as exc:  # noqa: BLE001
+            self._errors.record("clear_all:events", exc)
+        try:
+            self._store.clear_all()
+        except Exception as exc:  # noqa: BLE001
+            self._errors.record("clear_all:transcripts", exc)
+        # 声纹标签库（独立文件，未被长期占用）：直接删表行或删文件
+        for db in (config.SPEAKER_DB_PATH,):
+            try:
+                if db.exists():
+                    c = sqlite3.connect(str(db))
+                    for t in ("speaker_labels", "speaker_profiles"):
+                        try:
+                            c.execute(f"DELETE FROM {t}")
+                        except sqlite3.Error:
+                            pass
+                    c.commit(); c.close()
+            except sqlite3.Error:
+                pass
+        # 2) 删录制目录（audio/video/exports），随后重建空目录
+        removed = 0
+        for d in (config.AUDIO_DIR, config.VIDEO_DIR, config.EXPORT_DIR):
+            if d.exists():
+                before = sum(1 for _ in d.rglob("*") if _.is_file())
+                shutil.rmtree(d, ignore_errors=True)
+                removed += before
+        config.ensure_dirs()
+        # 3) 复位每房间录制态（时长/段时间戳归零）
+        with self._lock:
+            for st in self._rooms.values():
+                st.last_segment_ts = 0
+                st.recording_since = 0
+                st.last_restart_ts = 0
+        return {"ok": True, "removed_files": removed}
+
     # ---------- 状态查询 ----------
 
     def _counts(self) -> tuple[dict[str, int], dict[str, int], dict[str, str]]:
@@ -501,16 +863,31 @@ class RoomManager:
 
     def status(self) -> list[dict]:
         ev, tr, names = self._counts()
+        now = int(time.time())
         with self._lock:
             states = list(self._rooms.values())
         out = []
         for st in states:
+            phase = st.phase
+            recording_since = st.recording_since
+            status_text = st.status
+            connected = st.connected
+            # 空挂检测：自称 recording 但长时间没有新封口段（下播后 WSS 空连）→ 矫正为「等待开播」，
+            # 清零录制时长。判活基准取「最近封口段」与「本次录制起点」的较晚者（覆盖刚开始还没出首段）。
+            if phase == "recording" and recording_since:
+                fresh = max(st.last_segment_ts, st.recording_since)
+                if now - fresh > RECORDING_STALE_SEC:
+                    phase = "waiting"
+                    status_text = "录制中断/疑似下播，等待恢复"
+                    recording_since = 0
+                    connected = False
             out.append({
                 "rid": st.rid,
                 "active": st.active,
-                "connected": st.connected,
-                "status": st.status,
-                "phase": st.phase,
+                "record_video": st.record_video,
+                "connected": connected,
+                "status": status_text,
+                "phase": phase,
                 "next_retry_ts": st.next_retry_ts,
                 "anchor_name": st.anchor_name or names.get(st.rid, ""),
                 "avatar_url": st.avatar_url,
@@ -519,8 +896,11 @@ class RoomManager:
                 "events": ev.get(st.rid, 0),
                 "segments": tr.get(st.rid, 0),
                 "last_segment_ts": st.last_segment_ts,
+                "added_ts": st.added_ts,
+                "recording_since": recording_since,
             })
-        return sorted(out, key=lambda x: x["rid"])
+        # 按添加先后排序（保持用户添加顺序），同序号再按房间号兜底
+        return sorted(out, key=lambda x: (x["added_ts"], x["rid"]))
 
     def recent_errors(self) -> list[dict[str, object]]:
         return self._errors.snapshot()
@@ -537,9 +917,15 @@ class RoomManager:
         self.stop_all()
         self._transcribe_stop.set()
         self._speaker_stop.set()
+        self._pending_stop.set()
+        self._watchdog_stop.set()
         if self._transcribe_thread is not None:
             self._transcribe_thread.join(timeout=5)
         if self._speaker_thread is not None:
             self._speaker_thread.join(timeout=5)
+        if self._pending_thread is not None:
+            self._pending_thread.join(timeout=5)
+        if self._watchdog_thread is not None:
+            self._watchdog_thread.join(timeout=5)
         self._store.close()
         self._sink.close()

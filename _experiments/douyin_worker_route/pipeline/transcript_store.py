@@ -296,6 +296,16 @@ class TranscriptStore:
             error=row["error"],
         )
 
+    def clear_all(self) -> None:
+        """清空所有转写与录制台账（一键清除数据用）。库文件保留，只删行。"""
+        with self._lock:
+            for table in ("transcripts", "recording_timeline"):
+                try:
+                    self._conn.execute(f"DELETE FROM {table}")
+                except sqlite3.Error:
+                    pass
+            self._conn.commit()
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()

@@ -40,8 +40,29 @@ class RiskControlChallenge(RuntimeError):
     """Room page returned a platform verification wall instead of live data."""
 
 
-def rank_m3u8(html_raw: str) -> tuple[list[str], int]:
-    """提取带签名的 m3u8，按偏好排序去重。返回 (候选列表, 原始命中数)。"""
+# 清晰度阶梯（数字越大越清晰），录视频时优先选高清。检查顺序保证 _hd5 先于 _hd、
+# _sd5 先于 _sd、_ld5 先于 _ld 命中（前者是后者的子串）。无后缀的 index.m3u8 给中等分。
+_QUALITY_RANK = (
+    ("_or", 100), ("origin", 100), ("_uhd", 90), ("_hd5", 80),
+    ("_hd", 70), ("_sd5", 55), ("_sd", 50), ("_md", 40),
+    ("_ld5", 25), ("_ld", 20),
+)
+
+
+def _quality_score(url: str) -> int:
+    lu = url.lower()
+    for tag, score in _QUALITY_RANK:
+        if tag in lu:
+            return score
+    return 60  # 无清晰度后缀的默认流
+
+
+def rank_m3u8(html_raw: str, quality: str | None = None) -> tuple[list[str], int]:
+    """提取带签名的 m3u8，按偏好排序去重。返回 (候选列表, 原始命中数)。
+
+    quality（录视频时传 smooth/sd/hd/origin）：选最接近目标清晰度的流，等距时取更高的。
+    quality=None（纯音频转写，默认）：保持历史低带宽偏好，行为逐字节不变。
+    """
     text = (
         html_raw.replace("\\u002F", "/").replace("\\u002f", "/")
         .replace("\\u0026", "&").replace("\\/", "/")
@@ -50,22 +71,27 @@ def rank_m3u8(html_raw: str) -> tuple[list[str], int]:
     signed = [c for c in cands if ("k=" in c or "sign=" in c)]
     pool = signed or cands
 
-    def _score(url: str) -> int:
-        is_index = "/index.m3u8" in url
-        is_hdmd = ("_hd" in url) or ("_md" in url)
-        return 0 if (is_index and is_hdmd) else 1 if is_index else 2 if is_hdmd else 3
+    if quality:
+        target = config.VIDEO_QUALITY_TARGETS.get(quality, 70)
+        # 距目标越近越优先；等距时取更清晰的（-score 越小越靠前）
+        key = lambda url: (abs(_quality_score(url) - target), -_quality_score(url))  # noqa: E731
+    else:
+        def key(url: str):  # type: ignore[misc]
+            is_index = "/index.m3u8" in url
+            is_hdmd = ("_hd" in url) or ("_md" in url)
+            return 0 if (is_index and is_hdmd) else 1 if is_index else 2 if is_hdmd else 3
 
     seen: set[str] = set()
     ordered: list[str] = []
-    for url in sorted(pool, key=_score):
+    for url in sorted(pool, key=key):
         if url not in seen:
             seen.add(url)
             ordered.append(url)
     return ordered, len(cands)
 
 
-def fetch_candidates(live_id: str) -> tuple[list[str], int]:
-    """取房间页 HTML 并解析出流地址候选。异常上抛。"""
+def fetch_candidates(live_id: str, quality: str | None = None) -> tuple[list[str], int]:
+    """取房间页 HTML 并解析出流地址候选。quality 非空时按该清晰度选流。异常上抛。"""
     from liveMan import DouyinLiveWebFetcher
 
     from . import browser_cookies
@@ -82,7 +108,7 @@ def fetch_candidates(live_id: str) -> tuple[list[str], int]:
     )
     if classify_room_page(resp.text) == "challenge":
         raise RiskControlChallenge("抖音房间页要求安全验证")
-    return rank_m3u8(resp.text)
+    return rank_m3u8(resp.text, quality=quality)
 
 
 def probe_volume(mp3_path: str) -> tuple[float | None, float | None]:
@@ -168,6 +194,53 @@ def record_segment(live_id: str, out_path: Path, seconds: int, normalize: bool =
     return RecordResult(False, f"失败(尝试{tried}条) {last}", tries=tried)
 
 
+def _build_capture_cmd(
+    url: str,
+    room_dir: Path,
+    spawn_seq: int,
+    csv_path: Path,
+    *,
+    record_video: bool = False,
+    video_dir: Path | None = None,
+) -> list[str]:
+    """构造连续录制的 ffmpeg 命令（单 ffmpeg）。
+
+    音频输出与历史版本逐字节一致——segment muxer 连续封口 16k mono mp3，csv 记账驱动转写，
+    绝不因视频改动而变。record_video=True 时**追加**一路视频输出（同一输入、只多一个 -map）：
+      -c copy 原画质不重编码（CPU 近零开销）；fragmented mp4 让强杀后的文件仍可播。
+    这样拉流只一次（遵守「不得同一房间拉两次」），且视频是纯附加，关掉即回到原命令。
+    """
+    cmd = [
+        _FFMPEG, "-y",
+        "-headers", config.RECORD_REFERER,
+        "-i", url,
+        "-vn",
+        "-ar", "16000", "-ac", "1", "-acodec", "libmp3lame",
+        "-f", "segment",
+        "-segment_time", str(config.SEGMENT_SEC),
+        "-segment_start_number", str(spawn_seq),
+        "-reset_timestamps", "1",
+        "-segment_list", str(csv_path),
+        "-segment_list_type", "csv",
+        str(room_dir / config.SEGMENT_FILENAME),
+    ]
+    if record_video and video_dir is not None:
+        # 视频与音频同节奏分段：每 SEGMENT_SEC 一个 mp4，序号与音频段对齐（同一 spawn 起号）。
+        # -c copy 原画质不重编码。每段在轮转时正常封口（写入 moov），是标准 mp4，全播放器
+        # 都能放声音——故不用 fragmented mp4（碎片化会让部分播放器不出声）。代价：被强杀时
+        # 正在写的最后一段可能不可播（丢 ~1 段），可接受。段在关键帧切分，开头不花屏。
+        cmd += [
+            "-map", "0", "-c", "copy",
+            "-f", "segment",
+            "-segment_time", str(config.SEGMENT_SEC),
+            "-segment_start_number", str(spawn_seq),
+            "-reset_timestamps", "1",
+            "-segment_format", "mp4",
+            str(video_dir / config.VIDEO_FILENAME),
+        ]
+    return cmd
+
+
 def _parse_csv_seg(line: str) -> tuple[str, float, float] | None:
     """解析 segment_list csv 行：`<路径>,<start>,<end>`（路径无逗号，按右侧两逗号切）。"""
     line = line.strip()
@@ -215,6 +288,7 @@ def record_room_muxer(
     on_spawn: Callable[..., None] | None = None,
     can_fetch: Callable[[], bool] | None = None,
     on_risk_control: Callable[[str], None] | None = None,
+    record_video: bool | Callable[[], bool] = False,
 ) -> RecordResult:
     """单房间「零丢失」连续录音：一条常驻 ffmpeg + segment muxer，看门狗负责重启。
 
@@ -239,6 +313,13 @@ def record_room_muxer(
     room_dir.mkdir(parents=True, exist_ok=True)
     csv_path = room_dir / config.SEGMENT_LIST_NAME
 
+    def _want_video() -> bool:
+        # 每次 spawn 实时读取：开关在录制中切换，下次取流重启即生效，无需停/启房间。
+        try:
+            return bool(record_video() if callable(record_video) else record_video)
+        except Exception:  # noqa: BLE001
+            return False
+
     next_seq = start_seq
     produced = 0
     attempt = 0
@@ -250,8 +331,11 @@ def record_room_muxer(
             stop_wait(should_stop, config.MUXER_NO_CANDIDATES_BACKOFF_SEC)
             continue
         attempt += 1
+        rv = _want_video()  # 本次 spawn 是否录视频：决定取流清晰度 + 是否加视频输出
+        # 录视频→按用户选的画质取流；纯音频→quality=None 走低带宽（音频行为不变）
+        stream_quality = config.get_video_quality() if rv else None
         try:
-            cands, ncand = fetch_candidates(live_id)
+            cands, ncand = fetch_candidates(live_id, quality=stream_quality)
         except RiskControlChallenge as exc:
             if on_risk_control is not None:
                 try:
@@ -284,20 +368,13 @@ def record_room_muxer(
             except Exception:  # noqa: BLE001
                 pass
 
-        cmd = [
-            _FFMPEG, "-y",
-            "-headers", config.RECORD_REFERER,
-            "-i", url,
-            "-vn",
-            "-ar", "16000", "-ac", "1", "-acodec", "libmp3lame",
-            "-f", "segment",
-            "-segment_time", str(config.SEGMENT_SEC),
-            "-segment_start_number", str(spawn_seq),
-            "-reset_timestamps", "1",
-            "-segment_list", str(csv_path),
-            "-segment_list_type", "csv",
-            str(room_dir / config.SEGMENT_FILENAME),
-        ]
+        video_dir = (config.VIDEO_DIR / live_id) if rv else None
+        if video_dir is not None:
+            video_dir.mkdir(parents=True, exist_ok=True)
+        cmd = _build_capture_cmd(
+            url, room_dir, spawn_seq, csv_path,
+            record_video=rv, video_dir=video_dir,
+        )
         try:
             csv_path.unlink(missing_ok=True)  # 每次 spawn 用全新 csv，避免读到上一轮残留
         except OSError:

@@ -766,11 +766,18 @@ def _nearest_stat(
     return stats[best][1], stats[best][2]
 
 
-def _total_rows(bundles: list[RoomBundle]) -> list[list]:
-    """每段话术一行，同时关联发言人、同期弹幕与直播数据。"""
+def _total_rows(
+    bundles: list[RoomBundle],
+    chats_provider=None,
+) -> list[list]:
+    """每段话术一行，同时关联发言人、同期弹幕与直播数据。
+
+    chats_provider：可选 rid->[(ts,name,content)] 的取数函数；样本导出传入内存数据，
+    避免读真实弹幕库。默认 None 时按原路径从 EVENTS_DB 读。
+    """
     rows: list[list] = []
     for b in bundles:
-        timed_chats = load_chats_ts(b.rid)
+        timed_chats = chats_provider(b.rid) if chats_provider else load_chats_ts(b.rid)
         chat_seconds = [_epoch_seconds(item[0]) for item in timed_chats]
         peak = max((stat[1] for stat in b.stats), default=0)
         last_pv = b.stats[-1][2] if b.stats else 0
@@ -1112,6 +1119,139 @@ def export_all(rids: list[str] | None = None, *, cleanup: bool = False) -> list[
         build_workbook(b.rid).save(config.EXPORT_DIR / f"{stem}.xlsx")
     write_summary(bundles)
     return bundles
+
+
+# ---------- 示例导出（演示数据，全程内存构造，绝不读写任何真实数据库）----------
+
+SAMPLE_RID = "demo"
+SAMPLE_NICKNAME = "示例主播（演示数据）"
+
+
+def _sample_timed_chats(base: int) -> list[tuple[int, str, str]]:
+    """演示弹幕：毫秒时间戳，分布在话术时间轴附近。"""
+    ms = base * 1000
+    raw = [
+        (5, "夜风", "主播讲得好细，蹲一个优惠"),
+        (12, "小桃", "这个户型采光怎么样？"),
+        (20, "阿强", "首付大概多少呀"),
+        (33, "Lily", "刚进来，错过了啥"),
+        (48, "老王", "能讲讲物业费吗"),
+        (61, "momo", "已经在路上了，马上到售楼处"),
+        (75, "海带丝", "这价格还能谈吗"),
+        (92, "晴天", "关注了，明天来看房"),
+    ]
+    return [(ms + s * 1000, name, text) for s, name, text in raw]
+
+
+def sample_bundle() -> RoomBundle:
+    """构造一份逼真的演示数据包。时间用当天整点起，导出后时间列可读。"""
+    base = int(datetime.now().replace(hour=20, minute=0, second=0, microsecond=0).timestamp())
+    speeches = [
+        ("各位家人们晚上好，欢迎来到直播间，今天给大家讲解大华锦绣麓城的几款精装户型。", "发言人A", 58.0),
+        ("先看这套建面95平的三房，南北通透，主卧带飘窗，采光非常好。", "发言人A", 62.0),
+        ("有家人问首付，目前首付方案最低两成，具体以案场为准，可以私信我。", "发言人A", 47.0),
+        ("我来补充一下物业这块，物业费每平米两块六，含24小时安保和园林维护。", "发言人B", 55.0),
+        ("今晚直播间专属福利：到访就送精美礼品，下定再减三个点，名额有限。", "发言人A", 51.0),
+    ]
+    transcripts: list[TranscriptRow] = []
+    t = base
+    for i, (text, spk, dur) in enumerate(speeches, start=1):
+        transcripts.append(TranscriptRow(
+            room_id=SAMPLE_RID,
+            segment_ts=t,
+            duration_sec=dur,
+            text=text,
+            char_count=len(text),
+            mp3_name=f"{SAMPLE_RID}/seq{i:05d}.mp3",
+            segment_id=i,
+            recording_status="ok",
+            capture_start=float(t),
+            capture_end=float(t) + dur,
+            speaker_label=spk,
+            speaker_similarity=0.86,
+            speaker_change="change_confirmed_start" if spk == "发言人B" else "",
+        ))
+        t += int(dur) + 3
+    timeline = [
+        RecordingTimelineRow(
+            id=i, room_id=SAMPLE_RID, seq=i, kind="segment", status="ok",
+            file_path=tr.mp3_name, capture_start=tr.capture_start, capture_end=tr.capture_end,
+            duration_sec=tr.duration_sec, file_size=int((tr.duration_sec or 0) * 16000),
+            error=None, transcribed=True,
+            transcript_preview=(tr.text[:60] + "…") if len(tr.text) > 60 else tr.text,
+        )
+        for i, tr in enumerate(transcripts, start=1)
+    ]
+    timed_chats = _sample_timed_chats(base)
+    chats = [(name, content) for _, name, content in timed_chats]
+    stats = [(int((base + s) * 1000), online, pv) for s, online, pv in (
+        (0, 128, 3400), (30, 156, 3620), (60, 203, 3980),
+        (120, 188, 4310), (180, 241, 4675), (240, 262, 5020),
+    )]
+    event_counts = {"chat": len(chats), "member": 47, "like": 1860, "gift": 9}
+    return RoomBundle(SAMPLE_RID, SAMPLE_NICKNAME, transcripts, timeline, chats, stats, event_counts)
+
+
+def build_sample_workbook():
+    """演示工作簿：与真实单房间导出同结构同样式，但数据全在内存，不碰任何库。"""
+    from openpyxl import Workbook
+
+    b = sample_bundle()
+    timed_chats = _sample_timed_chats(int(b.stats[0][0] // 1000))
+    chats_provider = lambda _rid: timed_chats  # noqa: E731  仅样本内联，避免读真库
+
+    wb = Workbook()
+
+    ws = wb.active
+    ws.title = "话术"
+    ws.append(TRANSCRIPT_HEADER)
+    for r in _transcript_rows(b.transcripts):
+        ws.append(r)
+    _style_sheet(ws, [20, 20, 12, 9, 7, 90, 14, 14, 28], wrap_col=6)
+
+    ws_all = wb.create_sheet("总表")
+    ws_all.append(TOTAL_HEADER)
+    for row in _total_rows([b], chats_provider):
+        ws_all.append(row)
+    _style_sheet(
+        ws_all,
+        [14, 16, 14, 20, 20, 10, 90, 8, 12, 28, 12, 14, 14, 14, 14, 14, 14, 14, 20],
+        wrap_col=7,
+    )
+
+    ws_speaker = wb.create_sheet("发言人汇总")
+    ws_speaker.append(SPEAKER_SUMMARY_HEADER)
+    for row in _speaker_summary_rows([b]):
+        ws_speaker.append(row)
+    _style_sheet(ws_speaker, [14, 16, 14, 12, 16, 12, 20, 20, 14])
+
+    ws_tl = wb.create_sheet("录音时间轴")
+    ws_tl.append(TIMELINE_HEADER)
+    for r in _timeline_rows(b.timeline):
+        ws_tl.append(r)
+    _style_sheet(ws_tl, [8, 10, 10, 20, 20, 9, 10, 34, 9, 60, 40], wrap_col=10)
+
+    ws_chat = wb.create_sheet("弹幕")
+    ws_chat.append(CHAT_HEADER)
+    for r in _chat_rows(timed_chats):
+        ws_chat.append(r)
+    _style_sheet(ws_chat, [20, 22, 60])
+
+    ws_stat = wb.create_sheet("直播数据")
+    ws_stat.append(STAT_HEADER)
+    for r in _stat_rows(b.stats):
+        ws_stat.append(r)
+    _style_sheet(ws_stat, [20, 12, 12])
+
+    return wb
+
+
+def sample_xlsx_bytes() -> bytes:
+    """演示工作簿字节流，供 Web 直接下载/保存。不读写任何真实数据。"""
+    import io
+    buf = io.BytesIO()
+    build_sample_workbook().save(buf)
+    return buf.getvalue()
 
 
 def main() -> int:

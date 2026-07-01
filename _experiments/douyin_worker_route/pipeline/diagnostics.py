@@ -60,9 +60,38 @@ def _scalar(db_path: Path, sql: str) -> int:
 
 
 def _speaker_pending(db_path: Path, speaker_db_path: Path) -> int:
-    total = _scalar(db_path, "SELECT COUNT(*) FROM transcripts")
-    labeled = _scalar(speaker_db_path, "SELECT COUNT(*) FROM speaker_labels")
-    return max(0, total - labeled)
+    if not db_path.exists():
+        return 0
+    try:
+        con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        con.row_factory = sqlite3.Row
+        try:
+            rows = con.execute(
+                "SELECT room_id,mp3_name FROM transcripts WHERE mp3_name IS NOT NULL"
+            ).fetchall()
+        finally:
+            con.close()
+    except sqlite3.Error:
+        return 0
+    labels: set[tuple[str, str]] = set()
+    if speaker_db_path.exists():
+        try:
+            con = sqlite3.connect(f"file:{speaker_db_path}?mode=ro", uri=True)
+            try:
+                labels = {
+                    (str(row[0]), str(row[1]))
+                    for row in con.execute("SELECT room_id,file_name FROM speaker_labels")
+                }
+            finally:
+                con.close()
+        except sqlite3.Error:
+            labels = set()
+    pending = 0
+    for row in rows:
+        file_name = Path(str(row["mp3_name"] or "").replace("\\", "/")).name
+        if file_name and (str(row["room_id"]), file_name) not in labels:
+            pending += 1
+    return pending
 
 
 def build_snapshot(config_module, now: float | None = None) -> dict[str, object]:

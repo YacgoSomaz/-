@@ -41,7 +41,10 @@ PAGE_HEADERS: dict[str, str] = {
     "User-Agent": USER_AGENT,
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br, zstd",
+    # requests does not reliably decode brotli/zstd in this packaged runtime.
+    # If we advertise them, Douyin may return compressed bytes that look like
+    # successful HTML but contain no parseable roomStore/roomId fields.
+    "Accept-Encoding": "gzip, deflate",
     "Cache-Control": "max-age=0",
     "Upgrade-Insecure-Requests": "1",
     "sec-ch-ua": SEC_CH_UA,
@@ -58,7 +61,7 @@ API_HEADERS: dict[str, str] = {
     "User-Agent": USER_AGENT,
     "Accept": "application/json, text/plain, */*",
     "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "Accept-Encoding": "gzip, deflate",
     "sec-ch-ua": SEC_CH_UA,
     "sec-ch-ua-mobile": "?0",
     "sec-ch-ua-platform": _SEC_PLATFORM,

@@ -12,21 +12,53 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import json
+import os
+import secrets
 from pathlib import Path
 from urllib.parse import quote
 
 import uvicorn
-from fastapi import Body, FastAPI, HTTPException, Query
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import browser_cookies, config, diagnostics
+from . import ai_report, browser_cookies, config, diagnostics
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import MAX_ACTIVE_ROOMS, RoomManager
 
-app = FastAPI(title="直播间监控控制台")
+app = FastAPI(title="直播复盘侠")
+
+# ---------- 可选 HTTP Basic 登录（公网穿透用，本地默认无密码）----------
+# 设了环境变量 LIVEWATCH_AUTH="用户名:密码" 才启用；不设则行为与从前完全一致（本地直连无门槛）。
+# 内网穿透/映射公网时务必设置，否则任何人拿到地址即可操作面板、触发本机弹浏览器、读写数据。
+_AUTH_RAW = (os.environ.get("LIVEWATCH_AUTH") or "").strip()
+_AUTH_USER, _, _AUTH_PASS = _AUTH_RAW.partition(":")
+
+
+@app.middleware("http")
+async def _basic_auth(request: Request, call_next):
+    if not _AUTH_RAW:  # 未配置 → 不拦截，本地自用零门槛
+        return await call_next(request)
+    header = request.headers.get("authorization", "")
+    if header.startswith("Basic "):
+        try:
+            user, _, pwd = base64.b64decode(header[6:]).decode("utf-8").partition(":")
+        except Exception:  # noqa: BLE001  畸形头按未授权处理
+            user = pwd = ""
+        # 常量时间比较，避免时序侧信道
+        if secrets.compare_digest(user, _AUTH_USER) and secrets.compare_digest(pwd, _AUTH_PASS):
+            return await call_next(request)
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="直播复盘侠"'},
+        content="需要登录",
+    )
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -48,6 +80,7 @@ def index() -> str:
 def api_status() -> JSONResponse:
     return JSONResponse({
         "rooms": _mgr.status(),
+        "pending": _mgr.pending_status(),
         "risk_control": _mgr.risk_control_status(),
         "limits": {"max_active_rooms": MAX_ACTIVE_ROOMS},
     })
@@ -106,6 +139,45 @@ def api_add_anchor(anchor: dict[str, object] = Body(...)) -> JSONResponse:
     return JSONResponse({"ok": True, "changed": changed, "rid": rid})
 
 
+@app.post("/api/pending")
+def api_add_pending(anchor: dict[str, object] = Body(...)) -> JSONResponse:
+    """登记一个未开播主播（只有 sec_user_id）。后台定期探测，开播后自动转为监听房间。"""
+    sec_user_id = str(anchor.get("sec_user_id") or "").strip()
+    if not sec_user_id:
+        raise HTTPException(status_code=400, detail="未解析到主播身份（缺少 sec_user_id）")
+    result = _mgr.add_pending(
+        sec_user_id,
+        {
+            "anchor_name": anchor.get("anchor_name"),
+            "avatar_url": anchor.get("avatar_url"),
+            "source_url": anchor.get("source_url"),
+        },
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=str(result.get("reason") or "登记失败"))
+    return JSONResponse({"ok": True, "sec_user_id": sec_user_id})
+
+
+@app.delete("/api/pending/{sec_user_id}")
+def api_remove_pending(sec_user_id: str) -> JSONResponse:
+    return JSONResponse({"ok": _mgr.remove_pending(sec_user_id)})
+
+
+@app.get("/api/video-quality")
+def api_get_video_quality() -> JSONResponse:
+    return JSONResponse({
+        "quality": config.get_video_quality(),
+        "choices": list(config.VIDEO_QUALITY_CHOICES),
+    })
+
+
+@app.put("/api/video-quality")
+def api_set_video_quality(quality: str = Body(..., embed=True)) -> JSONResponse:
+    if not config.set_video_quality(quality):
+        raise HTTPException(status_code=400, detail="无效的画质选项")
+    return JSONResponse({"ok": True, "quality": config.get_video_quality()})
+
+
 @app.delete("/api/rooms/{rid}")
 def api_remove(rid: str) -> JSONResponse:
     return JSONResponse({"ok": _mgr.remove_room(rid)})
@@ -119,6 +191,12 @@ def api_start(rid: str) -> JSONResponse:
 @app.post("/api/rooms/{rid}/stop")
 def api_stop(rid: str) -> JSONResponse:
     return JSONResponse({"ok": _mgr.stop_room(rid)})
+
+
+@app.post("/api/rooms/{rid}/video")
+def api_set_video(rid: str, enabled: bool = Body(..., embed=True)) -> JSONResponse:
+    """切换房间是否同时录制视频（默认仅录音）。下一段 ffmpeg 生效。"""
+    return JSONResponse({"ok": True, "changed": _mgr.set_record_video(rid, enabled)})
 
 
 @app.post("/api/start_all")
@@ -138,10 +216,119 @@ def api_export() -> JSONResponse:
     return JSONResponse({"rooms": len(bundles), "dir": str(export_mod.config.EXPORT_DIR)})
 
 
+@app.get("/api/ai/config")
+def api_ai_config() -> JSONResponse:
+    """Read AI provider settings without exposing the API key."""
+    return JSONResponse(ai_report.public_config())
+
+
+@app.put("/api/ai/config")
+def api_ai_save_config(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    return JSONResponse(ai_report.save_config(payload))
+
+
+@app.post("/api/ai/test")
+def api_ai_test() -> JSONResponse:
+    try:
+        return JSONResponse(ai_report.test_config())
+    except ai_report.AIReportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/ai/report")
+def api_ai_report(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    raw = payload.get("rids") or []
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="rids 必须是数组")
+    try:
+        return JSONResponse(ai_report.generate_report([str(x) for x in raw]))
+    except ai_report.AIReportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/ai/report/stream")
+def api_ai_report_stream(payload: dict[str, object] = Body(...)) -> StreamingResponse:
+    raw = payload.get("rids") or []
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="rids 必须是数组")
+
+    def events():
+        try:
+            for event in ai_report.generate_report_events([str(x) for x in raw]):
+                yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+        except ai_report.AIReportError as exc:
+            yield "data: " + json.dumps(
+                {"type": "error", "message": str(exc), "progress": 100},
+                ensure_ascii=False,
+            ) + "\n\n"
+        except Exception as exc:  # noqa: BLE001
+            yield "data: " + json.dumps(
+                {"type": "error", "message": f"AI复盘异常：{exc}", "progress": 100},
+                ensure_ascii=False,
+            ) + "\n\n"
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.post("/api/ai/chat")
+def api_ai_chat(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    raw = payload.get("rids") or []
+    messages = payload.get("messages") or []
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="rids 必须是数组")
+    if not isinstance(messages, list):
+        raise HTTPException(status_code=400, detail="messages 必须是数组")
+    try:
+        return JSONResponse(ai_report.answer_question([str(x) for x in raw], messages))
+    except ai_report.AIReportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/ai/word-cloud")
+def api_ai_word_cloud(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    raw = payload.get("rids") or []
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="rids 必须是数组")
+    try:
+        return JSONResponse(ai_report.word_cloud([str(x) for x in raw]))
+    except ai_report.AIReportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/ai/report/download")
+def api_ai_report_download(filename: str = Query(...)) -> Response:
+    safe_name = Path(filename).name
+    path = (config.AI_REPORT_DIR / safe_name).resolve()
+    root = config.AI_REPORT_DIR.resolve()
+    if root not in path.parents and path != root:
+        raise HTTPException(status_code=400, detail="无效文件名")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="报告不存在")
+    media_type = "application/pdf" if path.suffix.lower() == ".pdf" else "text/markdown; charset=utf-8"
+    return Response(
+        content=path.read_bytes(),
+        media_type=media_type,
+        headers={"Content-Disposition": _download_disposition(safe_name)},
+    )
+
+
 @app.get("/api/data/rooms")
 def api_data_rooms() -> JSONResponse:
     """历史数据清单，与当前监听清单解耦。"""
     return JSONResponse({"rooms": export_mod.data_room_summaries()})
+
+
+@app.post("/api/data/clear-all")
+def api_clear_all_data() -> JSONResponse:
+    """一键清除所有录制数据（录音/视频/转写/弹幕/导出）。保留主播列表、登录、设置。"""
+    return JSONResponse(_mgr.clear_all_data())
 
 
 @app.delete("/api/data/{rid}")
@@ -318,6 +505,17 @@ def api_save_selection(rids: list[str] = Body(..., embed=True)) -> JSONResponse:
         raise HTTPException(status_code=400, detail="至少选择一个房间")
     data = export_mod.selected_xlsx_bytes(rids)
     dest = _save_xlsx(data, "所选主播汇总.xlsx")
+    return JSONResponse({"ok": True, "path": str(dest), "dir": str(dest.parent)})
+
+
+@app.post("/api/export/save/sample")
+def api_save_sample() -> JSONResponse:
+    """生成一份演示导出文件（内存构造，不读写任何真实数据），让新用户直观看到导出格式。
+
+    路由必须声明在 /api/export/save/{rid} 之前，否则 'sample' 会被当成 rid。
+    """
+    data = export_mod.sample_xlsx_bytes()
+    dest = _save_xlsx(data, "示例导出_演示数据.xlsx")
     return JSONResponse({"ok": True, "path": str(dest), "dir": str(dest.parent)})
 
 

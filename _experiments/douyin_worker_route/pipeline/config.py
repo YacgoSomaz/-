@@ -47,6 +47,46 @@ AUDIO_DIR = DATA_DIR / "audio"
 FAILED_DIR = AUDIO_DIR / "failed"
 DB_PATH = DATA_DIR / "transcripts.db"
 
+# 视频录制（可选，按房间开关）。与音频同一条 ffmpeg 双输出：音频照旧转写，视频 -c copy 落盘。
+# 每 SEGMENT_SEC 一段标准 mp4（正常封口写 moov，全播放器有声），序号与音频段对齐。
+VIDEO_DIR = DATA_DIR / "video"
+VIDEO_FILENAME = "v%05d.mp4"   # segment muxer 按段序号填充，与音频段同节奏
+
+# 视频画质：用户可选。映射到 rank_m3u8 的目标清晰度分。原画(origin)文件巨大，默认给折中的高清。
+VIDEO_QUALITY_PATH = DATA_DIR / "video_quality.txt"
+VIDEO_QUALITY_DEFAULT = "hd"
+# 顺序即界面下拉顺序；label 给前端展示，target 是清晰度阶梯目标分（见 audio_capture._quality_score）
+VIDEO_QUALITY_CHOICES = (
+    {"value": "smooth", "label": "流畅（最省空间）", "target": 30},
+    {"value": "sd", "label": "标清", "target": 50},
+    {"value": "hd", "label": "高清（推荐）", "target": 70},
+    {"value": "origin", "label": "原画（文件很大）", "target": 100},
+)
+_VIDEO_QUALITY_VALUES = {c["value"] for c in VIDEO_QUALITY_CHOICES}
+VIDEO_QUALITY_TARGETS = {c["value"]: c["target"] for c in VIDEO_QUALITY_CHOICES}
+
+
+def get_video_quality() -> str:
+    """读用户选择的视频画质；缺失/非法回退默认。"""
+    try:
+        q = VIDEO_QUALITY_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return VIDEO_QUALITY_DEFAULT
+    return q if q in _VIDEO_QUALITY_VALUES else VIDEO_QUALITY_DEFAULT
+
+
+def set_video_quality(quality: str) -> bool:
+    """保存视频画质选择；非法值忽略。返回是否成功。"""
+    quality = (quality or "").strip()
+    if quality not in _VIDEO_QUALITY_VALUES:
+        return False
+    try:
+        VIDEO_QUALITY_PATH.parent.mkdir(parents=True, exist_ok=True)
+        VIDEO_QUALITY_PATH.write_text(quality, encoding="utf-8")
+        return True
+    except OSError:
+        return False
+
 # audio/ 下的保留目录名（非房间号），房间目录扫描时排除
 RESERVED_AUDIO_SUBDIRS = {"failed", "pending", "done"}
 
@@ -55,11 +95,24 @@ EVENTS_DB = DATA_DIR / "multi_events.db"
 
 # 导出目录（用户数据）
 EXPORT_DIR = DATA_DIR / "exports"
+AI_CONFIG_PATH = DATA_DIR / "ai_config.json"
+AI_REPORT_DIR = EXPORT_DIR / "ai_reports"
 
 # 信任 cookie 缓存、房间清单、日志（用户数据）
 COOKIE_CACHE = DATA_DIR / "browser_cookies.json"
 ROOMS_JSON = DATA_DIR / "rooms.json"
+PENDING_JSON = DATA_DIR / "pending_anchors.json"  # 待开播主播清单（只有 sec_user_id，等开播探测直播号）
 LOG_DIR = DATA_DIR / "logs"
+
+# ---------- 待开播主播开播探测（profile_watch）----------
+# 未开播主播只有主页链接、拿不到直播号(web_rid)。后台用匿名 headless 浏览器定期渲染其主页，
+# 检测到开播即抠出直播号、转为正式监听房间。风控纪律：长间隔 + 抖动 + 串行 + 数量上限 + 撞验证页全局冷却。
+MAX_PENDING_ANCHORS = 20           # 待开播主播数量上限，防轮询面铺太大
+PROFILE_POLL_SEC = 240             # 每个待开播主播两次探测的基准间隔（4 分钟）
+PROFILE_POLL_JITTER_SEC = 120      # 探测间隔随机抖动上限，错开各主播
+PROFILE_LOOP_TICK_SEC = 20         # 轮询线程醒来检查「到期待探测」的节拍
+PROFILE_CHECK_GAP_SEC = 8          # 两次浏览器探测之间的最小间隔，绝不并发开浏览器
+PROFILE_RENDER_TIMEOUT_SEC = 25    # 单次主页渲染最长等待
 
 # 离线声纹分析结果（生成型用户数据，落 DATA_DIR）。声纹分析独立运行，导出时只读 CSV，不影响监听/录音线程。
 # 开发态保持原 speaker_change_analysis 目录，避免动到既有离线分析产物。
@@ -68,8 +121,8 @@ SPEAKER_LABELS_CSV = SPEAKER_ANALYSIS_DIR / "speaker_labels.csv"
 SPEAKER_ANALYSIS_DB = SPEAKER_ANALYSIS_DIR / "speaker_analysis.db"
 SPEAKER_DB_PATH = DATA_DIR / "speaker_labels.db"
 SPEAKER_DELAY_SEC = 120
-SPEAKER_POLL_SEC = 120
-SPEAKER_BATCH_SIZE = 3
+SPEAKER_POLL_SEC = 60
+SPEAKER_BATCH_SIZE = 20
 SPEAKER_MATCH_THRESHOLD = 0.70
 SPEAKER_MERGE_THRESHOLD = 0.70
 SPEAKER_PROFILE_UPDATE_THRESHOLD = 0.80
@@ -105,7 +158,9 @@ GAP_MIN_SEC = 2.0                  # 覆盖断档小于此秒数不记 gap（重
 def ensure_dirs() -> None:
     AUDIO_DIR.mkdir(parents=True, exist_ok=True)
     FAILED_DIR.mkdir(parents=True, exist_ok=True)
+    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
+    AI_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     SPEAKER_ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 
