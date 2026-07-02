@@ -23,7 +23,7 @@ from pathlib import Path
 
 from run_worker import WorkerFetcher, SqliteSink  # noqa: E402
 
-from . import browser_cookies, config, profile_watch
+from . import anchor_profiles, browser_cookies, config, profile_watch
 from .audio_capture import record_room_muxer
 from .sensevoice_engine import SenseVoiceEngine
 from .speaker_worker import process_once as process_speakers_once
@@ -143,12 +143,13 @@ class RoomManager:
                 rid = str(item.get("rid") or "").strip()
                 if not rid:
                     continue
+                cached = anchor_profiles.save_profile(rid, item)
                 self._rooms[rid] = RoomState(
                     rid=rid,
-                    anchor_name=str(item.get("anchor_name") or ""),
-                    avatar_url=str(item.get("avatar_url") or ""),
-                    source_url=str(item.get("source_url") or ""),
-                    sec_user_id=str(item.get("sec_user_id") or ""),
+                    anchor_name=cached.get("anchor_name") or str(item.get("anchor_name") or ""),
+                    avatar_url=cached.get("avatar_url") or str(item.get("avatar_url") or ""),
+                    source_url=cached.get("source_url") or str(item.get("source_url") or ""),
+                    sec_user_id=cached.get("sec_user_id") or str(item.get("sec_user_id") or ""),
                     record_video=bool(item.get("record_video") or False),
                     # 旧库无 added_ts：按文件顺序补小序号，保持原有先后；新增的用毫秒戳，排其后。
                     added_ts=int(item.get("added_ts") or index),
@@ -169,7 +170,7 @@ class RoomManager:
                 "record_video": state.record_video,
                 "added_ts": state.added_ts,
             }
-            for state in sorted(self._rooms.values(), key=lambda room: (room.added_ts, room.rid))
+            for state in sorted(self._rooms.values(), key=lambda room: (-room.added_ts, room.rid))
         ]
         try:
             ROOMS_JSON.write_text(json.dumps(rooms, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -647,12 +648,14 @@ class RoomManager:
         if not rid:
             return False
         metadata = metadata or {}
+        cached_metadata = anchor_profiles.save_profile(rid, metadata)
         with self._lock:
             if rid in self._rooms:
                 state = self._rooms[rid]
                 changed = False
+                merged = {**metadata, **{k: v for k, v in cached_metadata.items() if v}}
                 for key in ("anchor_name", "avatar_url", "source_url", "sec_user_id"):
-                    value = str(metadata.get(key) or "").strip()
+                    value = str(merged.get(key) or "").strip()
                     if value and getattr(state, key) != value:
                         setattr(state, key, value)
                         changed = True
@@ -661,14 +664,38 @@ class RoomManager:
                 return changed
             self._rooms[rid] = RoomState(
                 rid=rid,
-                anchor_name=str(metadata.get("anchor_name") or "").strip(),
-                avatar_url=str(metadata.get("avatar_url") or "").strip(),
-                source_url=str(metadata.get("source_url") or "").strip(),
-                sec_user_id=str(metadata.get("sec_user_id") or "").strip(),
+                anchor_name=str(cached_metadata.get("anchor_name") or metadata.get("anchor_name") or "").strip(),
+                avatar_url=str(cached_metadata.get("avatar_url") or metadata.get("avatar_url") or "").strip(),
+                source_url=str(cached_metadata.get("source_url") or metadata.get("source_url") or "").strip(),
+                sec_user_id=str(cached_metadata.get("sec_user_id") or metadata.get("sec_user_id") or "").strip(),
                 added_ts=int(time.time() * 1000),  # 毫秒戳：大盘按添加先后排序
             )
         self._save_rooms()
         return True
+
+    def update_room_profile(self, rid: str, metadata: dict[str, object] | None = None) -> bool:
+        """Update display metadata for an already configured room only.
+
+        Historical pages can refresh cached avatars without silently re-adding a
+        room the user removed from the listening list.
+        """
+        rid = rid.strip()
+        if not rid:
+            return False
+        cached_metadata = anchor_profiles.save_profile(rid, metadata or {})
+        with self._lock:
+            state = self._rooms.get(rid)
+            if state is None:
+                return False
+            changed = False
+            for key in ("anchor_name", "avatar_url", "source_url", "sec_user_id"):
+                value = str(cached_metadata.get(key) or "").strip()
+                if value and getattr(state, key) != value:
+                    setattr(state, key, value)
+                    changed = True
+            if changed:
+                self._save_rooms()
+            return changed
 
     def set_record_video(self, rid: str, enabled: bool) -> bool:
         """切换房间是否录制视频。录制循环每次取流重启时实时读取，故下次重连即生效；
@@ -899,8 +926,8 @@ class RoomManager:
                 "added_ts": st.added_ts,
                 "recording_since": recording_since,
             })
-        # 按添加先后排序（保持用户添加顺序），同序号再按房间号兜底
-        return sorted(out, key=lambda x: (x["added_ts"], x["rid"]))
+        # 新添加/最新登记的主播优先展示，减少刚添加后还要滚到列表底部寻找。
+        return sorted(out, key=lambda x: (-x["added_ts"], x["rid"]))
 
     def recent_errors(self) -> list[dict[str, object]]:
         return self._errors.snapshot()

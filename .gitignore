@@ -68,6 +68,9 @@ _experiments/douyin_worker_route/ai_config.json
 # 浏览器铸的抖音信任 cookie（本机会话凭证，切勿入库）
 _experiments/douyin_worker_route/browser_cookies.json
 _experiments/douyin_worker_route/_diag.log
+_experiments/douyin_worker_route/_tmp_*.png
+_experiments/douyin_worker_route/anchor_profiles.json
+_experiments/douyin_worker_route/avatar_cache/
 
 # 开发调试 / 临时文件（不入库）
 _experiments/douyin_worker_route/_scratch_*.py
@@ -91,3 +94,7 @@ Thumbs.db
 
 # Temporary repository review clones
 _experiments/_repo_review_*/
+
+# Local security/network tools and scan outputs
+tools/
+nmap_*.txt

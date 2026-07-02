@@ -4,6 +4,7 @@
     - 任意数据库 *.db
     - 任意音频 *.mp3 / *.wav
     - 日志 *.log、备份 *.bak、scratch/sample 临时件
+    - AI 配置 / API Key
     - rooms.json（含开发房间清单）
     - audio/ 或 exports/ 里有遗留文件
     - 任意文本（除模型词表外）出现已知开发房间号
@@ -29,7 +30,7 @@ $devRooms = @(
 )
 
 # 禁止的文件名/扩展（任意层级）
-$banName = @("browser_cookies.json","rooms.json")
+$banName = @("browser_cookies.json","rooms.json","ai_config.json")
 $banExt  = @(".db",".mp3",".wav",".log",".bak")
 $banGlob = @("_scratch*","sample_*","*.db-wal","*.db-shm")
 
@@ -65,6 +66,12 @@ foreach ($f in $allFiles) {
 
     foreach ($rid in $devRooms) {
         if ($content -match [regex]::Escape($rid)) { Add-V "文本含开发房间号 $rid : $rel" }
+    }
+    if ($content -match "sk-[A-Za-z0-9_-]{12,}") {
+        Add-V "文本疑似包含 AI API Key: $rel"
+    }
+    if ($content -match '"api_key"\s*:\s*"[^"]{6,}"') {
+        Add-V "文本包含已填写 api_key: $rel"
     }
     # cookie 令牌只在 json 里查（.py 源码里出现 'ttwid' 是合法代码）
     if ($f.Extension.ToLower() -eq ".json") {

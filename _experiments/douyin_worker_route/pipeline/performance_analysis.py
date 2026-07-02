@@ -1,7 +1,7 @@
-"""AI-led直播效能分析。
+"""AI-assisted直播效能分析。
 
-Python 只负责证据整理、状态门禁和结构化校验；直播效能分由 AI 在直播结束后
-基于完整本地数据给出。触发条件：
+Python 负责证据整理、状态门禁、同批参考和最终求和；AI 负责按模板给各维度打分。
+直播效能分在直播结束后基于完整本地数据生成。触发条件：
 
 1. 单场有效直播时长 >= 15 分钟；
 2. 最近录音/转写/统计数据稳定超过 5 分钟，视为已下播或采集结束；
@@ -30,8 +30,20 @@ from . import ai_report, config, export
 
 STABLE_AFTER_SEC = 5 * 60
 MIN_AI_DURATION_SEC = 15 * 60
+SUMMARY_CACHE_TTL_SEC = 30
 ANALYSIS_TEMPLATE = "auto"
-ANALYSIS_PROMPT_VERSION = "2026-07-01-content-quality-neutral-v4"
+ANALYSIS_PROMPT_VERSION = "2026-07-02-track-reference-heat-v13"
+AI_SKILLS_DIR = Path(__file__).resolve().parent / "ai_skills"
+AI_SKILL_FILES = (
+    "master_router.md",
+    "douyin_strategy.md",
+    "commerce_live.md",
+    "entertainment_live.md",
+    "content_live.md",
+    "risk_review.md",
+    "scoring_judge.md",
+)
+_AI_SKILL_PROMPT_CACHE: str | None = None
 MAX_TRANSCRIPT_CHARS = 120_000
 MAX_CHAT_ROWS = 1_500
 MAX_STAT_ROWS = 240
@@ -71,6 +83,123 @@ RISK_RULES = (
     ("攻击低俗敏感词", "中", ("傻", "滚", "垃圾", "蠢", "闭嘴")),
 )
 
+PERFORMANCE_SKILL_PROTOCOL = """
+【直播复盘 Skill 工作流】
+1. 先判定赛道，再评分。带货/房产/商品推广归带货型；唱歌、聊天、才艺、连麦归娱乐/聊天型；
+   游戏、知识讲解、文化讲解、教学、教程、课程、制作流程、新闻/内容播报归游戏/内容型或通用模板，
+   不要因为弹幕或粉丝团活跃就把知识讲解/教学误归为娱乐聊天。
+2. 先读硬数据，再读文本。必须同时参考直播时长、在线/进场/点赞/弹幕/fansclub/social、
+   转写文本、弹幕问题、高意图弹幕、敏感词候选和同批 reference_metrics。
+3. 按赛道给维度分，不要先想总分。每个维度要引用至少一个具体证据，例如峰值在线、弹幕密度、
+   进场排名、话术字数、具体话术或弹幕现象。不能只写“表现较好/一般”。
+   引用排名时必须区分“弹幕总数排名”和“弹幕密度排名”，不要把二者混写。
+4. 分数必须拉开。高内容质量+高互动可以进入 75-88；内容强但互动弱通常 55-72；
+   互动强但内容薄弱通常 60-72；内容和互动都弱应低于 55。
+   无互动的转播/新闻类不能只因互动为 0 被打到极低：如果内容连续、信息清晰、时长充足、转写完整，
+   通常应在 40-55；只有内容也空洞或数据不完整时才进入 20-39。
+5. 娱乐/唱歌直播不要因为“话术字数少”机械重罚，要结合唱歌/才艺/陪伴感、弹幕反馈、粉丝团和点赞判断；
+   唱歌、跳舞、连麦表演本身就是才艺展示，不能写“缺乏才艺展示”；但如果缺少互动承接、氛围单一，
+   内容维度不能给高分。
+6. 房产/带货直播更重视讲解清晰度、卖点结构、疑虑回应、行动引导、购买咨询和观看热度；
+   人数和进场在带货型里是重要正向信号，但不能替代内容质量。
+7. 游戏/内容直播更重视内容持续性、讨论度、控场、知识密度/高光片段和粉丝粘性；
+   没有购买意图不是扣分点。
+   新闻转播/单向内容播报如果有清晰转写和足够时长，也必须给出中低分，不允许逃成数据不足；
+   无互动会压低互动和热度维度，但内容连续、信息清晰时内容质量和数据完整性不能给 0，
+   也不能仅因为无互动就把最终分压到 40 以下。
+   如果转写字数超过 3000、内容连续且信息清晰，内容质量/内容持续性最低应给该维度满分的 60%；
+   如果录音和转写完整度高，数据完整性最低应给 8/10。互动为 0 只能影响互动、热度和粉丝粘性维度。
+   如果 evidence.data_integrity.completeness >= 0.9，数据完整性维度不得低于 8/10；
+   如果 completeness >= 0.75，数据完整性维度不得低于 6/10，除非 failed_transcripts 或 broken_segment 明显严重。
+8. 风险只按敏感词候选复核：歌词、游戏口嗨、玩笑、普通情绪表达、误识别命中时 is_real_risk=false，
+   deduction 必须为 0。攻击低俗词只有明确用于辱骂观众/他人时才扣分。
+9. ai_summary 只能写 80-140 字证据结论，不要写“综合评分/最终分/XX分”，最终分由后端统一计算展示。
+10. 当前没有可靠 gift/礼物事件字段，除非 evidence.event_counts 明确出现 gift 或礼物相关事件且数量大于 0，
+    否则不要把“有无礼物”作为加分或扣分原因。
+11. 禁止替用户做合作决策；只提供分数、证据和可观察问题。
+"""
+
+def _load_ai_skill_prompt() -> str:
+    """Load modular AI replay skills, falling back to the inline protocol."""
+    global _AI_SKILL_PROMPT_CACHE
+    if _AI_SKILL_PROMPT_CACHE is not None:
+        return _AI_SKILL_PROMPT_CACHE
+
+    parts: list[str] = []
+    for filename in AI_SKILL_FILES:
+        path = AI_SKILLS_DIR / filename
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if text:
+            parts.append(text)
+
+    _AI_SKILL_PROMPT_CACHE = "\n\n".join(parts) if parts else PERFORMANCE_SKILL_PROTOCOL.strip()
+    return _AI_SKILL_PROMPT_CACHE
+
+
+REFERENCE_METRIC_KEYS = (
+    "total_viewers",
+    "peak_online",
+    "avg_online",
+    "enter_events",
+    "danmu_count",
+    "danmu_per_min",
+    "like_events",
+    "like_per_min",
+    "social_events",
+    "fansclub_events",
+    "intent_count",
+    "transcript_chars",
+    "speech_density",
+)
+PRIMARY_HEAT_METRIC_KEYS = (
+    "peak_online",
+    "avg_online",
+    "total_viewers",
+    "enter_events",
+    "danmu_count",
+    "danmu_per_min",
+    "like_events",
+    "fansclub_events",
+    "social_events",
+)
+MIN_SAME_TRACK_REFERENCE_SIZE = 2
+
+SCORE_TEMPLATES: dict[str, list[tuple[str, int]]] = {
+    "带货型直播": [
+        ("内容质量/话术转化力", 35),
+        ("直播热度", 25),
+        ("互动反馈", 20),
+        ("购买兴趣", 10),
+        ("数据完整性", 10),
+    ],
+    "娱乐/聊天型直播": [
+        ("内容质量/氛围与陪伴感", 35),
+        ("互动活跃度", 25),
+        ("强关系互动", 20),
+        ("直播热度", 10),
+        ("数据完整性", 10),
+    ],
+    "游戏/内容型直播": [
+        ("内容质量/内容持续性", 50),
+        ("互动讨论度", 15),
+        ("直播热度", 15),
+        ("粉丝粘性", 10),
+        ("数据完整性", 10),
+    ],
+    "通用模板": [
+        ("内容质量", 40),
+        ("互动活跃度", 25),
+        ("直播热度", 20),
+        ("强关系/兴趣信号", 10),
+        ("数据完整性", 5),
+    ],
+}
+
+_SUMMARY_CACHE: dict[str, Any] = {"key": None, "ts": 0.0, "rows": None}
+
 
 @dataclass(frozen=True)
 class MetricSnapshot:
@@ -105,33 +234,160 @@ class MetricSnapshot:
     failed_transcripts: int
 
 
+SESSION_SEP = "__"
+
+
+def _parse_session_id(value: str) -> tuple[str, str | None]:
+    text = str(value or "").strip()
+    if SESSION_SEP in text:
+        rid, day = text.rsplit(SESSION_SEP, 1)
+        if rid and len(day) == 8 and day.isdigit():
+            return rid, day
+    return text, None
+
+
+def _day_key(ts: float | int | None) -> str:
+    if ts is None:
+        return ""
+    value = float(ts)
+    if value > 1_000_000_000_000:
+        value /= 1000
+    try:
+        return datetime.fromtimestamp(value).strftime("%Y%m%d")
+    except (ValueError, OSError, OverflowError):
+        return ""
+
+
+def _day_bounds(day: str) -> tuple[float, float]:
+    start = datetime.strptime(day, "%Y%m%d")
+    start_ts = start.timestamp()
+    return start_ts, start_ts + 24 * 60 * 60
+
+
+def _session_label(day: str) -> str:
+    if len(day) == 8:
+        return f"{day[:4]}-{day[4:6]}-{day[6:]}"
+    return day
+
+
+def _bundle_rid(bundle: export.RoomBundle) -> str:
+    return bundle.source_rid or _parse_session_id(str(bundle.rid))[0]
+
+
+def _bundle_session_id(bundle: export.RoomBundle) -> str:
+    return bundle.session_id or str(bundle.rid)
+
+
+def _days_for_bundle(bundle: export.RoomBundle) -> list[str]:
+    days: set[str] = set()
+    for row in bundle.transcripts:
+        day = _day_key(row.capture_start or row.segment_ts)
+        if day:
+            days.add(day)
+    for row in bundle.timeline:
+        day = _day_key(row.capture_start or row.capture_end)
+        if day:
+            days.add(day)
+    for ts, _cur, _pv in bundle.stats:
+        day = _day_key(ts)
+        if day:
+            days.add(day)
+    if not days:
+        for ts, _user, _content in export.load_chats_ts(_bundle_rid(bundle)):
+            day = _day_key(ts)
+            if day:
+                days.add(day)
+    return sorted(days, reverse=True)
+
+
+def _session_bundle(rid: str, nickname: str, day: str) -> export.RoomBundle:
+    start_ts, end_ts = _day_bounds(day)
+    return export.build_bundle(
+        rid,
+        nickname,
+        start_ts=start_ts,
+        end_ts=end_ts,
+        session_id=f"{rid}{SESSION_SEP}{day}",
+        session_day=day,
+    )
+
+
+def _bundles_for_room(rid: str, nickname: str) -> list[export.RoomBundle]:
+    full = export.build_bundle(rid, nickname)
+    days = _days_for_bundle(full)
+    if not days:
+        return [full]
+    return [_session_bundle(rid, nickname, day) for day in days]
+
+
+def _summary_cache_key() -> tuple[Any, ...]:
+    files = [
+        config.DB_PATH,
+        config.EVENTS_DB,
+        getattr(config, "ROOMS_JSON", Path()),
+        getattr(config, "ANCHOR_PROFILE_CACHE", Path()),
+    ]
+    stamps: list[tuple[str, int, int]] = []
+    for path in files:
+        try:
+            stat = path.stat()
+            stamps.append((str(path), stat.st_mtime_ns, stat.st_size))
+        except OSError:
+            stamps.append((str(path), 0, 0))
+    try:
+        room_ids = tuple(export.export_room_ids())
+    except Exception:  # noqa: BLE001 缓存签名不能让页面崩溃
+        room_ids = ()
+    return (*stamps, room_ids, ANALYSIS_PROMPT_VERSION)
+
+
 def list_session_summaries() -> list[dict[str, Any]]:
-    """效能分析首页。当前按直播号聚合为一场可分析直播。"""
+    """效能分析首页：同一主播按自然日拆成多场，便于持续复盘。"""
+    cache_key = _summary_cache_key()
+    now = time.time()
+    if (
+        _SUMMARY_CACHE.get("key") == cache_key
+        and _SUMMARY_CACHE.get("rows") is not None
+        and now - float(_SUMMARY_CACHE.get("ts") or 0) < SUMMARY_CACHE_TTL_SEC
+    ):
+        return list(_SUMMARY_CACHE["rows"])
+
     names = export.room_display_names()
+    profiles = export.configured_room_profiles()
     rows: list[dict[str, Any]] = []
     for rid in export.export_room_ids():
         try:
-            bundle = export.build_bundle(str(rid), names.get(str(rid), ""))
-            rows.append(_build_from_bundle(bundle, include_detail=False))
+            for bundle in _bundles_for_room(str(rid), names.get(str(rid), "")):
+                rows.append(_build_from_bundle(bundle, include_detail=False, profile=profiles.get(str(rid), {})))
         except Exception as exc:  # noqa: BLE001 页面不能因单房间脏数据崩掉
             rows.append(_error_row(str(rid), names.get(str(rid), ""), exc))
     rows.sort(key=_sort_key, reverse=True)
+    _SUMMARY_CACHE.update({"key": cache_key, "ts": now, "rows": list(rows)})
     return rows
 
 
-def build_session_analysis(rid: str, *, include_detail: bool = True) -> dict[str, Any]:
+def build_session_analysis(session_id: str, *, include_detail: bool = True) -> dict[str, Any]:
     names = export.room_display_names()
-    rid = str(rid)
-    bundle = export.build_bundle(rid, names.get(rid, ""))
-    return _build_from_bundle(bundle, include_detail=include_detail)
+    profiles = export.configured_room_profiles()
+    rid, day = _parse_session_id(session_id)
+    if day:
+        bundle = _session_bundle(rid, names.get(rid, ""), day)
+    else:
+        bundle = export.build_bundle(rid, names.get(rid, ""))
+    return _build_from_bundle(bundle, include_detail=include_detail, profile=profiles.get(rid, {}))
 
 
-def analyze_room(rid: str, *, force: bool = False) -> dict[str, Any]:
+def analyze_room(session_id: str, *, force: bool = False) -> dict[str, Any]:
     """对单个已稳定直播执行 AI 效能分析并保存结果。"""
     names = export.room_display_names()
-    rid = str(rid)
-    bundle = export.build_bundle(rid, names.get(rid, ""))
-    base = _build_from_bundle(bundle, include_detail=True)
+    profiles = export.configured_room_profiles()
+    rid, day = _parse_session_id(session_id)
+    if day:
+        bundle = _session_bundle(rid, names.get(rid, ""), day)
+    else:
+        bundle = export.build_bundle(rid, names.get(rid, ""))
+    profile = profiles.get(rid, {})
+    base = _build_from_bundle(bundle, include_detail=True, profile=profile)
     status = base.get("analysis_status")
     if status == "done" and not force:
         return base
@@ -140,19 +396,22 @@ def analyze_room(rid: str, *, force: bool = False) -> dict[str, Any]:
     if status in {"not_eligible_short", "data_insufficient", "waiting_stable"}:
         return base
 
-    evidence_hash, evidence = _evidence_pack(bundle, _metrics(bundle))
+    storage_id = _bundle_session_id(bundle)
+    metrics = _metrics(bundle)
+    evidence_hash = _data_fingerprint(bundle, metrics)
+    _, evidence = _evidence_pack(bundle, metrics)
     cfg = ai_report.load_config()
     if not cfg.ready:
         _save_analysis(
-            rid,
+            storage_id,
             evidence_hash,
             "ai_not_configured",
             None,
             "AI 尚未配置，请先在系统设置里填写 base_url、API Key 和模型名。",
         )
-        return _build_from_bundle(bundle, include_detail=True)
+        return _build_from_bundle(bundle, include_detail=True, profile=profile)
 
-    _save_analysis(rid, evidence_hash, "analyzing", None, "")
+    _save_analysis(storage_id, evidence_hash, "analyzing", None, "")
     try:
         raw = ai_report._chat_completion(
             cfg,
@@ -163,45 +422,50 @@ def analyze_room(rid: str, *, force: bool = False) -> dict[str, Any]:
         )
         parsed = ai_report._json_from_text(raw)
         normalized = _normalize_ai_result(parsed)
-        _save_analysis(rid, evidence_hash, "done", normalized, "")
+        _save_analysis(storage_id, evidence_hash, "done", normalized, "")
     except Exception as exc:  # noqa: BLE001 保存失败状态，便于前端展示和重试
-        _save_analysis(rid, evidence_hash, "failed", None, str(exc))
-    return _build_from_bundle(bundle, include_detail=True)
+        _save_analysis(storage_id, evidence_hash, "failed", None, str(exc))
+    return _build_from_bundle(bundle, include_detail=True, profile=profile)
 
 
 def analyze_ready_sessions(*, limit: int = 1) -> dict[str, Any]:
     """后台/按钮调用：自动分析已结束且稳定的直播，避免页面 GET 阻塞。"""
     names = export.room_display_names()
+    profiles = export.configured_room_profiles()
     analyzed: list[str] = []
     skipped: list[dict[str, str]] = []
-    for rid in export.export_room_ids():
+    for row in list_session_summaries():
         if len(analyzed) >= limit:
             break
         try:
-            bundle = export.build_bundle(str(rid), names.get(str(rid), ""))
-            row = _build_from_bundle(bundle, include_detail=False)
             if row.get("analysis_status") in {"ready", "stale", "failed"}:
-                result = analyze_room(str(rid), force=row.get("analysis_status") == "failed")
+                result = analyze_room(str(row.get("session_id") or ""), force=row.get("analysis_status") == "failed")
                 if result.get("analysis_status") == "done":
-                    analyzed.append(str(rid))
+                    analyzed.append(str(row.get("session_id") or ""))
                 else:
-                    skipped.append({"rid": str(rid), "reason": str(result.get("analysis_status_text") or "")})
+                    skipped.append({"rid": str(row.get("rid") or ""), "reason": str(result.get("analysis_status_text") or "")})
             else:
-                skipped.append({"rid": str(rid), "reason": str(row.get("analysis_status_text") or "")})
+                skipped.append({"rid": str(row.get("rid") or ""), "reason": str(row.get("analysis_status_text") or "")})
         except Exception as exc:  # noqa: BLE001
-            skipped.append({"rid": str(rid), "reason": str(exc)})
+            skipped.append({"rid": str(row.get("rid") or ""), "reason": str(exc)})
     return {"analyzed": analyzed, "skipped": skipped}
 
 
-def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool) -> dict[str, Any]:
+def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool, profile: dict[str, str] | None = None) -> dict[str, Any]:
+    rid = _bundle_rid(bundle)
+    session_id = _bundle_session_id(bundle)
     metrics = _metrics(bundle)
-    risks = _risk_segments(bundle)
-    frequent_questions = _frequent_questions(bundle)
+    risks = _risk_segments(bundle) if include_detail else []
+    frequent_questions = _frequent_questions(bundle) if include_detail else []
     data_insufficient, data_reason = _data_insufficient(metrics)
-    evidence_hash, _ = _evidence_pack(bundle, metrics)
-    saved = _load_analysis(str(bundle.rid))
+    evidence_hash = _data_fingerprint(bundle, metrics)
+    saved = _load_analysis(session_id)
     status, status_text = _readiness_status(metrics, bundle, data_insufficient, data_reason, evidence_hash, saved)
-    ai_result = saved.get("result") if saved and saved.get("status") == "done" and saved.get("evidence_hash") == evidence_hash else None
+    saved_done = bool(saved and saved.get("status") == "done")
+    saved_fresh = bool(saved_done and saved.get("evidence_hash") == evidence_hash)
+    # 列表页优先快：旧版分析记录的 hash 口径不同，也继续展示已保存分数；
+    # 详情页和重新分析仍使用新指纹判断是否 stale。
+    ai_result = saved.get("result") if saved_done and (saved_fresh or not include_detail) else None
     normalized = _normalize_ai_result(ai_result or {}) if ai_result else None
 
     start_ts, end_ts = _session_range(bundle)
@@ -253,10 +517,11 @@ def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool) -> di
         ai_confidence = confidence
 
     row = {
-        "session_id": str(bundle.rid),
-        "rid": str(bundle.rid),
-        "anchor_name": bundle.nickname or str(bundle.rid),
-        "avatar_url": "",
+        "session_id": session_id,
+        "session_day": _session_label(bundle.session_day),
+        "rid": rid,
+        "anchor_name": bundle.nickname or (profile or {}).get("anchor_name") or rid,
+        "avatar_url": (profile or {}).get("avatar_url") or "",
         "live_start": _fmt_dt(start_ts),
         "live_end": _fmt_dt(end_ts),
         "live_time": _fmt_range(start_ts, end_ts),
@@ -267,7 +532,7 @@ def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool) -> di
         "score_source": "ai" if normalized else "pending",
         "score_template": score_template,
         "track": track,
-        "data_status": _data_status(status),
+        "data_status": _data_status("done" if normalized else status),
         "data_status_reason": data_reason or status_text,
         "analysis_status": status if not normalized else "done",
         "analysis_status_text": "AI已完成效能分析" if normalized else status_text,
@@ -339,15 +604,15 @@ def _analysis_messages(evidence: dict[str, Any]) -> list[dict[str, str]]:
     schema = {
         "track": "带货型直播|娱乐/聊天型直播|游戏/内容型直播|未分类",
         "template": "带货型直播|娱乐/聊天型直播|游戏/内容型直播|通用模板",
-        "positive_score": "0-100",
+        "positive_score": "0-100，必须等于 dimensions.score 之和",
         "risk_deduction": "0-20",
         "data_missing_deduction": "0-10",
-        "final_score": "0-100 或 null",
+        "final_score": "0-100 或 null，后端会忽略该字段并按维度求和重算",
         "rating": "优秀|良好|一般|较弱|低分|数据不足",
-        "ai_summary": "80-180字中文结论",
+        "ai_summary": "80-140字中文结论，不写具体分数",
         "key_positive_reasons": ["关键加分原因"],
         "key_deduction_reasons": ["关键扣分原因"],
-        "dimensions": [{"name": "维度名", "score": 0, "max_score": 0, "reason": "必须引用证据"}],
+        "dimensions": [{"name": "必须使用所选模板的固定维度名", "score": 0, "max_score": 0, "reason": "必须引用证据和同批参考"}],
         "risk_review": [{"risk_type": "风险类型", "level": "轻微|中等|严重|待复核", "is_real_risk": True, "deduction": 0, "evidence": "原话", "reason": "判断原因"}],
         "suggestions": ["中性的复盘观察点，不允许出现建议合作或不建议合作"],
         "confidence": "高|中|低",
@@ -355,22 +620,44 @@ def _analysis_messages(evidence: dict[str, Any]) -> list[dict[str, str]]:
     system = (
         "你是「直播复盘侠」的效能分析智能体。你必须亲自阅读证据包中的直播数据、"
         "话术、弹幕、统计和事件，再判断直播赛道、评分模板和直播效能分。"
-        "Python 只负责提供证据，不允许你照搬机械权重，也不允许输出合作建议。"
-        "评分公式必须是：直播效能分 = 内容与互动效能分 - 敏感词扣分 - 数据缺失扣分。"
+        + "\n\n"
+        + _load_ai_skill_prompt()
+        + "\n\n"
+        +
+        "你只负责给固定维度打分，不负责最终求和；后端 Python 会把 dimensions.score 相加，"
+        "再扣 sensitive/risk_deduction 和 data_missing_deduction 得到最终直播效能分。"
+        "评分公式必须是：直播效能分 = sum(dimensions.score) - 敏感词扣分 - 数据缺失扣分。"
         "风险合规只按证据包里的敏感词候选处理，不要自行扩大为违规判断；数据不足时 final_score 必须为 null。"
         "注意：能进入本分析的直播已经通过时长和稳定性门禁，原则上必须给出 final_score；"
         "互动少、弹幕少、无人提问、无购买意图只能作为效能弱项，不能直接判为数据不足。"
         "只有证据包几乎没有话术、弹幕、统计和时间信息时，才允许 rating=数据不足 且 final_score=null。"
+        "打分必须拉开差距：请使用 0-100 的完整区间，不要把不同场次都压在 68-72。"
+        "如果两场直播在弹幕密度、进场、在线峰值、点赞、粉丝团、话术字数、内容质量上差异明显，"
+        "final_score 至少应拉开 8-15 分；极弱互动且内容空洞的场次即使时长足够，也应低于 60；"
+        "内容质量好但互动弱的场次可在 55-75 间浮动；内容连续、信息清晰但无互动的内容/新闻播报，"
+        "通常应在 40-55，而不是直接压到极低；内容和互动都强才进入 75+。"
+        "必须参考 evidence.reference_metrics 中的同批 P90、percentile 和 rank。"
+        "例如峰值在线、进场、点赞或弹幕位于同批前列时，对应维度应明显加分；"
+        "位于同批后列时，即使话术不错，也不能在热度/互动维度给满分。"
+        "dimensions 必须严格使用 evidence.score_templates 中所选模板的维度名和 max_score，"
+        "不要增加、删除或改名；每个维度 score 必须是 0 到 max_score 的整数。"
         "内容质量必须占分数大头：请重点评估主播话术是否连续、信息是否清楚、节奏是否稳定、"
         "是否能承接弹幕、是否有有效互动引导、是否有可复用表达。观看热度和互动数据是重要辅助，"
         "但不能替代内容质量本身。"
+        "人数和热度是直播效果的主要硬指标：峰值在线、平均在线、进场/member、弹幕、点赞、fansclub/social 高时，"
+        "必须在对应热度/互动/强关系维度明显加分。低人数区间要看倍数差距，例如 14 人和 6 人不是只差 8，而是两倍以上；"
+        "高人数区间要看分位和排名，例如 624 和 616 的差距很小。"
+        "必须优先使用 evidence.reference_metrics.comparison_strategy：同赛道样本足够时只和同赛道比较；"
+        "同赛道样本不足时，退回全库热度参考，并主要依据 primary_metric_keys 中的硬指标排名和 percentile 判断热度分。"
         "赛道权重必须区别处理："
-        "1）娱乐/聊天型直播：内容氛围、陪伴感、才艺/聊天连续性、弹幕密度、粉丝团/social 和强关系互动优先，人数热度权重较低。"
-        "2）带货型直播：商品讲解质量、卖点清晰度、疑虑回应、行动引导和话术承接优先；人数、进场/member、峰值在线、累计观看和热度权重较高，但仍服务于内容转化力判断。"
-        "3）游戏/内容型直播：内容持续性、讨论度、控场、高光片段和粉丝粘性优先，人数和热度中等权重。"
+        "1）娱乐/聊天型直播：人气、弹幕、进场、粉丝团/social、氛围、陪伴感和强关系互动都是核心，不要因为话术信息密度低而压过高人气事实。"
+        "2）带货型直播：不能只看人数，但人数、进场/member、峰值在线、累计观看和热度是强正向信号；同时看商品讲解、疑虑回应和行动引导。"
+        "3）游戏/内容型直播：内容持续性、讨论度、控场、高光片段和粉丝粘性优先，但人数和热度高时仍要显著加分。"
         "不要引入 GMV、订单、ROI、成交归因、销售额等概念；「已经拍了」只能当用户反馈。"
         "低信息片段只是候选线索，可能来自沉默、音乐、ASR漏识别或主播停顿，不能直接认定为低效。"
         "敏感词片段只做复核提示，扣分应轻，除非证据中明确出现站外引流、医疗功效、价格承诺等敏感词。"
+        "如果 risk_review 中 is_real_risk=false 或 level=待复核，则该条 deduction 必须为 0。"
+        "ai_summary 禁止出现任何具体分数，例如「综合评分68分」「最终分72」等。"
         "禁止输出「建议合作」「不建议合作」「进入合作池」「合作优先」等替用户做选择的结论；只输出分数、评级和证据。"
         "只输出合法 JSON。"
     )
@@ -383,7 +670,7 @@ def _analysis_messages(evidence: dict[str, Any]) -> list[dict[str, str]]:
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
-def _evidence_pack(bundle: export.RoomBundle, metrics: MetricSnapshot) -> tuple[str, dict[str, Any]]:
+def _evidence_pack(bundle: export.RoomBundle, metrics: MetricSnapshot, *, include_reference: bool = True) -> tuple[str, dict[str, Any]]:
     transcript_rows: list[dict[str, Any]] = []
     used_chars = 0
     transcript_truncated = False
@@ -426,10 +713,16 @@ def _evidence_pack(bundle: export.RoomBundle, metrics: MetricSnapshot) -> tuple[
         for r in (bundle.timeline or [])[-800:]
     ]
     evidence = {
-        "room_id": str(bundle.rid),
-        "anchor_name": bundle.nickname or str(bundle.rid),
+        "room_id": _bundle_rid(bundle),
+        "session_id": _bundle_session_id(bundle),
+        "session_day": _session_label(bundle.session_day),
+        "anchor_name": bundle.nickname or _bundle_rid(bundle),
         "live_time": _fmt_range(*_session_range(bundle)),
         "metrics": _metrics_dict(metrics),
+        "score_templates": {
+            template: [{"name": name, "max_score": max_score} for name, max_score in dimensions]
+            for template, dimensions in SCORE_TEMPLATES.items()
+        },
         "data_integrity": {
             "duration_sec": round(metrics.duration_sec, 1),
             "recorded_duration": round(metrics.recorded_duration, 1),
@@ -454,28 +747,88 @@ def _evidence_pack(bundle: export.RoomBundle, metrics: MetricSnapshot) -> tuple[
             "analysis_prompt_version": ANALYSIS_PROMPT_VERSION,
             "min_duration_for_ai_sec": MIN_AI_DURATION_SEC,
             "stable_after_sec": STABLE_AFTER_SEC,
-            "final_formula": "positive_score - risk_deduction - data_missing_deduction",
+            "final_formula": "sum(dimensions.score) - risk_deduction - data_missing_deduction",
+            "score_owner": "AI 只负责固定维度打分；后端 Python 用维度分合计生成 positive_score 和 final_score。",
             "track_weighting": {
-                "娱乐/聊天型直播": "降低人数/热度权重，提高弹幕密度、粉丝团/social、氛围、陪伴感和强关系互动权重。",
-                "带货型直播": "提高人数/热度/进场权重，同时看购买意图、咨询、疑虑回应和话术承接。",
-                "游戏/内容型直播": "人数热度中等权重，重点看内容持续性、讨论度、控场和粉丝粘性。",
+                "娱乐/聊天型直播": "人气热度、弹幕、进场、粉丝团/social 都是核心正向信号；内容氛围和陪伴感用于解释人气质量。",
+                "带货型直播": "人数/热度/进场是重要正向信号，但不能只看人数；还要看购买意图、咨询、疑虑回应和话术承接。",
+                "游戏/内容型直播": "内容持续性和讨论度很重要，但人数、峰值在线、进场和点赞高时也必须显著加分。",
             },
+            "comparison_rule": "优先同赛道比较；如果同赛道样本不足，退回全库热度参考，主要看人数、在线、进场、弹幕、点赞、fansclub/social。",
             "risk_deduction_cap": 20,
             "data_missing_deduction_cap": 10,
         },
     }
-    digest = hashlib.sha256(json.dumps(evidence, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+    if include_reference:
+        evidence["reference_metrics"] = _reference_metrics(
+            _bundle_rid(bundle),
+            metrics,
+            current_track=_track_for_reference_room(_bundle_rid(bundle), bundle),
+        )
+    digest = hashlib.sha256(
+        json.dumps(_hashable_evidence(evidence), ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
     return digest, evidence
 
 
+def _data_fingerprint(bundle: export.RoomBundle, metrics: MetricSnapshot) -> str:
+    start_ts, end_ts = _session_range(bundle)
+    max_timeline_ts = max((float(r.capture_end or r.capture_start or 0) for r in bundle.timeline), default=0.0)
+    max_transcript_ts = max((float(t.capture_end or t.segment_ts or 0) for t in bundle.transcripts), default=0.0)
+    max_stat_ts = max((float(ts / 1000 if ts > 1_000_000_000_000 else ts) for ts, _cur, _pv in bundle.stats), default=0.0)
+    payload = {
+        "prompt_version": ANALYSIS_PROMPT_VERSION,
+        "session_id": _bundle_session_id(bundle),
+        "room_id": _bundle_rid(bundle),
+        "session_day": bundle.session_day,
+        "start_ts": round(float(start_ts or 0), 3),
+        "end_ts": round(float(end_ts or 0), 3),
+        "metrics": _metrics_dict(metrics),
+        "event_counts": dict(bundle.event_counts or {}),
+        "transcript_count": len(bundle.transcripts or []),
+        "timeline_count": len(bundle.timeline or []),
+        "chat_count": len(bundle.chats or []),
+        "stat_count": len(bundle.stats or []),
+        "max_timeline_ts": round(max_timeline_ts, 3),
+        "max_transcript_ts": round(max_transcript_ts, 3),
+        "max_stat_ts": round(max_stat_ts, 3),
+    }
+    return hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+def _hashable_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Stable evidence hash excluding expensive/comparative context.
+
+    reference_metrics is batch-relative: it may change when unrelated rooms are
+    added, and list pages should not need to build it just to decide stale/done.
+    """
+    out = dict(evidence)
+    out.pop("reference_metrics", None)
+    return out
+
+
 def _normalize_ai_result(data: dict[str, Any]) -> dict[str, Any]:
-    positive = _num(data.get("positive_score"), 0, 100)
-    risk = _num(data.get("risk_deduction"), 0, 20)
+    dimensions = _safe_dimensions(data.get("dimensions"))
+    dimension_max = sum(int(row.get("max_score") or 0) for row in dimensions)
+    dimension_score = sum(int(row.get("score") or 0) for row in dimensions)
+    if 95 <= dimension_max <= 105:
+        positive = _clamp(dimension_score, 0, 100)
+    else:
+        # 兼容旧分析结果或异常模型输出：只有维度不完整时才退回 AI 总分。
+        positive = _num(data.get("positive_score"), 0, 100)
+    risk_review = _safe_risk_review(data.get("risk_review"))
+    real_risk_sum = sum(
+        int(row.get("deduction") or 0)
+        for row in risk_review
+        if row.get("is_real_risk") and str(row.get("level") or "") != "待复核"
+    )
+    risk = _num(real_risk_sum if risk_review else data.get("risk_deduction"), 0, 20)
     missing = _num(data.get("data_missing_deduction"), 0, 10)
     raw_final = data.get("final_score")
     # 已通过后端时长/稳定性门禁并调用 AI 的场次，不能因为“互动少”逃成数据不足。
-    # 这里仍以 AI 给的三项分为基础，只做公式一致性校验。
-    final = int(_clamp(round(positive - risk - missing), 0, 100)) if raw_final is not None or positive > 0 else None
+    # 最终分由后端公式统一生成，避免 AI 直接输出总分时聚集在 68-72。
+    has_complete_dimensions = 95 <= dimension_max <= 105
+    final = int(_clamp(round(positive - risk - missing), 0, 100)) if raw_final is not None or positive > 0 or has_complete_dimensions else None
     # 评级必须由最终分数统一映射，避免 AI 出现“67分但评级良好”这类口径不一致。
     rating = _rating(final)
     out = {
@@ -486,11 +839,11 @@ def _normalize_ai_result(data: dict[str, Any]) -> dict[str, Any]:
         "data_missing_deduction": int(round(missing)),
         "final_score": final,
         "rating": rating,
-        "ai_summary": _safe_text(data.get("ai_summary") or "AI已完成分析。", 260),
+        "ai_summary": _clean_ai_summary(_safe_text(data.get("ai_summary") or "AI已完成分析。", 260)),
         "key_positive_reasons": _safe_list(data.get("key_positive_reasons"), 8),
         "key_deduction_reasons": _safe_list(data.get("key_deduction_reasons"), 8),
-        "dimensions": _safe_dimensions(data.get("dimensions")),
-        "risk_review": _safe_risk_review(data.get("risk_review")),
+        "dimensions": dimensions,
+        "risk_review": risk_review,
         "suggestions": _safe_list(data.get("suggestions"), 8),
         "confidence": _safe_text(data.get("confidence") or "中", 10),
     }
@@ -503,11 +856,13 @@ def _safe_dimensions(value: Any) -> list[dict[str, Any]]:
     for row in rows[:8]:
         if not isinstance(row, dict):
             continue
+        max_score = int(_num(row.get("max_score"), 0, 100))
+        score = int(_num(row.get("score"), 0, max_score or 100))
         out.append({
             "key": _safe_text(row.get("key") or row.get("name") or "", 40),
             "name": _safe_text(row.get("name") or "AI判断维度", 40),
-            "score": int(_num(row.get("score"), 0, 100)),
-            "max_score": int(_num(row.get("max_score"), 0, 100)),
+            "score": score,
+            "max_score": max_score,
             "positive_reasons": _safe_list(row.get("positive_reasons") or row.get("reason"), 4),
             "negative_reasons": _safe_list(row.get("negative_reasons"), 4),
             "evidence": row.get("evidence") if isinstance(row.get("evidence"), list) else [],
@@ -532,6 +887,16 @@ def _safe_risk_review(value: Any) -> list[dict[str, Any]]:
             "reason": _safe_text(row.get("reason") or "", 220),
         })
     return out
+
+
+def _clean_ai_summary(text: str) -> str:
+    text = re.sub(r"(综合评分|最终分|总分|评分)\s*[：:]?\s*\d{1,3}\s*分?", "", text)
+    text = re.sub(r"\s+", " ", text).strip(" ，。；;")
+    if len(text) > 150:
+        cut = max(text.rfind("。", 0, 150), text.rfind("；", 0, 150), text.rfind("，", 0, 150))
+        text = (text[:cut + 1] if cut >= 80 else text[:150]).strip(" ，。；;")
+    text = re.sub(r"(根据规则|根据证据|根据以上|整体来看|因此|同时|但|由于)$", "", text).strip(" ，。；;")
+    return text or "AI已完成分析。"
 
 
 def _safe_list(value: Any, limit: int) -> list[str]:
@@ -710,7 +1075,11 @@ def _latest_data_ts(bundle: export.RoomBundle) -> float:
         stamps.append(float(t.capture_end or t.segment_ts or 0))
     for ts, _, _ in bundle.stats:
         stamps.append(float(ts / 1000 if ts > 1_000_000_000_000 else ts))
-    room_dir = config.AUDIO_DIR / str(bundle.rid)
+    # 按天场次不能再看整个房间目录的最新 mp3，否则今天的新录音会让昨天的场次一直显示“等待稳定”。
+    if not bundle.session_day:
+        room_dir = config.AUDIO_DIR / _bundle_rid(bundle)
+    else:
+        room_dir = Path()
     if room_dir.exists():
         for path in room_dir.glob("*.mp3"):
             try:
@@ -858,6 +1227,170 @@ def _metrics_dict(m: MetricSnapshot) -> dict[str, Any]:
         "online_stability": round(m.online_stability, 3),
         "gift_events": m.gift_events,
     }
+
+
+def _reference_metrics(current_rid: str, current: MetricSnapshot, *, current_track: str = "") -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    current_rid = str(current_rid)
+    current_track = _normalize_track(current_track)
+    names: dict[str, str] = {}
+    try:
+        names = export.room_display_names()
+        room_ids = [str(rid) for rid in export.export_room_ids()]
+    except Exception:  # noqa: BLE001 参考数据失败不能阻塞主分析
+        room_ids = []
+    if current_rid not in room_ids:
+        room_ids.append(current_rid)
+
+    for rid in room_ids:
+        try:
+            if rid == current_rid:
+                metrics = current
+                anchor_name = names.get(rid, "")
+                track = current_track or "未分类"
+            else:
+                bundle = export.build_bundle(rid, names.get(rid, ""))
+                metrics = _metrics(bundle)
+                anchor_name = bundle.nickname or names.get(rid, "")
+                track = _track_for_reference_room(rid, bundle)
+            rows.append({
+                "room_id": rid,
+                "anchor_name": anchor_name or rid,
+                "track": track,
+                **_reference_metric_values(metrics),
+            })
+        except Exception:  # noqa: BLE001 某个房间坏数据时跳过
+            continue
+
+    if not rows:
+        rows.append({"room_id": current_rid, "anchor_name": current_rid, "track": current_track or "未分类", **_reference_metric_values(current)})
+
+    if current_track:
+        same_track_rows = [row for row in rows if _normalize_track(str(row.get("track") or "")) == current_track]
+    else:
+        same_track_rows = []
+    if len(same_track_rows) >= MIN_SAME_TRACK_REFERENCE_SIZE:
+        reference_rows = same_track_rows
+        scope = "同赛道参考"
+        reason = f"同赛道样本 {len(same_track_rows)} 场，优先在同赛道内比较。"
+    else:
+        reference_rows = rows
+        scope = "全库热度参考"
+        reason = (
+            f"同赛道样本不足（{len(same_track_rows)} 场），退回全库硬指标比较；"
+            "主要看人数、在线、进场、弹幕、点赞、fansclub/social。"
+        )
+
+    benchmarks: dict[str, dict[str, Any]] = {}
+    current_row = next((row for row in rows if row["room_id"] == current_rid), rows[0])
+    for key in REFERENCE_METRIC_KEYS:
+        values = [float(row.get(key) or 0) for row in reference_rows]
+        value = float(current_row.get(key) or 0)
+        sorted_rows = sorted(reference_rows, key=lambda row: float(row.get(key) or 0), reverse=True)
+        rank = next((idx + 1 for idx, row in enumerate(sorted_rows) if row["room_id"] == current_rid), len(sorted_rows))
+        benchmarks[key] = {
+            "value": round(value, 4),
+            "p90": round(_p90(values), 4),
+            "percentile": round(_percentile_rank(value, values), 4),
+            "rank": rank,
+            "sample_size": len(values),
+        }
+    return {
+        "scope": scope,
+        "current_room_id": current_rid,
+        "current_track_guess": current_track or "未分类",
+        "comparison_strategy": {
+            "scope": scope,
+            "reason": reason,
+            "same_track_sample_size": len(same_track_rows),
+            "reference_sample_size": len(reference_rows),
+            "primary_metric_keys": list(PRIMARY_HEAT_METRIC_KEYS),
+            "instruction": "同赛道样本不足时，热度/互动/强关系维度必须主要参考全库硬指标排名和 percentile；不要让当前直播自己和自己比。",
+        },
+        "benchmarks": benchmarks,
+        "peer_snapshot": [
+            {key: row.get(key) for key in ("anchor_name", "track", "total_viewers", "peak_online", "avg_online", "enter_events", "danmu_count", "like_events", "social_events", "fansclub_events")}
+            for row in sorted(reference_rows, key=lambda row: _heat_sort_key(row), reverse=True)[:12]
+        ],
+    }
+
+
+def _heat_sort_key(row: dict[str, Any]) -> tuple[float, float, float, float]:
+    return (
+        float(row.get("peak_online") or 0),
+        float(row.get("avg_online") or 0),
+        float(row.get("enter_events") or 0),
+        float(row.get("danmu_count") or 0),
+    )
+
+
+def _track_for_reference_room(rid: str, bundle: export.RoomBundle) -> str:
+    saved = _load_analysis(str(rid))
+    result = saved.get("result") if saved and saved.get("status") == "done" else None
+    if isinstance(result, dict):
+        track = _normalize_track(str(result.get("track") or result.get("template") or ""))
+        if track:
+            return track
+    return _guess_track_from_bundle(bundle)
+
+
+def _guess_track_from_bundle(bundle: export.RoomBundle) -> str:
+    text_parts = [bundle.nickname or ""]
+    text_parts.extend((row.text or "")[:500] for row in (bundle.transcripts or [])[:20])
+    text_parts.extend(content for _user, content in (bundle.chats or [])[:80])
+    text = " ".join(text_parts)
+    scores = {
+        "带货型直播": _term_score(text, ("房", "房产", "楼盘", "户型", "看房", "价格", "优惠", "产品", "链接", "小黄车", "下单", "发货", "买", "置业", "售楼")),
+        "娱乐/聊天型直播": _term_score(text, ("唱", "歌", "音乐", "点歌", "跳舞", "连麦", "PK", "谢谢", "陪伴", "聊天", "打赏", "灯牌")),
+        "游戏/内容型直播": _term_score(text, ("游戏", "PUBG", "和平精英", "讲解", "教学", "教程", "知识", "历史", "新闻", "资讯", "课程", "兵马俑", "文化")),
+    }
+    best_track, best_score = max(scores.items(), key=lambda item: item[1])
+    return best_track if best_score > 0 else "未分类"
+
+
+def _term_score(text: str, terms: tuple[str, ...]) -> int:
+    return sum(text.count(term) for term in terms)
+
+
+def _normalize_track(track: str) -> str:
+    text = str(track or "").strip()
+    if text in SCORE_TEMPLATES:
+        return text
+    if "带货" in text or "房产" in text or "商品" in text:
+        return "带货型直播"
+    if "娱乐" in text or "聊天" in text or "唱歌" in text:
+        return "娱乐/聊天型直播"
+    if "游戏" in text or "内容" in text or "教学" in text or "资讯" in text:
+        return "游戏/内容型直播"
+    return ""
+
+
+def _reference_metric_values(m: MetricSnapshot) -> dict[str, float]:
+    values = _metrics_dict(m)
+    return {key: float(values.get(key) or 0) for key in REFERENCE_METRIC_KEYS}
+
+
+def _p90(values: list[float]) -> float:
+    clean = sorted(float(v or 0) for v in values)
+    if not clean:
+        return 0.0
+    if len(clean) == 1:
+        return clean[0]
+    pos = 0.9 * (len(clean) - 1)
+    lo = math.floor(pos)
+    hi = math.ceil(pos)
+    if lo == hi:
+        return clean[int(pos)]
+    return clean[lo] * (hi - pos) + clean[hi] * (pos - lo)
+
+
+def _percentile_rank(value: float, values: list[float]) -> float:
+    clean = [float(v or 0) for v in values]
+    if not clean:
+        return 0.0
+    below = sum(1 for item in clean if item < value)
+    equal = sum(1 for item in clean if item == value)
+    return (below + 0.5 * equal) / len(clean)
 
 
 def _key_positive_reasons(m: MetricSnapshot) -> list[str]:

@@ -24,10 +24,10 @@ from urllib.parse import quote
 import uvicorn
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_report, browser_cookies, config, diagnostics, performance_analysis
+from . import ai_report, anchor_profiles, browser_cookies, config, diagnostics, performance_analysis
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import MAX_ACTIVE_ROOMS, RoomManager
@@ -145,16 +145,53 @@ def api_add_anchor(anchor: dict[str, object] = Body(...)) -> JSONResponse:
     rid = str(anchor.get("web_id") or anchor.get("room_id") or "").strip()
     if not rid:
         raise HTTPException(status_code=400, detail="未解析到有效的直播号或房间 ID")
+    cached = anchor_profiles.save_profile(rid, anchor)
     changed = _mgr.add_room(
         rid,
         {
-            "anchor_name": anchor.get("anchor_name"),
-            "avatar_url": anchor.get("avatar_url"),
-            "source_url": anchor.get("source_url"),
-            "sec_user_id": anchor.get("sec_user_id"),
+            "anchor_name": cached.get("anchor_name") or anchor.get("anchor_name"),
+            "avatar_url": cached.get("avatar_url") or anchor.get("avatar_url"),
+            "source_url": cached.get("source_url") or anchor.get("source_url"),
+            "sec_user_id": cached.get("sec_user_id") or anchor.get("sec_user_id"),
         },
     )
     return JSONResponse({"ok": True, "changed": changed, "rid": rid})
+
+
+@app.get("/api/avatars/{rid}")
+def api_avatar(rid: str) -> FileResponse:
+    path = anchor_profiles.avatar_file(rid)
+    if path is None:
+        raise HTTPException(status_code=404, detail="头像缓存不存在")
+    return FileResponse(path)
+
+
+@app.post("/api/anchors/{rid}/refresh")
+def api_anchor_refresh(rid: str) -> JSONResponse:
+    """Refresh one anchor profile and cache its avatar for historical views."""
+    rid = str(rid or "").strip()
+    if not rid:
+        raise HTTPException(status_code=400, detail="缺少直播号")
+    try:
+        result = resolve_anchor(
+            f"https://live.douyin.com/{rid}",
+            cookie_header=browser_cookies.cached_cookie_header(),
+        )
+    except AnchorResolveError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+    anchor = {
+        "source_url": result.source_url or f"https://live.douyin.com/{rid}",
+        "anchor_name": result.anchor_name,
+        "avatar_url": result.avatar_url,
+        "sec_user_id": result.sec_user_id,
+        "web_id": result.web_id or rid,
+        "room_id": result.room_id,
+        "is_live": result.is_live,
+    }
+    cached = anchor_profiles.save_profile(rid, anchor)
+    _mgr.update_room_profile(rid, cached)
+    anchor.update({k: v for k, v in cached.items() if v})
+    return JSONResponse({"ok": True, "anchor": anchor})
 
 
 @app.post("/api/pending")
@@ -328,13 +365,34 @@ def api_ai_report_download(filename: str = Query(...)) -> Response:
     if root not in path.parents and path != root:
         raise HTTPException(status_code=400, detail="无效文件名")
     if not path.is_file():
-        raise HTTPException(status_code=404, detail="报告不存在")
+        if path.suffix.lower() == ".pdf":
+            try:
+                path = ai_report.ensure_pdf_report(safe_name)
+            except ai_report.AIReportError as exc:
+                raise HTTPException(status_code=404, detail=str(exc)) from exc
+        else:
+            raise HTTPException(status_code=404, detail="报告不存在")
     media_type = "application/pdf" if path.suffix.lower() == ".pdf" else "text/markdown; charset=utf-8"
     return Response(
         content=path.read_bytes(),
         media_type=media_type,
         headers={"Content-Disposition": _download_disposition(safe_name)},
     )
+
+
+@app.get("/api/ai/report/view")
+def api_ai_report_view(filename: str = Query(...)) -> Response:
+    safe_name = Path(filename).name
+    path = (config.AI_REPORT_DIR / safe_name).resolve()
+    root = config.AI_REPORT_DIR.resolve()
+    if root not in path.parents and path != root:
+        raise HTTPException(status_code=400, detail="无效文件名")
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="报告不存在")
+    suffix = path.suffix.lower()
+    if suffix == ".html":
+        return HTMLResponse(ai_report.report_view_html(path))
+    return Response(content=path.read_bytes(), media_type="text/markdown; charset=utf-8")
 
 
 @app.get("/api/data/rooms")
@@ -615,17 +673,22 @@ def api_anchor_resolve(input_text: str = Body(..., embed=True)) -> JSONResponse:
             input_text,
             cookie_header=browser_cookies.cached_cookie_header(),
         )
+        rid = str(result.web_id or result.room_id or "").strip()
+        anchor = {
+            "source_url": result.source_url,
+            "anchor_name": result.anchor_name,
+            "avatar_url": result.avatar_url,
+            "sec_user_id": result.sec_user_id,
+            "web_id": result.web_id,
+            "room_id": result.room_id,
+            "is_live": result.is_live,
+        }
+        if rid:
+            cached = anchor_profiles.save_profile(rid, anchor)
+            anchor.update({k: v for k, v in cached.items() if v})
         return JSONResponse({
             "ok": True,
-            "anchor": {
-                "source_url": result.source_url,
-                "anchor_name": result.anchor_name,
-                "avatar_url": result.avatar_url,
-                "sec_user_id": result.sec_user_id,
-                "web_id": result.web_id,
-                "room_id": result.room_id,
-                "is_live": result.is_live,
-            },
+            "anchor": anchor,
         })
     except AnchorResolveError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)

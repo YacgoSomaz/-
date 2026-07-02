@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import config
+from . import anchor_profiles, config
 
 
 ROOMS_JSON = config.ROOMS_JSON
@@ -87,6 +87,9 @@ class RoomBundle:
     chats: list[tuple[str, str]]          # (user_name, content)
     stats: list[tuple[int, int, int]]      # (ts, current_online, total_pv)
     event_counts: dict[str, int]
+    source_rid: str = ""
+    session_id: str = ""
+    session_day: str = ""
 
 
 @dataclass(frozen=True)
@@ -219,11 +222,14 @@ def load_transcripts(
                 (rid,),
             ).fetchall()
         except sqlite3.Error:
-            rows = c.execute(
-                "SELECT room_id, segment_ts, duration_sec, text, char_count, mp3_name "
-                "FROM transcripts WHERE room_id = ? ORDER BY segment_ts",
-                (rid,),
-            ).fetchall()
+            try:
+                rows = c.execute(
+                    "SELECT room_id, segment_ts, duration_sec, text, char_count, mp3_name "
+                    "FROM transcripts WHERE room_id = ? ORDER BY segment_ts",
+                    (rid,),
+                ).fetchall()
+            except sqlite3.Error:
+                return []
         labels = speaker_labels if speaker_labels is not None else load_speaker_labels()
         out = []
         for r in rows:
@@ -321,22 +327,37 @@ def monitored_room_ids() -> list[str]:
 
 def configured_room_meta() -> dict[str, str]:
     """Read display names saved by the console, without touching network state."""
+    return {
+        rid: str(profile.get("anchor_name") or "").strip()
+        for rid, profile in configured_room_profiles().items()
+        if str(profile.get("anchor_name") or "").strip()
+    }
+
+
+def configured_room_profiles() -> dict[str, dict[str, str]]:
+    """Read saved anchor name/avatar/profile metadata without touching network state."""
+    out = anchor_profiles.load_profiles()
     if not ROOMS_JSON.exists():
-        return {}
+        return out
     try:
         rows = json.loads(ROOMS_JSON.read_text(encoding="utf-8"))
     except (OSError, ValueError, TypeError):
-        return {}
+        return out
     if not isinstance(rows, list):
-        return {}
-    out: dict[str, str] = {}
+        return out
     for row in rows:
         if not isinstance(row, dict):
             continue
         rid = str(row.get("rid") or "").strip()
-        name = str(row.get("anchor_name") or "").strip()
-        if rid.isdigit() and name:
-            out[rid] = name
+        if not rid.isdigit():
+            continue
+        cached = out.get(rid, {})
+        out[rid] = {
+            "anchor_name": str(row.get("anchor_name") or "").strip() or cached.get("anchor_name"),
+            "avatar_url": cached.get("avatar_url") or str(row.get("avatar_url") or "").strip(),
+            "source_url": str(row.get("source_url") or "").strip() or cached.get("source_url"),
+            "sec_user_id": str(row.get("sec_user_id") or "").strip() or cached.get("sec_user_id"),
+        }
     return out
 
 
@@ -447,32 +468,52 @@ def cleanup_export_files(keep_ids: list[str]) -> int:
     return removed
 
 
-def load_events(rid: str) -> tuple[list[tuple[str, str]], list[tuple[int, int, int]], dict[str, int]]:
+def _event_range_clause(start_ts: float | None, end_ts: float | None) -> tuple[str, list[int]]:
+    clauses: list[str] = []
+    params: list[int] = []
+    if start_ts is not None:
+        clauses.append("ts >= ?")
+        params.append(int(float(start_ts) * 1000))
+    if end_ts is not None:
+        clauses.append("ts < ?")
+        params.append(int(float(end_ts) * 1000))
+    if not clauses:
+        return "", []
+    return " AND " + " AND ".join(clauses), params
+
+
+def load_events(
+    rid: str,
+    start_ts: float | None = None,
+    end_ts: float | None = None,
+) -> tuple[list[tuple[str, str]], list[tuple[int, int, int]], dict[str, int]]:
     """返回 (chat样本, stat序列, 各类事件计数)。弹幕库按 live_id 关联。"""
     c = _conn(config.EVENTS_DB)
     if c is None:
         return [], [], {}
     try:
+        range_clause, range_params = _event_range_clause(start_ts, end_ts)
         counts = {
             r["event_type"]: r["n"]
             for r in c.execute(
-                "SELECT event_type, COUNT(*) AS n FROM events WHERE live_id = ? GROUP BY event_type",
-                (rid,),
+                "SELECT event_type, COUNT(*) AS n FROM events "
+                f"WHERE live_id = ?{range_clause} GROUP BY event_type",
+                (rid, *range_params),
             )
         }
         chats = [
             (r["user_name"] or "", r["content"] or "")
             for r in c.execute(
                 "SELECT user_name, content FROM events "
-                "WHERE live_id = ? AND event_type = 'chat' ORDER BY ts",
-                (rid,),
+                f"WHERE live_id = ? AND event_type = 'chat'{range_clause} ORDER BY ts",
+                (rid, *range_params),
             )
         ]
         stats = []
         for r in c.execute(
             "SELECT content, ts FROM events "
-            "WHERE live_id = ? AND event_type = 'stat' ORDER BY ts",
-            (rid,),
+            f"WHERE live_id = ? AND event_type = 'stat'{range_clause} ORDER BY ts",
+            (rid, *range_params),
         ):
             cur, pv = _parse_stat(r["content"] or "")
             stats.append((r["ts"], cur, pv))
@@ -527,23 +568,156 @@ def all_room_ids() -> list[str]:
     return sorted(ids)
 
 
+def _transcript_counts_by_room() -> dict[str, int]:
+    c = _conn(config.DB_PATH)
+    if c is None:
+        return {}
+    try:
+        try:
+            return {
+                str(r["room_id"]): int(r["n"] or 0)
+                for r in c.execute(
+                    "SELECT room_id, COUNT(*) AS n FROM transcripts GROUP BY room_id"
+                )
+            }
+        except sqlite3.Error:
+            return {}
+    finally:
+        c.close()
+
+
+def _event_summary_counts_by_room() -> dict[str, dict[str, int]]:
+    c = _conn(config.EVENTS_DB)
+    if c is None:
+        return {}
+    out: dict[str, dict[str, int]] = {}
+    try:
+        try:
+            rows = c.execute(
+                "SELECT live_id, event_type, COUNT(*) AS n FROM events GROUP BY live_id, event_type"
+            )
+        except sqlite3.Error:
+            return {}
+        for r in rows:
+            rid = str(r["live_id"])
+            event_type = str(r["event_type"] or "")
+            count = int(r["n"] or 0)
+            item = out.setdefault(rid, {"events": 0, "chats": 0, "stats": 0})
+            item["events"] += count
+            if event_type == "chat":
+                item["chats"] = count
+            elif event_type == "stat":
+                item["stats"] = count
+        return out
+    finally:
+        c.close()
+
+
+def _audio_summary_for_room(rid: str) -> tuple[int, int]:
+    room_dir = config.AUDIO_DIR / rid
+    if not room_dir.exists():
+        return 0, 0
+    count = 0
+    total_bytes = 0
+    for path in room_dir.glob("*.mp3"):
+        if not path.is_file():
+            continue
+        try:
+            total_bytes += path.stat().st_size
+            count += 1
+        except OSError:
+            continue
+    return count, total_bytes
+
+
+def _date_label(ts: float | int | None) -> str:
+    if ts is None:
+        return ""
+    try:
+        return datetime.fromtimestamp(float(ts)).strftime("%Y-%m-%d")
+    except (OSError, OverflowError, ValueError, TypeError):
+        return ""
+
+
+def _recording_sessions_for_room(rid: str) -> tuple[float, list[dict[str, object]]]:
+    """Return lightweight day/session summaries for picker UI."""
+    by_date: dict[str, dict[str, object]] = {}
+    for row in load_recording_timeline(rid):
+        if row.kind == "gap":
+            continue
+        start = row.capture_start
+        end = row.capture_end
+        duration = row.duration_sec
+        if duration is None and start is not None and end is not None:
+            duration = max(0.0, float(end) - float(start))
+        duration = max(0.0, float(duration or 0))
+        if duration <= 0:
+            continue
+        day = _date_label(start or end)
+        if not day:
+            continue
+        item = by_date.setdefault(day, {"date": day, "duration_sec": 0.0, "segments": 0})
+        item["duration_sec"] = float(item["duration_sec"]) + duration
+        item["segments"] = int(item["segments"]) + 1
+    if not by_date:
+        for row in load_transcripts(rid):
+            duration = max(0.0, float(row.duration_sec or 0))
+            if duration <= 0:
+                continue
+            day = _date_label(row.capture_start or row.segment_ts)
+            if not day:
+                continue
+            item = by_date.setdefault(day, {"date": day, "duration_sec": 0.0, "segments": 0})
+            item["duration_sec"] = float(item["duration_sec"]) + duration
+            item["segments"] = int(item["segments"]) + 1
+    sessions = sorted(by_date.values(), key=lambda x: str(x["date"]), reverse=True)
+    for idx, item in enumerate(sessions, start=1):
+        item["session_id"] = f"{rid}:{item['date']}"
+        item["label"] = f"{item['date']} 录制 {_format_duration(float(item['duration_sec']))}"
+        item["index"] = idx
+    total = sum(float(item["duration_sec"]) for item in sessions)
+    return total, sessions
+
+
+def _format_duration(seconds: float) -> str:
+    seconds = max(0, int(round(seconds)))
+    hours, rem = divmod(seconds, 3600)
+    minutes, secs = divmod(rem, 60)
+    if hours:
+        return f"{hours}小时{minutes:02d}分"
+    if minutes:
+        return f"{minutes}分{secs:02d}秒"
+    return f"{secs}秒"
+
+
 def data_room_summaries() -> list[dict]:
     """列出所有历史数据房间及数据量，供控制台选择导出/清理。"""
     meta = room_display_names()
+    profiles = anchor_profiles.load_profiles()
+    transcript_counts = _transcript_counts_by_room()
+    event_counts = _event_summary_counts_by_room()
     summaries = []
     for rid in all_room_ids():
-        bundle = build_bundle(rid, meta.get(rid, ""))
-        room_dir = config.AUDIO_DIR / rid
-        audio_files = list(room_dir.glob("*.mp3")) if room_dir.exists() else []
+        audio_files, audio_bytes = _audio_summary_for_room(rid)
+        events = event_counts.get(rid, {})
+        profile = profiles.get(rid, {})
+        record_seconds, sessions = _recording_sessions_for_room(rid)
+        nickname = meta.get(rid, "") or profile.get("anchor_name", "")
         summaries.append({
             "rid": rid,
-            "nickname": bundle.nickname,
-            "transcripts": len(bundle.transcripts),
-            "events": sum(bundle.event_counts.values()),
-            "chats": len(bundle.chats),
-            "stats": len(bundle.stats),
-            "audio_files": len(audio_files),
-            "audio_bytes": sum(p.stat().st_size for p in audio_files),
+            "nickname": nickname,
+            "anchor_name": nickname,
+            "avatar_url": profile.get("avatar_url", ""),
+            "transcripts": transcript_counts.get(rid, 0),
+            "events": events.get("events", 0),
+            "chats": events.get("chats", 0),
+            "stats": events.get("stats", 0),
+            "audio_files": audio_files,
+            "audio_bytes": audio_bytes,
+            "record_seconds": record_seconds,
+            "record_duration_text": _format_duration(record_seconds),
+            "dates": [str(s["date"]) for s in sessions],
+            "sessions": sessions,
         })
     return summaries
 
@@ -623,11 +797,49 @@ def build_bundle(
     rid: str,
     nickname: str = "",
     speaker_labels: dict[tuple[str, str], SpeakerLabel] | None = None,
+    *,
+    start_ts: float | None = None,
+    end_ts: float | None = None,
+    session_id: str = "",
+    session_day: str = "",
 ) -> RoomBundle:
     transcripts = load_transcripts(rid, speaker_labels)
     timeline = load_recording_timeline(rid)
-    chats, stats, counts = load_events(rid)
-    return RoomBundle(rid, nickname, transcripts, timeline, chats, stats, counts)
+    if start_ts is not None or end_ts is not None:
+        transcripts = [
+            row for row in transcripts
+            if _row_in_time_range(row.capture_start or row.segment_ts, start_ts, end_ts)
+        ]
+        timeline = [
+            row for row in timeline
+            if _row_in_time_range(row.capture_start or row.capture_end, start_ts, end_ts)
+        ]
+    chats, stats, counts = load_events(rid, start_ts, end_ts)
+    return RoomBundle(
+        rid,
+        nickname,
+        transcripts,
+        timeline,
+        chats,
+        stats,
+        counts,
+        source_rid=rid,
+        session_id=session_id,
+        session_day=session_day,
+    )
+
+
+def _row_in_time_range(value: float | int | None, start_ts: float | None, end_ts: float | None) -> bool:
+    if value is None:
+        return False
+    ts = float(value)
+    if ts > 1_000_000_000_000:
+        ts /= 1000
+    if start_ts is not None and ts < float(start_ts):
+        return False
+    if end_ts is not None and ts >= float(end_ts):
+        return False
+    return True
 
 
 def render_markdown(b: RoomBundle) -> str:

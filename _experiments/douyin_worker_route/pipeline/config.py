@@ -102,6 +102,8 @@ AI_REPORT_DIR = EXPORT_DIR / "ai_reports"
 COOKIE_CACHE = DATA_DIR / "browser_cookies.json"
 ROOMS_JSON = DATA_DIR / "rooms.json"
 PENDING_JSON = DATA_DIR / "pending_anchors.json"  # 待开播主播清单（只有 sec_user_id，等开播探测直播号）
+ANCHOR_PROFILE_CACHE = DATA_DIR / "anchor_profiles.json"
+AVATAR_CACHE_DIR = DATA_DIR / "avatar_cache"
 LOG_DIR = DATA_DIR / "logs"
 
 # ---------- 待开播主播开播探测（profile_watch）----------
@@ -162,6 +164,7 @@ def ensure_dirs() -> None:
     EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     AI_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
+    AVATAR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     SPEAKER_ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 
 
