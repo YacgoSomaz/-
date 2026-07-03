@@ -346,6 +346,34 @@ def api_ai_chat(payload: dict[str, object] = Body(...)) -> JSONResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@app.post("/api/ai/chat/stream")
+def api_ai_chat_stream(payload: dict[str, object] = Body(...)) -> StreamingResponse:
+    raw = payload.get("rids") or []
+    messages = payload.get("messages") or []
+    if not isinstance(raw, list):
+        raise HTTPException(status_code=400, detail="rids 必须是数组")
+    if not isinstance(messages, list):
+        raise HTTPException(status_code=400, detail="messages 必须是数组")
+
+    def events():
+        try:
+            for event in ai_report.answer_question_events([str(x) for x in raw], messages):  # type: ignore[arg-type]
+                yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+        except ai_report.AIReportError as exc:
+            yield "data: " + json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False) + "\n\n"
+        except Exception as exc:  # noqa: BLE001
+            yield "data: " + json.dumps({"type": "error", "message": f"追问异常：{exc}"}, ensure_ascii=False) + "\n\n"
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.post("/api/ai/word-cloud")
 def api_ai_word_cloud(payload: dict[str, object] = Body(...)) -> JSONResponse:
     raw = payload.get("rids") or []

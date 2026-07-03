@@ -133,6 +133,7 @@ button,input,textarea{font:inherit}
 .ai-chat-state{margin-left:auto;display:inline-flex;align-items:center;gap:7px;color:#2b5bd7;background:#fff;border:1px solid #d9e6fb;border-radius:999px;padding:5px 10px;font-size:12px;font-weight:800;white-space:nowrap}.ai-chat-state i{width:7px;height:7px;border-radius:50%;background:#35d4ff;box-shadow:0 0 0 4px rgba(53,212,255,.16)}
 .ai-chat-body{background:radial-gradient(circle at 12% 10%,rgba(53,212,255,.08),transparent 26%),linear-gradient(180deg,#fbfdff,#fff);padding:14px 16px}.ai-chat-empty{height:100%;min-height:140px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:9px;color:#53627a}.ai-chat-empty strong{font-size:16px;color:#14233c}.ai-chat-empty span{max-width:720px;line-height:1.8;color:#66758d}.ai-chat-empty-tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}.ai-chat-empty-tags i{font-style:normal;color:#3452d9;background:#eef4ff;border:1px solid #dbe7ff;border-radius:999px;padding:4px 9px;font-size:12px;font-weight:800}
 .chat-bubble{box-shadow:0 8px 22px rgba(31,53,91,.06)}.chat-msg.assistant .chat-bubble{border-color:#dfe9f8}.chat-msg.user .chat-bubble{background:linear-gradient(135deg,#3758ff,#5a66ff)}
+.chat-bubble.stream{min-width:260px;max-width:88%;background:linear-gradient(180deg,#fff,#fbfdff)!important}.chat-think-panel{border:1px solid #dfe9ff;border-radius:12px;background:linear-gradient(135deg,#f7fbff,#f3f6ff);padding:10px 11px;margin-bottom:9px}.chat-think-head{display:flex;align-items:center;gap:8px;color:#263247;font-weight:900}.chat-think-head:before{content:"";width:9px;height:9px;border-radius:50%;background:#35d4ff;box-shadow:0 0 0 4px rgba(53,212,255,.14);flex:0 0 9px}.chat-think-dots{display:inline-flex;gap:4px;margin-left:2px}.chat-think-dots i{width:5px;height:5px;border-radius:50%;background:#5b61ff;animation:thinkPulse 1s infinite ease-in-out}.chat-think-dots i:nth-child(2){animation-delay:.14s}.chat-think-dots i:nth-child(3){animation-delay:.28s}.chat-think-steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.chat-think-step{display:inline-flex;align-items:center;gap:5px;border:1px solid #dbe7ff;background:#fff;border-radius:999px;padding:4px 8px;color:#64748b;font-size:12px}.chat-think-step:before{content:"";width:6px;height:6px;border-radius:50%;background:#cbd5e1}.chat-think-step.done{color:#2b5bd7;border-color:#cddcff;background:#f8fbff}.chat-think-step.done:before{background:#35d4ff;box-shadow:0 0 0 3px rgba(53,212,255,.12)}.chat-stream-answer{line-height:1.8;color:#263247}.chat-md{line-height:1.82;color:#263247}.chat-md p{margin:0 0 8px}.chat-md p:last-child{margin-bottom:0}.chat-md strong{color:#101828;font-weight:900}.chat-md ul{display:grid;gap:6px;margin:8px 0;padding:0;list-style:none}.chat-md li{position:relative;padding:7px 9px 7px 24px;border:1px solid #e8eef7;border-radius:9px;background:#fbfdff}.chat-md li:before{content:"";position:absolute;left:10px;top:15px;width:6px;height:6px;border-radius:50%;background:#35d4ff;box-shadow:0 0 0 3px rgba(53,212,255,.12)}.chat-md .md-step-card{display:grid;grid-template-columns:26px 1fr;gap:8px;align-items:start;margin:7px 0;padding:8px 10px;border:1px solid #e7edf7;border-radius:10px;background:#fff}.chat-md .md-step-card b{width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#35d4ff,#5b61ff);color:#fff}.chat-md .md-callout{padding:8px 10px;border-radius:9px;background:#f7fbff;border:1px solid #e1ebff;color:#36445c}.typing-cursor{display:inline-block;width:7px;height:16px;margin-left:2px;border-radius:2px;background:#4f63ff;vertical-align:-3px;animation:cursorBlink .9s steps(2,end) infinite}@keyframes cursorBlink{50%{opacity:0}}
 .ai-filterbar{display:grid;grid-template-columns:1fr 1.35fr;gap:8px;margin:-2px 0 10px}
 .anchor-chip{max-width:100%;display:inline-flex;align-items:center;gap:10px;border:1px solid #dfe8f6;background:linear-gradient(180deg,#fff,#f8fbff);border-radius:999px;padding:6px 12px 6px 7px;cursor:default;box-shadow:0 8px 20px rgba(49,80,130,.06);text-align:left}
 .anchor-chip .avatar,.anchor-chip .avatar-fallback{width:34px;height:34px;flex:0 0 34px}.anchor-chip .avatar-fallback{font-size:15px}
@@ -384,7 +385,7 @@ button,input,textarea{font:inherit}
                   </div>
                 </div>
                 <template v-else>
-                  <div v-for="(m,i) in aiMessages" :key="i" class="chat-msg" :class="m.role"><div class="chat-bubble" :class="{thinking:m.thinking}"><template v-if="m.thinking"><span class="ai-thinking"><span>{{m.content}}</span><i></i><i></i><i></i></span></template><template v-else>{{m.content}}</template></div></div>
+                  <div v-for="(m,i) in aiMessages" :key="i" class="chat-msg" :class="m.role"><div class="chat-bubble" :class="{thinking:m.thinking,stream:m.streaming||m.steps?.length}"><template v-if="m.thinking||m.streaming||m.steps?.length"><div v-if="m.thinking||m.steps?.length" class="chat-think-panel"><div class="chat-think-head"><span>{{m.status||m.content||'正在整理证据'}}</span><span v-if="m.thinking" class="chat-think-dots"><i></i><i></i><i></i></span></div><div v-if="m.steps?.length" class="chat-think-steps"><span v-for="(s,si) in m.steps" :key="si" class="chat-think-step" :class="{done:s.done}">{{s.text}}</span></div></div><div v-if="m.content&&!m.thinking" class="chat-stream-answer"><div class="chat-md" v-html="chatHtml(m.content)"></div><span v-if="m.streaming" class="typing-cursor"></span></div></template><template v-else><span v-if="m.role==='user'">{{m.content}}</span><div v-else class="chat-md" v-html="chatHtml(m.content)"></div></template></div></div>
                   <div v-if="!aiMessages.length" class="ai-chat-empty">
                     <strong>把复盘报告继续问深一点</strong>
                     <span>AI会结合话术、评论、热度和复盘报告回答，适合用来追问卖点、用户关注点、风险表达和下一场优化方向。</span>
@@ -843,9 +844,16 @@ const app=createApp({setup(){
   function dlSample(){_saveFile('/api/export/save/sample',null,'示例导出（演示数据）')}
   function dlSelected(){const ids=selData.value.map(r=>r.rid);if(!ids.length)return ElMessage.warning('请先勾选主播');_saveFile('/api/export/save/selection',{rids:ids},'所选主播汇总')}
   function escHtml(s){return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-  function inlineMd(s){return escHtml(s).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')}
+  function normalizeMd(s){
+    return String(s||'')
+      .replace(/\*\*\s*([^*\n]+?)\s*\*\*/g,'**$1**')
+      .replace(/^\s*[-*]\s+\*\*\s*([^*\n]+?)\s*\*\*\s*[:：]?/gm,'- **$1**：')
+      .replace(/^\s*(\d+[.、])\s+\*\*\s*([^*\n]+?)\s*\*\*/gm,'$1 **$2**');
+  }
+  function inlineMd(s){return escHtml(s).replace(/\*\*\s*(.+?)\s*\*\*/g,'<strong>$1</strong>')}
+  function chatHtml(md){return mdToHtml(md)}
   function mdToHtml(md){
-    const lines=String(md||'').replace(/\r/g,'').split('\n');let html='',inList=false,tableRows=[];
+    const lines=normalizeMd(md).replace(/\r/g,'').split('\n');let html='',inList=false,tableRows=[];
     const closeList=()=>{if(inList){html+='</ul>';inList=false}};
     const isTableLine=line=>line.startsWith('|')&&line.endsWith('|')&&line.split('|').length>=3;
     const parseTableLine=line=>line.replace(/^\|/,'').replace(/\|$/,'').split('|').map(x=>x.trim());
@@ -1014,13 +1022,52 @@ const app=createApp({setup(){
     if(!q)return;
     const payloadMessages=aiMessages.value.filter(m=>!m.thinking).map(m=>({role:m.role,content:m.content}));
     payloadMessages.push({role:'user',content:q});
-    aiQuestion.value='';aiMessages.value.push({role:'user',content:q});const thinking={role:'assistant',content:'AI 正在思考',thinking:true};aiMessages.value.push(thinking);aiAsking.value=true;nextTick(()=>{if(aiChatEl.value)aiChatEl.value.scrollTop=aiChatEl.value.scrollHeight});
+    const scrollChat=()=>nextTick(()=>{if(aiChatEl.value)aiChatEl.value.scrollTop=aiChatEl.value.scrollHeight});
+    aiQuestion.value='';
+    aiMessages.value.push({role:'user',content:q});
+    const thinking={role:'assistant',content:'',status:'正在读取直播证据',thinking:true,streaming:true,steps:[]};
+    aiMessages.value.push(thinking);
+    aiAsking.value=true;
+    scrollChat();
+    const markLastStepDone=()=>{const last=thinking.steps?.[thinking.steps.length-1];if(last)last.done=true};
+    const appendStage=(text)=>{
+      const clean=String(text||'').trim();if(!clean)return;
+      markLastStepDone();
+      thinking.status=clean;
+      thinking.steps.push({text:clean,done:false});
+      scrollChat();
+    };
+    const appendAnswer=(text)=>{
+      if(!text)return;
+      markLastStepDone();
+      thinking.thinking=false;
+      thinking.streaming=true;
+      thinking.content=(thinking.content||'')+String(text);
+      scrollChat();
+    };
     try{
       pushAiEvent({type:'chat',message:'正在基于当前主播证据回答追问'});
-      const resp=await fetch('/api/ai/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rids:ids,messages:payloadMessages})});
-      const r=await resp.json();if(!resp.ok)throw new Error(r.detail||'追问失败');
-      const idx=aiMessages.value.indexOf(thinking);if(idx>=0)aiMessages.value.splice(idx,1,{role:'assistant',content:r.answer||''});else aiMessages.value.push({role:'assistant',content:r.answer||''});
-      nextTick(()=>{if(aiChatEl.value)aiChatEl.value.scrollTop=aiChatEl.value.scrollHeight});
+      const resp=await fetch('/api/ai/chat/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({rids:ids,messages:payloadMessages})});
+      if(!resp.ok)throw new Error((await resp.text())||'追问失败');
+      if(!resp.body)throw new Error('当前浏览器不支持流式读取');
+      const reader=resp.body.getReader();const decoder=new TextDecoder('utf-8');let buf='';
+      while(true){
+        const {value,done}=await reader.read();
+        if(done)break;
+        buf+=decoder.decode(value,{stream:true});
+        const parts=buf.split('\n\n');buf=parts.pop()||'';
+        for(const part of parts){
+          const line=part.split('\n').find(x=>x.startsWith('data:'));
+          if(!line)continue;
+          let ev=null;try{ev=JSON.parse(line.slice(5).trim())}catch(_e){continue}
+          if(ev.type==='stage')appendStage(ev.message);
+          else if(ev.type==='delta')appendAnswer(ev.content||'');
+          else if(ev.type==='error')throw new Error(ev.message||'追问失败');
+          else if(ev.type==='done'){markLastStepDone();thinking.status=ev.message||'回答完成'}
+        }
+      }
+      if(!thinking.content){thinking.thinking=false;thinking.streaming=false;thinking.content='这次没有拿到有效回答，请换一个更具体的问题再试。'}
+      thinking.streaming=false;thinking.thinking=false;markLastStepDone();scrollChat();
     }catch(e){const idx=aiMessages.value.indexOf(thinking);const msg={role:'assistant',content:'追问失败：'+(e.message||e)};if(idx>=0)aiMessages.value.splice(idx,1,msg);else aiMessages.value.push(msg)}
     finally{aiAsking.value=false}
   }
@@ -1108,7 +1155,7 @@ const app=createApp({setup(){
   });
   onUnmounted(()=>{clearInterval(timer);clearInterval(clockTimer);stopAiPulse();if(pdfDownloadTimer)clearInterval(pdfDownloadTimer);window.removeEventListener('keydown',_onTourKey);window.removeEventListener('resize',_onTourResize)});
   watch(view,v=>{if(['review','cloud','settings'].includes(v))refreshData();if(v==='review')setTimeout(refreshWordCloud,120);if(v==='pre')fetchPerformance();if(['pre','settings'].includes(v))refreshDiag();if(['review','cloud','pre'].includes(v))relayoutTables()});
-  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,aiDateFilter,aiSessionFilter,aiDateOptions,aiSessionOptions,filteredAiDataRooms,selectedDurationText,displayRecordDuration,displaySessionLabel,avatarFallbackText,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addText,resolved,resolving,adding,addErr,refreshingAnchors,handleAvatarError,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,pdfDownloading,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportDir,aiPdfFile,aiHtmlFile,aiQuestion,aiEtaText,aiPulse,aiElapsedSec,aiPipelineRound,aiCanvasNodes,aiCanvasLinks,aiCanvasMergeLinks,aiCanvasAllLinks,aiMergeVisible,aiFusionNode,aiCanvasCursor,aiCanvasStatus,aiTaskTotals,aiLatestMessage,aiStageText,aiEvents,aiMessages,aiWords,aiQuickQuestions,aiVisualSteps,videoQuality,videoQualityChoices,performanceSessions,perfDetail,perfLoading,perfAnalyzing,perfFilters,filteredPerformance,scoreText,metricText,rateText,sensitiveTopText,statusClass,canAnalyzePerformance,analyzePerformance,analyzeReadyPerformance,openPerformance,fetchPerformance,saveVideoQuality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,askQuick,refreshWordCloud,freqWidth,openAiReportDir,viewAiReport,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
+  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,aiDateFilter,aiSessionFilter,aiDateOptions,aiSessionOptions,filteredAiDataRooms,selectedDurationText,displayRecordDuration,displaySessionLabel,avatarFallbackText,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addText,resolved,resolving,adding,addErr,refreshingAnchors,handleAvatarError,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,pdfDownloading,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportDir,aiPdfFile,aiHtmlFile,aiQuestion,aiEtaText,aiPulse,aiElapsedSec,aiPipelineRound,aiCanvasNodes,aiCanvasLinks,aiCanvasMergeLinks,aiCanvasAllLinks,aiMergeVisible,aiFusionNode,aiCanvasCursor,aiCanvasStatus,aiTaskTotals,aiLatestMessage,aiStageText,aiEvents,aiMessages,aiWords,aiQuickQuestions,aiVisualSteps,videoQuality,videoQualityChoices,performanceSessions,perfDetail,perfLoading,perfAnalyzing,perfFilters,filteredPerformance,scoreText,metricText,rateText,sensitiveTopText,statusClass,canAnalyzePerformance,analyzePerformance,analyzeReadyPerformance,openPerformance,fetchPerformance,saveVideoQuality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,askQuick,chatHtml,refreshWordCloud,freqWidth,openAiReportDir,viewAiReport,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
 }});
 window.__liveApp=app;
 app.config.errorHandler=(err,_vm,info)=>{

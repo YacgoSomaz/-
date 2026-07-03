@@ -360,6 +360,45 @@ class AIReportTests(unittest.TestCase):
         self.assertEqual(sent_messages[-1]["role"], "user")
         self.assertNotIn("AI 正在思考", str(sent_messages))
 
+    def test_answer_question_events_stream_visible_answer_only(self) -> None:
+        transcript = export_mod.TranscriptRow(
+            room_id="123",
+            segment_ts=1_786_000_000,
+            duration_sec=60.0,
+            text="主播强调首付门槛、学校配套和到访礼。",
+            char_count=24,
+            mp3_name="123/seq00001.mp3",
+        )
+        bundle = export_mod.RoomBundle(
+            rid="123",
+            nickname="测试主播",
+            transcripts=[transcript],
+            timeline=[],
+            chats=[],
+            stats=[],
+            event_counts={},
+        )
+        cfg = ai_report.AIConfig(
+            base_url="https://api.example.test/v1",
+            api_key="secret",
+            model="demo",
+        )
+        messages = [{"role": "user", "content": "总结亮点"}]
+
+        with patch.object(ai_report.export_mod, "load_speaker_labels", return_value={}), \
+             patch.object(ai_report.export_mod, "room_display_names", return_value={"123": "测试主播"}), \
+             patch.object(ai_report.export_mod, "build_bundle", return_value=bundle), \
+             patch.object(ai_report, "load_config", return_value=cfg), \
+             patch.object(ai_report, "_chat_completion_stream", return_value=iter(["亮点是", "学校配套。"])):
+            events = list(ai_report.answer_question_events(["123"], messages))
+
+        self.assertTrue(any(e.get("type") == "stage" for e in events))
+        self.assertEqual(
+            "".join(str(e.get("content") or "") for e in events if e.get("type") == "delta"),
+            "亮点是学校配套。",
+        )
+        self.assertEqual(events[-1]["type"], "done")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -202,6 +202,69 @@ def _chat_completion(
         raise AIReportError("AI 返回格式异常，无法读取 message.content。") from exc
 
 
+def _chat_completion_stream(
+    cfg: AIConfig,
+    messages: list[dict[str, str]],
+    *,
+    temperature: float = 0.2,
+    max_tokens: int = 1800,
+) -> Iterator[str]:
+    """Yield visible assistant answer deltas from an OpenAI-compatible stream.
+
+    Some providers include hidden reasoning fields in streaming chunks.  Those
+    fields are intentionally ignored here; the UI shows our own evidence
+    processing milestones instead of exposing model internals.
+    """
+    if not cfg.ready:
+        raise AIReportError("AI 尚未配置，请先在系统设置里填写 base_url、API Key 和模型名。")
+    payload: dict[str, object] = {
+        "model": cfg.model,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+        "stream": True,
+    }
+    headers = {
+        "Authorization": f"Bearer {cfg.api_key}",
+        "Content-Type": "application/json",
+        "Accept": "text/event-stream",
+    }
+    try:
+        with requests.post(
+            _chat_url(cfg.base_url),
+            headers=headers,
+            json=payload,
+            timeout=(10, cfg.timeout_sec),
+            stream=True,
+        ) as resp:
+            if resp.status_code >= 400:
+                text = (resp.text or "")[:500]
+                raise AIReportError(f"AI 接口返回 HTTP {resp.status_code}: {text}")
+            # Keep chunk_size tiny so provider SSE deltas pass through instead
+            # of waiting inside requests' default line buffer.
+            for raw_line in resp.iter_lines(chunk_size=1, decode_unicode=True):
+                if not raw_line:
+                    continue
+                line = raw_line.strip()
+                if line.startswith("data:"):
+                    line = line[5:].strip()
+                if not line or line == "[DONE]":
+                    if line == "[DONE]":
+                        break
+                    continue
+                try:
+                    data = json.loads(line)
+                    delta = data["choices"][0].get("delta") or {}
+                    # Never surface reasoning_content / hidden thinking.
+                    content = delta.get("content")
+                    if content:
+                        yield str(content)
+                except (KeyError, IndexError, TypeError, ValueError):
+                    continue
+    except requests.RequestException as exc:
+        raise AIReportError(f"AI 流式请求失败：{exc}") from exc
+
+
 def test_config() -> dict[str, object]:
     cfg = load_config()
     text = _chat_completion(
@@ -2120,11 +2183,7 @@ def generate_report_events(rids: list[str]) -> Iterator[dict[str, object]]:
     }
 
 
-def answer_question(rids: list[str], messages: list[dict[str, str]]) -> dict[str, object]:
-    bundles = _load_bundles(rids)
-    cfg = load_config()
-    if not cfg.ready:
-        raise AIReportError("AI 尚未配置，无法追问。")
+def _safe_question_messages(messages: list[dict[str, str]]) -> list[dict[str, str]]:
     safe_messages: list[dict[str, str]] = []
     for msg in messages[-10:]:
         role = msg.get("role") if isinstance(msg, dict) else ""
@@ -2137,6 +2196,15 @@ def answer_question(rids: list[str], messages: list[dict[str, str]]) -> dict[str
             safe_messages.append({"role": role, "content": content.strip()})
     if not safe_messages or safe_messages[-1]["role"] != "user":
         raise AIReportError("请输入要追问的问题。")
+    return safe_messages
+
+
+def _question_prompt(rids: list[str], messages: list[dict[str, str]]) -> tuple[AIConfig, list[dict[str, str]], int, int]:
+    bundles = _load_bundles(rids)
+    cfg = load_config()
+    if not cfg.ready:
+        raise AIReportError("AI 尚未配置，无法追问。")
+    safe_messages = _safe_question_messages(messages)
     evidence = _all_text(bundles, limit=45_000)
     overview = json.dumps([_bundle_overview(b) for b in bundles], ensure_ascii=False)
     word_data = json.dumps(word_cloud([b.rid for b in bundles], limit=40)["words"], ensure_ascii=False)
@@ -2149,10 +2217,57 @@ def answer_question(rids: list[str], messages: list[dict[str, str]]) -> dict[str
         f"高频词：{word_data}\n\n"
         f"直播转写证据（可能截断）：\n{evidence}"
     )
+    prompt = [{"role": "system", "content": system}, {"role": "user", "content": context}] + safe_messages
+    return cfg, prompt, len(bundles), len(evidence)
+
+
+def answer_question(rids: list[str], messages: list[dict[str, str]]) -> dict[str, object]:
+    cfg, prompt, _bundle_count, _evidence_chars = _question_prompt(rids, messages)
     content = _chat_completion(
         cfg,
-        [{"role": "system", "content": system}, {"role": "user", "content": context}] + safe_messages,
+        prompt,
         temperature=0.25,
         max_tokens=2600,
     )
     return {"ok": True, "answer": content}
+
+
+def _chunk_text(text: str, size: int = 16) -> Iterator[str]:
+    for i in range(0, len(text), size):
+        yield text[i:i + size]
+
+
+def answer_question_events(rids: list[str], messages: list[dict[str, str]]) -> Iterator[dict[str, object]]:
+    yield {"type": "stage", "message": "正在读取已选主播的本地证据"}
+    cfg, prompt, bundle_count, evidence_chars = _question_prompt(rids, messages)
+    time.sleep(0.12)
+    yield {
+        "type": "stage",
+        "message": f"已整理 {bundle_count} 个主播、约 {evidence_chars} 字话术证据",
+    }
+    time.sleep(0.12)
+    yield {"type": "stage", "message": "字段已载入：主播概览、话术片段、互动反馈"}
+    time.sleep(0.12)
+    yield {"type": "stage", "message": "字段已载入：高频词、时间线、可引用原话"}
+    time.sleep(0.12)
+    yield {"type": "stage", "message": "正在匹配问题、弹幕反馈、高频词和可引用原话"}
+    time.sleep(0.12)
+    yield {"type": "stage", "message": "正在组织回答结构，准备输出结论"}
+    time.sleep(0.12)
+    yield {"type": "stage", "message": "开始生成回答，内容会逐段显示"}
+
+    wrote = False
+    try:
+        for delta in _chat_completion_stream(cfg, prompt, temperature=0.25, max_tokens=2600):
+            wrote = True
+            yield {"type": "delta", "content": delta}
+    except AIReportError as exc:
+        yield {"type": "stage", "message": f"流式输出不可用，改用普通回答：{exc}"}
+        answer = _chat_completion(cfg, prompt, temperature=0.25, max_tokens=2600)
+        for delta in _chunk_text(answer):
+            wrote = True
+            yield {"type": "delta", "content": delta}
+
+    if not wrote:
+        yield {"type": "delta", "content": "当前问题没有生成有效回答，请换一个更具体的问题重试。"}
+    yield {"type": "done", "message": "回答完成"}
