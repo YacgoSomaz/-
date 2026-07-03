@@ -42,6 +42,15 @@ def test_ai_followup_panel_is_emphasized() -> None:
     assert "可继续提问" in html
 
 
+def test_ai_followup_context_is_scoped_to_selected_replay() -> None:
+    html = FRONTEND.read_text(encoding="utf-8")
+    assert "aiChatStore" in html
+    assert "aiChatContextKey" in html
+    assert "aiChatRowKey" in html
+    assert "watch(aiChatKey,activateAiChatContext" in html
+    assert "const contextMessages=aiChatStore[key]||aiMessages.value" in html
+
+
 def test_ai_picker_uses_anchor_chips_and_duration_filters() -> None:
     html = FRONTEND.read_text(encoding="utf-8")
     assert "aiDateFilter" in html

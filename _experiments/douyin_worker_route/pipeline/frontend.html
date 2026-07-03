@@ -529,6 +529,7 @@ const app=createApp({setup(){
   const aiConfig=reactive({base_url:'',model:'',api_key:'',has_api_key:false,ready:false});
   const aiSaving=ref(false),aiTesting=ref(false),aiReporting=ref(false),aiAsking=ref(false),pdfDownloading=ref(false),aiProgress=ref(0),aiVisualProgressValue=ref(0),aiPreview=ref(''),aiBrief=ref(''),aiBriefTyping=ref(false),aiReportDir=ref(''),aiPdfFile=ref(''),aiHtmlFile=ref(''),aiQuestion=ref(''),aiEtaText=ref('');
   const aiEvents=ref([]),aiMessages=ref([]),aiWords=ref([]);
+  const aiChatStore=reactive({}),aiChatContextKey=ref('');
   const aiPulse=ref(0),aiStartedAt=ref(0);let aiPulseTimer=null,aiBriefTimer=null,aiVisualTimer=null,pdfDownloadTimer=null;
   const aiTaskTotals=reactive({rooms:0,transcripts:0,events:0,audio:0});
   const aiQuickQuestions=['总结本场最大亮点','观众最关心什么','哪些话术可以复用','有哪些风险点','下一场怎么优化'];
@@ -959,7 +960,26 @@ const app=createApp({setup(){
     };
     aiBriefTimer=setTimeout(tick,420);
   }
-  function selectedIds(){return selData.value.map(r=>r.rid)}
+  function selectedIds(){return selData.value.map(r=>rowRid(r)).filter(Boolean)}
+  function aiChatRowKey(row){
+    const rid=rowRid(row);if(!rid)return '';
+    const session=activeSession(row)||{};
+    const sessionKey=session.session_id||session.id||session.date||session.label||'all';
+    return [rid,sessionKey,aiDateFilter.value||'',aiSessionFilter.value||''].join('@');
+  }
+  const aiChatKey=computed(()=>{
+    const rows=Array.isArray(selData.value)?selData.value:[];
+    return rows.map(aiChatRowKey).filter(Boolean).sort().join('|');
+  });
+  function activateAiChatContext(){
+    const key=aiChatKey.value;
+    aiChatContextKey.value=key;
+    aiQuestion.value='';
+    if(!key){aiMessages.value=[];return}
+    if(!aiChatStore[key])aiChatStore[key]=[];
+    aiMessages.value=aiChatStore[key];
+  }
+  watch(aiChatKey,activateAiChatContext,{immediate:true});
   function snapshotAiTaskTotals(rows){
     const src=Array.isArray(rows)?rows:[];
     aiTaskTotals.rooms=src.length;
@@ -1020,13 +1040,17 @@ const app=createApp({setup(){
     const ids=selectedIds();const q=String(preset||aiQuestion.value||'').trim();
     if(!ids.length)return ElMessage.warning('请先勾选要追问的主播');
     if(!q)return;
-    const payloadMessages=aiMessages.value.filter(m=>!m.thinking).map(m=>({role:m.role,content:m.content}));
+    const key=aiChatKey.value;
+    if(key!==aiChatContextKey.value||aiMessages.value!==aiChatStore[key])activateAiChatContext();
+    const contextMessages=aiChatStore[key]||aiMessages.value;
+    const payloadMessages=contextMessages.filter(m=>!m.thinking).map(m=>({role:m.role,content:m.content}));
     payloadMessages.push({role:'user',content:q});
     const scrollChat=()=>nextTick(()=>{if(aiChatEl.value)aiChatEl.value.scrollTop=aiChatEl.value.scrollHeight});
     aiQuestion.value='';
-    aiMessages.value.push({role:'user',content:q});
+    contextMessages.push({role:'user',content:q});
     const thinking={role:'assistant',content:'',status:'正在读取直播证据',thinking:true,streaming:true,steps:[]};
-    aiMessages.value.push(thinking);
+    contextMessages.push(thinking);
+    aiMessages.value=contextMessages;
     aiAsking.value=true;
     scrollChat();
     const markLastStepDone=()=>{const last=thinking.steps?.[thinking.steps.length-1];if(last)last.done=true};
@@ -1068,7 +1092,7 @@ const app=createApp({setup(){
       }
       if(!thinking.content){thinking.thinking=false;thinking.streaming=false;thinking.content='这次没有拿到有效回答，请换一个更具体的问题再试。'}
       thinking.streaming=false;thinking.thinking=false;markLastStepDone();scrollChat();
-    }catch(e){const idx=aiMessages.value.indexOf(thinking);const msg={role:'assistant',content:'追问失败：'+(e.message||e)};if(idx>=0)aiMessages.value.splice(idx,1,msg);else aiMessages.value.push(msg)}
+    }catch(e){const idx=contextMessages.indexOf(thinking);const msg={role:'assistant',content:'追问失败：'+(e.message||e)};if(idx>=0)contextMessages.splice(idx,1,msg);else contextMessages.push(msg);if(aiChatContextKey.value===key)aiMessages.value=contextMessages}
     finally{aiAsking.value=false}
   }
   function askQuick(q){aiQuestion.value='';askAi(q)}
