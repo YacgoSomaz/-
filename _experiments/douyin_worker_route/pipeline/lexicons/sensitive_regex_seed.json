@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "description": "敏感词正则统计种子词库。当前仅用于命中统计与上下文分析，不直接等同于违规判定。",
+  "matching_policy": {
+    "default": "literal_or_regex",
+    "context_window_chars": 30,
+    "note": "短词如“最高”“最好”“官方”“认证”必须结合上下文判断，不能单独作为严重风险。"
+  },
+  "categories": [
+    {
+      "id": "absolute_claims",
+      "name": "极限/绝对化表达",
+      "default_severity": "medium",
+      "terms": [
+        {"term": "最高", "regex": "最高"},
+        {"term": "最好", "regex": "最好"},
+        {"term": "最大", "regex": "最大"},
+        {"term": "唯一", "regex": "唯一"},
+        {"term": "百分之百", "regex": "百分之百"},
+        {"term": "100%", "regex": "100%|１００％"},
+        {"term": "首个", "regex": "首个"},
+        {"term": "第一梯队", "regex": "第一梯队"}
+      ]
+    },
+    {
+      "id": "price_promotion",
+      "name": "价格/促销刺激",
+      "default_severity": "medium",
+      "terms": [
+        {"term": "限时特价", "regex": "限时特价"},
+        {"term": "限时限量", "regex": "限时限量"},
+        {"term": "特价", "regex": "特价"}
+      ]
+    },
+    {
+      "id": "official_endorsement",
+      "name": "官方/认证背书",
+      "default_severity": "medium",
+      "terms": [
+        {"term": "官方", "regex": "官方"},
+        {"term": "蓝V", "regex": "蓝V|蓝v"},
+        {"term": "认证", "regex": "认证"},
+        {"term": "平台认证", "regex": "平台认证"}
+      ]
+    },
+    {
+      "id": "real_estate_claims",
+      "name": "房产承诺/卖点风险",
+      "default_severity": "medium",
+      "terms": [
+        {"term": "零公摊", "regex": "零公摊"}
+      ]
+    }
+  ]
+}

@@ -189,9 +189,9 @@ def test_stable_long_live_can_be_analyzed_by_ai_and_saved(monkeypatch, tmp_path)
 
     assert result["analysis_status"] == "done"
     assert result["score_available"] is True
-    assert result["overall_score"] == 65
+    assert result["overall_score"] == 68
     assert result["positive_score"] == 70
-    assert result["risk_deduction"] == 3
+    assert result["risk_deduction"] == 0
     assert result["score_source"] == "ai"
     assert result["score_template"] == "带货型直播"
     assert "ROI" not in str(result)
@@ -199,8 +199,41 @@ def test_stable_long_live_can_be_analyzed_by_ai_and_saved(monkeypatch, tmp_path)
 
     saved = pa.build_session_analysis("1001")
     assert saved["analysis_status"] == "done"
-    assert saved["overall_score"] == 65
+    assert saved["overall_score"] == 68
     assert saved["ai_summary"].startswith("测试主播")
+
+
+def test_sensitive_risk_review_does_not_change_score():
+    result = pa._normalize_ai_result(
+        {
+            "track": "带货型直播",
+            "template": "带货型直播",
+            "data_missing_deduction": 1,
+            "dimensions": [
+                {"name": "内容质量/话术转化力", "score": 30, "max_score": 35},
+                {"name": "直播热度", "score": 20, "max_score": 25},
+                {"name": "互动反馈", "score": 15, "max_score": 20},
+                {"name": "购买兴趣", "score": 8, "max_score": 10},
+                {"name": "数据完整性", "score": 9, "max_score": 10},
+            ],
+            "risk_deduction": 20,
+            "risk_review": [
+                {
+                    "risk_type": "敏感词候选",
+                    "level": "严重",
+                    "is_real_risk": True,
+                    "deduction": 6,
+                    "evidence": "全网最低",
+                    "reason": "敏感词复核提示",
+                }
+            ],
+        }
+    )
+
+    assert result["positive_score"] == 82
+    assert result["risk_deduction"] == 0
+    assert result["final_score"] == 81
+    assert result["risk_review"][0]["deduction"] == 6
 
 
 def test_waiting_when_latest_audio_is_not_stable(monkeypatch, tmp_path):
@@ -216,6 +249,31 @@ def test_waiting_when_latest_audio_is_not_stable(monkeypatch, tmp_path):
     assert result["overall_score"] is None
     assert result["analysis_status"] == "waiting_stable"
     assert "5 分钟" in result["analysis_status_text"]
+
+
+def test_performance_detail_includes_sensitive_word_review(monkeypatch, tmp_path):
+    _patch_storage(monkeypatch, tmp_path)
+    bundle = _bundle()
+    bundle.transcripts[0] = export.TranscriptRow(
+        room_id="1001",
+        segment_ts=bundle.transcripts[0].segment_ts,
+        duration_sec=bundle.transcripts[0].duration_sec,
+        text="我们这个房源是官方认证项目，今天有特价活动，但需要人工复核语境。",
+        char_count=32,
+        mp3_name="1001/seq00001.mp3",
+        capture_start=bundle.transcripts[0].capture_start,
+        capture_end=bundle.transcripts[0].capture_end,
+        speaker_label="speaker_A",
+    )
+    monkeypatch.setattr(pa.export, "build_bundle", lambda rid, nick="", **_kwargs: bundle)
+    monkeypatch.setattr(pa.export, "room_display_names", lambda: {"1001": "测试主播"})
+
+    result = pa.build_session_analysis("1001")
+
+    assert result["sensitive_total"] >= 2
+    assert any(row["term"] == "官方" for row in result["sensitive_top_terms"])
+    assert result["sensitive_summary"]["samples"][0]["source"] == "主播话术"
+    assert "复核" in result["sensitive_summary"]["samples"][0]["context_status"] or result["sensitive_summary"]["samples"][0]["context_status"] == "语境较明确"
 
 
 def test_list_summary_does_not_build_reference_metrics(monkeypatch, tmp_path):

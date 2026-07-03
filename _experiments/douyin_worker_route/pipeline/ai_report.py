@@ -8,6 +8,7 @@ chunks, validates the structure, then asks for a final Markdown report.
 from __future__ import annotations
 
 import json
+import math
 import re
 import html
 import subprocess
@@ -27,10 +28,13 @@ from . import export as export_mod
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4.1-mini"
-CHUNK_CHAR_LIMIT = 6000
+CHUNK_CHAR_LIMIT = 10000
 MAX_CHUNKS = 16
 WORD_LIMIT = 80
-AI_CHUNK_WORKERS = 3
+# API calls are remote-bound, not local CPU-bound. Start high and tune down if
+# the provider returns rate-limit/JSON stability issues during real workloads.
+AI_CHUNK_WORKERS = 20
+LIVE_KNOWLEDGE_PATH = Path(__file__).resolve().parent / "knowledge" / "live_replay_knowledge.md"
 
 _STOP_WORDS = {
     "我们", "你们", "大家", "这个", "那个", "然后", "就是", "可以", "一下",
@@ -57,6 +61,15 @@ _IMPORTANT_TERMS = {
     "地铁", "商圈", "配套", "物业", "绿化率", "容积率", "车位", "交付",
     "盘龙", "昆明", "大华", "锦绣", "麓城", "云师大", "盘龙小学",
 }
+
+
+def _load_live_ops_knowledge(limit: int = 12000) -> str:
+    """Load the built-in live-operation playbook for report grounding."""
+    try:
+        text = LIVE_KNOWLEDGE_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    return text[:limit]
 
 
 @dataclass(frozen=True)
@@ -516,18 +529,22 @@ def _local_fallback_summary(chunk: dict[str, object], reason: str | None = None)
 
 
 def _final_report(cfg: AIConfig, overviews: list[dict[str, object]], summaries: list[dict[str, object]], truncated: bool) -> str:
+    live_ops_knowledge = _load_live_ops_knowledge()
     system = (
         "你是直播复盘侠的首席直播增长分析师，输出要像一份可直接给管理层看的咨询报告。"
         "根据结构化摘要生成中文 Markdown 报告，要求有标题层级、结论优先、数据看板、证据引用和行动清单。"
         "语气专业、克制、判断明确；禁止出现“好的”“老板”“以下是”“根据你提供”等对话式套话。"
         "第一行必须是 Markdown 一级标题。所有关键结论必须引用 evidence 中的时间或原文；没有证据就写“证据不足”。"
         "不要编造不存在的信息，不要引入 GMV、订单、ROI、成交归因、销售额。"
+        "直播优化策略必须结合给定直播运营知识库，但仍以本场真实证据为准。"
+        "引用知识库时要区分 A/B/C 来源等级：A 级用于合规边界，B 级用于运营框架，C 级只作为项目经验。"
     )
     user = json.dumps(
         {
             "overviews": overviews,
             "chunk_summaries": summaries,
             "truncated": truncated,
+            "live_operation_knowledge_base": live_ops_knowledge,
             "style_contract": {
                 "tone": "专业咨询报告，不要流水账",
                 "format": "Markdown，标题清晰，重点用粗体，列表短而有力",
@@ -539,7 +556,7 @@ def _final_report(cfg: AIConfig, overviews: list[dict[str, object]], summaries: 
                     "话术资产",
                     "低效/空转片段",
                     "风险复核",
-                    "机会动作",
+                    "直播优化策略",
                 ],
                 "quality_bar": [
                     "先给结论，再给证据",
@@ -549,14 +566,14 @@ def _final_report(cfg: AIConfig, overviews: list[dict[str, object]], summaries: 
                 ],
             },
             "required_sections": [
-                "一、一页总览：用 4-6 条项目符号概括本场表现、最重要机会和最大问题",
+                "一、一页总览：用 4-6 条项目符号概括本场表现、核心优化方向和最大问题",
                 "二、直播数据看板：主播、话术段数、弹幕、在线峰值、累计/最新观看、核心事件，用表格呈现",
                 "三、核心洞察：解释为什么这场直播有效或无效，至少 3 条",
                 "四、观众兴趣与问题：整理观众最关心的主题、疑问、反复出现的词",
                 "五、话术资产：列出可复用表达，必须带原话或时间点",
                 "六、低效/空转片段：指出沉默、重复、弱互动、信息密度低的片段；证据不足则写无明确证据",
                 "七、风险复核：只列真实敏感词或待复核项，不要过度判定",
-                "八、机会动作：给出 3-5 个可执行动作，每条包含目的、做法、观察指标",
+                "八、直播优化策略：给出 3-5 个可执行策略，每条包含优化目标、执行方法、观察指标，并说明对应的知识库依据",
             ],
         },
         ensure_ascii=False,
@@ -664,6 +681,216 @@ def _overview_metrics(overviews: list[dict[str, object]]) -> dict[str, int]:
     }
 
 
+_TECH_LABELS = {
+    "chat_count": "弹幕量",
+    "online_peak": "峰值在线",
+    "platform_pv_latest": "累计观看",
+    "transcript_segments": "话术片段",
+    "transcript_chars": "话术字数",
+    "audience_questions": "观众问题",
+    "member": "进场",
+    "fansclub": "粉丝团",
+    "social": "关注/互动",
+    "room_id": "直播间",
+}
+
+
+def _clean_report_text(text: object) -> str:
+    """Make AI report wording readable for operators instead of developers."""
+    s = re.sub(r"\s+", " ", str(text or "")).strip()
+    s = re.sub(r"^[*•·\-\s]+", "", s).strip()
+    s = s.replace("`", "")
+    s = re.sub(r"\*\*([^*]+)\*\*", r"\1", s)
+    s = re.sub(r"(?<!\*)\*(?!\*)", "", s)
+    for raw, label in _TECH_LABELS.items():
+        s = re.sub(rf"\b{re.escape(raw)}\b", label, s, flags=re.I)
+    s = re.sub(r"\bnull\b", "暂无", s, flags=re.I)
+    s = re.sub(r"\bNone\b", "暂无", s)
+    s = re.sub(r"\s+([，。；：、）])", r"\1", s)
+    s = re.sub(r"([（])\s+", r"\1", s)
+    return s.strip()
+
+
+def _metric_score(value: int | float, target: int | float) -> int:
+    try:
+        value_f = max(0.0, float(value))
+        target_f = max(1.0, float(target))
+    except (TypeError, ValueError):
+        return 0
+    return int(round(min(math.log1p(value_f) / math.log1p(target_f), 1.0) * 100))
+
+
+def _dimension_scores(metrics: dict[str, int]) -> list[dict[str, object]]:
+    """Create a lightweight six-dimension visual diagnosis for report readability."""
+    heat = max(
+        _metric_score(metrics.get("peak", 0), 500),
+        _metric_score(metrics.get("pv", 0), 5000),
+        _metric_score(metrics.get("member", 0), 3000),
+    )
+    interact = max(
+        _metric_score(metrics.get("chats", 0), 2500),
+        _metric_score(metrics.get("likes", 0), 2000),
+    )
+    content = max(
+        _metric_score(metrics.get("transcripts", 0), 80),
+        _metric_score(metrics.get("chars", 0), 20000),
+    )
+    relation = max(
+        _metric_score(metrics.get("fansclub", 0), 200),
+        _metric_score(metrics.get("member", 0), 3000),
+    )
+    evidence = max(
+        _metric_score(metrics.get("transcripts", 0), 60),
+        _metric_score(metrics.get("chats", 0), 1000),
+    )
+    risk_ready = 78 if metrics.get("transcripts", 0) or metrics.get("chats", 0) else 42
+    return [
+        {"label": "直播热度", "score": heat, "desc": "观看、进场、在线峰值"},
+        {"label": "互动活跃", "score": interact, "desc": "弹幕、点赞、讨论密度"},
+        {"label": "内容质量", "score": content, "desc": "话术覆盖与信息密度"},
+        {"label": "粉丝粘性", "score": relation, "desc": "进场与强关系互动"},
+        {"label": "证据完整", "score": evidence, "desc": "数据与话术可追溯性"},
+        {"label": "风险可控", "score": risk_ready, "desc": "敏感表达复核基础"},
+    ]
+
+
+def _radar_points(scores: list[dict[str, object]], radius: float = 74.0, center: float = 90.0) -> str:
+    if not scores:
+        return ""
+    pts: list[str] = []
+    total = len(scores)
+    for idx, item in enumerate(scores):
+        score = max(0, min(100, int(item.get("score") or 0)))
+        angle = -math.pi / 2 + idx * (2 * math.pi / total)
+        r = radius * (score / 100.0)
+        pts.append(f"{center + math.cos(angle) * r:.1f},{center + math.sin(angle) * r:.1f}")
+    return " ".join(pts)
+
+
+def _dimension_visual_html(scores: list[dict[str, object]]) -> str:
+    if not scores:
+        return ""
+    points = _radar_points(scores)
+    axis_lines = []
+    label_nodes = []
+    center = 90.0
+    radius = 74.0
+    total = len(scores)
+    for idx, item in enumerate(scores):
+        angle = -math.pi / 2 + idx * (2 * math.pi / total)
+        x = center + math.cos(angle) * radius
+        y = center + math.sin(angle) * radius
+        lx = center + math.cos(angle) * (radius + 19)
+        ly = center + math.sin(angle) * (radius + 19)
+        axis_lines.append(f'<line x1="{center}" y1="{center}" x2="{x:.1f}" y2="{y:.1f}"/>')
+        label_nodes.append(
+            f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle">{html.escape(str(item["label"]))}</text>'
+        )
+    bars = []
+    for item in scores:
+        score = max(0, min(100, int(item.get("score") or 0)))
+        bars.append(
+            '<div class="dim-row">'
+            f'<div><b>{html.escape(str(item["label"]))}</b><span>{html.escape(str(item.get("desc") or ""))}</span></div>'
+            f'<em>{score}</em><i><u style="width:{score}%"></u></i>'
+            '</div>'
+        )
+    return (
+        '<section class="diagnostic-grid">'
+        '<div class="diagnostic-card radar-card"><h2>六维运营诊断</h2>'
+        '<svg class="radar-chart" viewBox="0 0 180 180" role="img" aria-label="六维分析雷达图">'
+        '<polygon class="radar-bg" points="90,16 154,53 154,127 90,164 26,127 26,53"/>'
+        '<polygon class="radar-mid" points="90,41 132,65 132,115 90,139 48,115 48,65"/>'
+        f'{"".join(axis_lines)}<polygon class="radar-area" points="{points}"/>{"".join(label_nodes)}'
+        '</svg></div>'
+        '<div class="diagnostic-card"><h2>关键指标强弱</h2><div class="dim-list">'
+        f'{"".join(bars)}</div></div>'
+        '</section>'
+    )
+
+
+def _mini_radar_panel(scores: list[dict[str, object]]) -> str:
+    points = _radar_points(scores, radius=58, center=72)
+    axis_lines = []
+    labels = []
+    center = 72.0
+    radius = 58.0
+    total = len(scores) or 1
+    for idx, item in enumerate(scores):
+        angle = -math.pi / 2 + idx * (2 * math.pi / total)
+        x = center + math.cos(angle) * radius
+        y = center + math.sin(angle) * radius
+        lx = center + math.cos(angle) * (radius + 14)
+        ly = center + math.sin(angle) * (radius + 14)
+        axis_lines.append(f'<line x1="{center}" y1="{center}" x2="{x:.1f}" y2="{y:.1f}"/>')
+        labels.append(f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle">{html.escape(str(item["label"])[:4])}</text>')
+    return (
+        '<div class="mini-panel mini-radar-panel"><h3>六维诊断</h3>'
+        '<svg class="mini-radar" viewBox="0 0 144 144" role="img" aria-label="六维分析雷达图">'
+        '<polygon class="radar-bg" points="72,14 122,43 122,101 72,130 22,101 22,43"/>'
+        '<polygon class="radar-mid" points="72,34 105,53 105,91 72,110 39,91 39,53"/>'
+        f'{"".join(axis_lines)}<polygon class="radar-area" points="{points}"/>{"".join(labels)}'
+        '</svg></div>'
+    )
+
+
+def _mini_strength_panel(scores: list[dict[str, object]], limit: int = 4) -> str:
+    rows = []
+    for item in scores[:limit]:
+        score = max(0, min(100, int(item.get("score") or 0)))
+        rows.append(
+            '<div class="mini-bar-row">'
+            f'<b>{html.escape(str(item["label"]))}</b><span><i style="width:{score}%"></i></span><em>{score}</em>'
+            '</div>'
+        )
+    return '<div class="mini-panel"><h3>指标强弱</h3>' + "".join(rows) + "</div>"
+
+
+def _mini_data_panel(rows: list[str]) -> str:
+    body = "".join(rows[:4])
+    return (
+        '<div class="mini-panel mini-table-panel"><h3>数据看板</h3>'
+        '<table><thead><tr><th>主播</th><th>峰值</th><th>弹幕</th></tr></thead>'
+        f'<tbody>{body}</tbody></table></div>'
+    )
+
+
+def _mini_word_panel(word_html: list[str]) -> str:
+    return '<div class="mini-panel"><h3>高频词</h3>' + ("".join(word_html[:7]) or "<p>暂无高频词。</p>") + "</div>"
+
+
+def _mini_visual_panel(visual: str | None) -> str:
+    if not visual:
+        return '<div class="mini-panel"><h3>画面线索</h3><p>暂无画面。</p></div>'
+    return f'<div class="mini-panel mini-shot-panel"><h3>画面线索</h3>{visual}</div>'
+
+
+def _metrics_from_report_html(raw_html: str) -> dict[str, int]:
+    metrics = {"rooms": 0, "transcripts": 0, "chars": 0, "chats": 0, "peak": 0, "pv": 0, "likes": 0, "member": 0, "fansclub": 0}
+    label_map = {
+        "复盘主播": "rooms",
+        "话术片段": "transcripts",
+        "弹幕/评论": "chats",
+        "峰值在线": "peak",
+        "累计观看": "pv",
+    }
+    for value, label in re.findall(r"<b>\s*([\d,]+)\s*</b>\s*<span>\s*([^<]+)\s*</span>", raw_html):
+        key = label_map.get(html.unescape(label).strip())
+        if key:
+            try:
+                metrics[key] = max(metrics.get(key, 0), int(value.replace(",", "")))
+            except ValueError:
+                pass
+    for label, key in (("话术片段", "transcripts"), ("弹幕", "chats"), ("峰值在线", "peak"), ("累计观看", "pv")):
+        found = re.findall(rf"{label}</(?:th|td)>\s*<td[^>]*>\s*([\d,]+)", raw_html)
+        for value in found:
+            try:
+                metrics[key] = max(metrics.get(key, 0), int(value.replace(",", "")))
+            except ValueError:
+                pass
+    return metrics
+
+
 def _find_avatar_path(rid: object) -> Path | None:
     rid_s = str(rid or "").strip()
     if not rid_s:
@@ -736,9 +963,13 @@ def _visual_assets(bundles: list[export_mod.RoomBundle], out_dir: Path) -> list[
     return assets
 
 
-def _markdown_body_html(markdown: str, inline_visuals: list[str] | None = None) -> str:
+def _markdown_body_html(
+    markdown: str,
+    inline_visuals: list[str] | None = None,
+    inline_panels: list[str] | None = None,
+) -> str:
     def inline_md(text: str) -> str:
-        escaped = html.escape(text.strip())
+        escaped = html.escape(_clean_report_text(text))
         escaped = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", escaped)
         return escaped
 
@@ -749,6 +980,7 @@ def _markdown_body_html(markdown: str, inline_visuals: list[str] | None = None) 
     section_open = False
     paragraph_idx = 0
     visuals = inline_visuals or []
+    panels = inline_panels or []
 
     def close_list() -> None:
         nonlocal in_list
@@ -781,12 +1013,16 @@ def _markdown_body_html(markdown: str, inline_visuals: list[str] | None = None) 
             section_open = False
 
     def maybe_visual() -> None:
+        idx = section_idx - 1
+        if idx < len(panels) and panels[idx]:
+            side = "right" if idx % 2 == 0 else "left"
+            chunks.append(f"<aside class=\"report-float-panel {side}\">{panels[idx]}</aside>")
+            return
         if not visuals:
             return
-        idx = section_idx - 1
         if idx in (0, 1, 3) and idx < len(visuals):
             side = "right" if idx % 2 == 0 else "left"
-            chunks.append(f"<div class=\"float-shot {side}\">{visuals[idx]}</div>")
+            chunks.append(f"<aside class=\"report-float-panel {side}\"><div class=\"float-shot\">{visuals[idx]}</div></aside>")
 
     def is_table_line(line: str) -> bool:
         return line.startswith("|") and line.endswith("|") and line.count("|") >= 2
@@ -892,9 +1128,29 @@ def _write_html_report(
         word_html.append(
             f"<div class=\"word\"><b>{html.escape(str(w.get('word') or ''))}</b><span><i style=\"width:{width}%\"></i></span><em>{count}</em></div>"
         )
+    score_panels = _dimension_scores(metrics)
+    mini_rows = []
+    for o in overviews[:4]:
+        mini_rows.append(
+            "<tr>"
+            f"<td>{html.escape(_short_text(o.get('nickname'), 10))}</td>"
+            f"<td>{int(o.get('online_peak') or 0)}</td>"
+            f"<td>{int(o.get('chat_count') or 0)}</td>"
+            "</tr>"
+        )
     inline_visuals = visuals[:4]
     rail_visuals = visuals[4:] or visuals[:2]
-    body = _markdown_body_html(markdown, inline_visuals=inline_visuals)
+    inline_panels = [
+        _mini_radar_panel(score_panels),
+        _mini_data_panel(mini_rows),
+        _mini_strength_panel(score_panels),
+        _mini_word_panel(word_html),
+        _mini_visual_panel(inline_visuals[0] if inline_visuals else None),
+        _mini_strength_panel(score_panels[2:] + score_panels[:2], limit=4),
+        _mini_word_panel(word_html[3:] or word_html),
+        _mini_visual_panel(inline_visuals[1] if len(inline_visuals) > 1 else None),
+    ]
+    body = _markdown_body_html(markdown, inline_visuals=inline_visuals, inline_panels=inline_panels)
     html_doc = f"""<!doctype html>
 <html lang="zh-CN" data-report-version="2"><head><meta charset="utf-8"><title>直播复盘侠 AI 报告</title>
 <style>
@@ -902,19 +1158,19 @@ def _write_html_report(
 .page{{max-width:1160px;margin:0 auto;padding:34px}}.hero{{background:linear-gradient(135deg,#101828,#20345d 62%,#265a75);color:#fff;border-radius:24px;padding:30px 34px;box-shadow:0 18px 48px rgba(16,24,40,.18);position:relative;overflow:hidden}}
 .hero:after{{content:"";position:absolute;right:-80px;top:-110px;width:310px;height:310px;border-radius:50%;background:radial-gradient(circle,rgba(53,212,255,.30),transparent 66%)}}
 .hero h1{{margin:0 0 8px;font-size:30px}}.hero p{{margin:0;color:#cbd7ea}}.kpis{{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}}.kpi{{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:14px}}.kpi b{{display:block;font-size:26px}}.kpi span{{color:#cbd7ea;font-size:12px}}
-.grid{{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-top:18px}}.card{{background:#fff;border:1px solid #e7eef7;border-radius:20px;padding:20px;box-shadow:0 10px 28px rgba(31,41,55,.07)}}h2{{font-size:18px;margin:0 0 14px;padding-left:10px;border-left:4px solid #05d0ff}}table{{width:100%;border-collapse:collapse}}th,td{{padding:10px;border-bottom:1px solid #edf1f5;text-align:left}}th{{color:#7c8798;background:#f7faff}}.word{{display:grid;grid-template-columns:88px 1fr 42px;gap:10px;align-items:center;margin:9px 0}}.word span{{height:8px;background:#e9eef8;border-radius:99px;overflow:hidden}}.word i{{display:block;height:100%;background:linear-gradient(90deg,#35d4ff,#5b61ff);border-radius:99px}}.word em{{font-style:normal;color:#738095;text-align:right}}
+.grid{{display:grid;grid-template-columns:1.15fr .85fr;gap:18px;margin-top:18px}}.card{{background:#fff;border:1px solid #e7eef7;border-radius:20px;padding:20px;box-shadow:0 10px 28px rgba(31,41,55,.07)}}h2{{font-size:18px;margin:0 0 14px;padding-left:10px;border-left:4px solid #05d0ff}}table{{width:100%;border-collapse:collapse}}th,td{{padding:10px;border-bottom:1px solid #edf1f5;text-align:left}}th{{color:#7c8798;background:#f7faff}}.word{{display:grid;grid-template-columns:72px 1fr 34px;gap:8px;align-items:center;margin:8px 0}}.word b{{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}.word span{{height:8px;background:#e9eef8;border-radius:99px;overflow:hidden}}.word i{{display:block;height:100%;background:linear-gradient(90deg,#35d4ff,#5b61ff);border-radius:99px}}.word em{{font-style:normal;color:#738095;text-align:right}}
+.diagnostic-grid{{display:grid;grid-template-columns:.92fr 1.08fr;gap:18px;margin-top:18px}}.diagnostic-card{{background:#fff;border:1px solid #e7eef7;border-radius:20px;padding:20px;box-shadow:0 10px 28px rgba(31,41,55,.07);min-height:250px}}.radar-card{{display:flex;flex-direction:column;align-items:center}}.radar-chart{{width:min(100%,310px);height:230px;overflow:visible}}.radar-chart line{{stroke:#d9e7f5;stroke-width:1}}.radar-bg{{fill:#f5f9ff;stroke:#d7e5f5;stroke-width:1}}.radar-mid{{fill:none;stroke:#e4edf8;stroke-width:1}}.radar-area{{fill:rgba(53,212,255,.20);stroke:#4b6cff;stroke-width:3;filter:drop-shadow(0 8px 12px rgba(75,108,255,.18))}}.radar-chart text{{font-size:10px;fill:#6b7890}}.dim-list{{display:grid;gap:12px}}.dim-row{{display:grid;grid-template-columns:132px 38px 1fr;gap:12px;align-items:center}}.dim-row b{{display:block;color:#172033}}.dim-row span{{display:block;font-size:12px;color:#7b8798;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}.dim-row em{{font-style:normal;font-weight:800;color:#3859ff;text-align:right}}.dim-row i{{height:9px;border-radius:99px;background:#e9eff8;overflow:hidden}}.dim-row u{{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#35d4ff,#5b61ff);text-decoration:none}}
 figure{{margin:0;border-radius:18px;overflow:hidden;background:#f7faff;border:1px solid #e6edf6;box-shadow:0 12px 26px rgba(31,41,55,.08)}}figure img{{width:100%;height:158px;object-fit:cover;display:block}}figcaption{{padding:8px 10px;color:#536176;font-size:12px}}.empty-shot div{{height:158px;display:flex;align-items:center;justify-content:center;color:#9aa5b4;background:linear-gradient(135deg,#f4f8ff,#edf3fb)}}
-.report-shell{{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px;margin-top:18px;align-items:start}}.visual-rail{{position:sticky;top:18px;display:grid;gap:12px}}.visual-rail h2{{margin-bottom:2px}}.visual-rail figure img{{height:132px}}.report{{min-width:0;padding:0;background:transparent;border:none;box-shadow:none}}.report h1{{display:none}}
+.report-shell{{margin-top:18px}}.visual-rail{{display:none}}.report{{min-width:0;padding:0;background:transparent;border:none;box-shadow:none}}.report h1{{display:none}}
 .story-section{{background:#fff;border:1px solid #e7eef7;border-radius:22px;padding:24px 26px;margin-bottom:18px;box-shadow:0 10px 28px rgba(31,41,55,.06);overflow:hidden;opacity:1;transform:none;animation:sectionRise .55s ease both}}.story-section.visible{{opacity:1;transform:translateY(0)}}@keyframes sectionRise{{from{{opacity:.72;transform:translateY(10px)}}to{{opacity:1;transform:translateY(0)}}}}.story-section h2{{font-size:21px;margin:0 0 16px}}.story-section h3{{font-size:15px;margin:18px 0 8px;color:#22304a}}.story-section p,.story-section li{{color:#2d3748}}.story-section .lead{{font-size:15px;line-height:1.9;color:#1f2a44;background:linear-gradient(135deg,#f7fbff,#f2f6ff);border:1px solid #e4ecfb;border-radius:16px;padding:14px 16px}}.insight-list,.story-section ul{{display:grid;gap:9px;padding:0;margin:12px 0;list-style:none}}.insight-list li,.story-section ul li{{position:relative;background:#fbfdff;border:1px solid #e7edf7;border-radius:14px;padding:10px 12px 10px 30px}}.insight-list li:before,.story-section ul li:before{{content:"";position:absolute;left:12px;top:17px;width:7px;height:7px;border-radius:50%;background:#35d4ff;box-shadow:0 0 0 4px rgba(53,212,255,.12)}}.insight-bubble{{display:inline-block;max-width:92%;border-radius:18px;background:#fff8e8;border:1px solid #ffe0a8;color:#4b3b14!important;padding:10px 14px;box-shadow:0 8px 18px rgba(245,158,11,.08)}}.quote-card{{background:#f7faff;border-left:4px solid #5b61ff;margin:14px 0;padding:12px 14px;border-radius:0 14px 14px 0;color:#536176}}
-.step-card{{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start;margin:10px 0;padding:12px;border:1px solid #e6edf7;background:#fff;border-radius:15px}}.step-card b{{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:linear-gradient(135deg,#35d4ff,#5b61ff);color:#fff}}.step-card span{{color:#2d3748}}.data-table-wrap{{overflow:auto;border:1px solid #e7edf7;border-radius:14px;margin:12px 0;background:#fff}}.data-table th,.data-table td{{white-space:nowrap}}.float-shot{{width:276px;margin:4px 0 16px 22px}}.float-shot.right{{float:right}}.float-shot.left{{float:left;margin:4px 22px 16px 0}}.float-shot figure img{{height:168px}}.section-2{{background:linear-gradient(180deg,#fff,#fbfdff)}}.section-3 .step-card:nth-of-type(odd){{margin-left:28px}}.section-4{{background:linear-gradient(135deg,#fff,#f8fbff)}}.story-section:after{{content:"";display:block;clear:both}}
+.step-card{{display:grid;grid-template-columns:36px 1fr;gap:12px;align-items:start;margin:12px 0;padding:12px 14px;border:1px solid #e6edf7;background:#fff;border-radius:15px}}.step-card b{{width:30px;height:30px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:linear-gradient(135deg,#35d4ff,#5b61ff);color:#fff}}.step-card span{{color:#2d3748}}.data-table-wrap{{overflow:auto;border:1px solid #e7edf7;border-radius:14px;margin:12px 0;background:#fff}}.data-table th,.data-table td{{white-space:nowrap}}.float-shot figure img{{height:168px}}.section-2{{background:linear-gradient(180deg,#fff,#fbfdff)}}.section-4{{background:linear-gradient(135deg,#fff,#f8fbff)}}.report-float-panel{{width:318px;max-width:42%;margin:2px 0 14px 22px;position:relative;z-index:1}}.report-float-panel.right{{float:right}}.report-float-panel.left{{float:left;margin:2px 22px 14px 0}}.mini-panel{{background:linear-gradient(180deg,#fff,#f8fbff);border:1px solid #e2ebf7;border-radius:18px;padding:14px;box-shadow:0 10px 24px rgba(31,41,55,.08)}}.mini-panel h3{{margin:0 0 10px;font-size:14px;color:#172033}}.mini-radar-panel{{text-align:center}}.mini-radar{{width:100%;height:172px;overflow:visible}}.mini-radar line{{stroke:#d9e7f5;stroke-width:1}}.mini-radar text{{font-size:9px;fill:#697993}}.mini-bar-row{{display:grid;grid-template-columns:72px 1fr 30px;gap:8px;align-items:center;margin:9px 0}}.mini-bar-row b{{font-size:12px;white-space:nowrap}}.mini-bar-row span{{height:7px;border-radius:99px;background:#e9eff8;overflow:hidden}}.mini-bar-row i{{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#35d4ff,#5b61ff)}}.mini-bar-row em{{font-style:normal;font-size:12px;color:#5366e8;text-align:right;font-weight:800}}.mini-table-panel table{{font-size:12px}}.mini-table-panel th,.mini-table-panel td{{padding:7px 6px}}.mini-shot-panel figure img{{height:150px}}.story-section:after{{content:"";display:block;clear:both}}
 .jumpbar{{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 0}}.jumpbar a{{color:#dbeafe;text-decoration:none;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.10);border-radius:999px;padding:6px 11px;font-size:12px}}.connector-note{{display:flex;align-items:center;gap:8px;color:#65758d;font-size:12px;margin:10px 0 0}}.connector-note i{{height:2px;width:54px;background:linear-gradient(90deg,#35d4ff,#fff,#5b61ff);border-radius:99px}}
-@media(max-width:900px){{.page{{padding:18px}}.kpis,.grid,.report-shell{{grid-template-columns:1fr}}.visual-rail{{position:static;grid-template-columns:repeat(2,1fr)}}.float-shot,.float-shot.left,.float-shot.right{{float:none;width:100%;margin:12px 0}}}}
+@media(max-width:900px){{.page{{padding:18px}}.kpis,.grid,.diagnostic-grid{{grid-template-columns:1fr}}.report-float-panel,.report-float-panel.left,.report-float-panel.right{{float:none;width:100%;max-width:100%;margin:12px 0}}}}
+@page{{size:A4;margin:10mm 9mm}}@media print{{html{{scroll-behavior:auto}}body{{background:#fff!important;color:#172033;font-size:11px;line-height:1.62;-webkit-print-color-adjust:exact;print-color-adjust:exact}}.page{{width:192mm;max-width:none;margin:0 auto;padding:0}}.hero{{border-radius:14px;padding:18px 20px;box-shadow:none;break-inside:avoid;page-break-inside:avoid}}.hero h1{{font-size:22px}}.hero p{{font-size:11px}}.hero:after{{display:none}}.jumpbar{{display:none}}.kpis{{display:grid;grid-template-columns:repeat(4,1fr)!important;gap:8px;margin-top:12px}}.kpi{{border-radius:10px;padding:8px 10px}}.kpi b{{font-size:18px}}.grid,.diagnostic-grid{{grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}}.card,.diagnostic-card,.story-section,.mini-panel,figure{{box-shadow:none!important;border-color:#dfe7f2!important}}.diagnostic-card{{min-height:0;padding:12px;border-radius:12px}}.radar-chart{{height:150px}}.dim-row{{grid-template-columns:84px 28px 1fr;gap:7px;margin:5px 0}}.dim-row span{{display:none}}figure{{border-radius:10px}}figure img,.empty-shot div{{height:102px}}figcaption{{font-size:9px;padding:5px 7px}}.report-shell{{margin-top:10px}}.story-section{{break-inside:avoid;page-break-inside:avoid;border-radius:14px;padding:15px 17px;margin:0 0 10px;animation:none!important;overflow:visible}}.story-section h2{{font-size:15px;margin-bottom:10px;border-left-width:3px}}.story-section h3{{font-size:12px;margin:10px 0 5px}}.story-section p,.story-section li{{font-size:10.2px;line-height:1.62}}.story-section .lead{{font-size:11px;line-height:1.66;padding:9px 10px;border-radius:10px}}.insight-list,.story-section ul{{gap:5px;margin:7px 0}}.insight-list li,.story-section ul li{{padding:7px 9px 7px 22px;border-radius:10px;break-inside:avoid}}.insight-list li:before,.story-section ul li:before{{left:9px;top:13px;width:5px;height:5px;box-shadow:0 0 0 3px rgba(53,212,255,.10)}}.step-card{{grid-template-columns:28px 1fr;gap:8px;margin:7px 0;padding:8px 10px;border-radius:10px;break-inside:avoid}}.step-card b{{width:24px;height:24px;border-radius:8px}}.report-float-panel,.report-float-panel.left,.report-float-panel.right{{float:none!important;width:100%!important;max-width:100%!important;margin:8px 0!important;break-inside:avoid}}.report-float-panel .mini-panel,.report-float-panel .diagnostic-card{{padding:10px;border-radius:12px;margin-bottom:7px}}.mini-radar,.report-float-panel .radar-chart{{height:135px}}.mini-bar-row{{grid-template-columns:58px 1fr 24px;margin:5px 0;gap:6px}}.mini-bar-row b,.mini-bar-row em{{font-size:9px}}.mini-table-panel table,.report-float-panel table{{font-size:9px}}.mini-table-panel th,.mini-table-panel td,.report-float-panel th,.report-float-panel td,th,td{{padding:5px 6px}}.data-table-wrap{{overflow:visible;border-radius:10px}}.quote-card{{margin:8px 0;padding:8px 10px;border-radius:0 9px 9px 0}}.connector-note{{display:none}}}}
 </style></head><body><main class="page">
 <section class="hero"><h1>直播复盘侠 AI 复盘报告</h1><p>话术、互动、热度与视觉证据的综合复盘</p>
-<div class="kpis"><div class="kpi"><b>{metrics['rooms']}</b><span>复盘主播</span></div><div class="kpi"><b>{metrics['transcripts']}</b><span>话术片段</span></div><div class="kpi"><b>{metrics['chats']}</b><span>弹幕/评论</span></div><div class="kpi"><b>{metrics['peak']}</b><span>峰值在线</span></div></div><div class="jumpbar"><a href="#data">数据看板</a><a href="#report">核心报告</a><a href="#visual">画面线索</a><a href="#words">高频词</a></div></section>
-<section class="grid" id="data"><div class="card"><h2>主播数据对比</h2><table><thead><tr><th>主播</th><th>峰值在线</th><th>累计观看</th><th>弹幕</th><th>话术</th></tr></thead><tbody>{''.join(rows)}</tbody></table></div>
-<div class="card" id="words"><h2>高频词排行</h2>{''.join(word_html) or '<p>暂无高频词。</p>'}</div></section>
-<section class="report-shell" id="report"><aside class="visual-rail" id="visual"><h2>画面线索</h2>{''.join(rail_visuals) or '<p>暂无画面。</p>'}<div class="connector-note"><i></i><span>图像与正文交叉阅读</span></div></aside><div class="report">{body}</div></section>
+<div class="kpis"><div class="kpi"><b>{metrics['rooms']}</b><span>复盘主播</span></div><div class="kpi"><b>{metrics['transcripts']}</b><span>话术片段</span></div><div class="kpi"><b>{metrics['chats']}</b><span>弹幕/评论</span></div><div class="kpi"><b>{metrics['peak']}</b><span>峰值在线</span></div></div><div class="jumpbar"><a href="#report">核心报告</a><a href="#words">高频词</a><a href="#visual">画面线索</a></div></section>
+<section class="report-shell" id="report"><div class="report">{body}</div></section>
 </main><script>
 const observer=new IntersectionObserver(items=>items.forEach(item=>{{if(item.isIntersecting)item.target.classList.add('visible')}}),{{threshold:.12}});
 document.querySelectorAll('.story-section').forEach(el=>observer.observe(el));
@@ -1024,21 +1280,173 @@ def _legacy_report_upgrade_css() -> str:
 .legacy-data-table th{background:#f4f8ff;color:#637089;font-weight:700}
 .legacy-data-table th,.legacy-data-table td{padding:11px 13px;border-bottom:1px solid #edf1f7;text-align:left;vertical-align:top}
 .legacy-data-table tr:last-child td{border-bottom:0}
+.diagnostic-grid{display:grid;grid-template-columns:.92fr 1.08fr;gap:18px;margin:18px 0}.diagnostic-card{background:#fff;border:1px solid #e7eef7;border-radius:20px;padding:20px;box-shadow:0 10px 28px rgba(31,41,55,.07);min-height:250px}.radar-card{display:flex;flex-direction:column;align-items:center}.radar-chart{width:min(100%,310px);height:230px;overflow:visible}.radar-chart line{stroke:#d9e7f5;stroke-width:1}.radar-bg{fill:#f5f9ff;stroke:#d7e5f5;stroke-width:1}.radar-mid{fill:none;stroke:#e4edf8;stroke-width:1}.radar-area{fill:rgba(53,212,255,.20);stroke:#4b6cff;stroke-width:3;filter:drop-shadow(0 8px 12px rgba(75,108,255,.18))}.radar-chart text{font-size:10px;fill:#6b7890}.dim-list{display:grid;gap:12px}.dim-row{display:grid;grid-template-columns:132px 38px 1fr;gap:12px;align-items:center}.dim-row b{display:block;color:#172033}.dim-row span{display:block;font-size:12px;color:#7b8798;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dim-row em{font-style:normal;font-weight:800;color:#3859ff;text-align:right}.dim-row i{height:9px;border-radius:99px;background:#e9eff8;overflow:hidden}.dim-row u{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#35d4ff,#5b61ff);text-decoration:none}@media(max-width:900px){.diagnostic-grid{grid-template-columns:1fr}}
+.report-float-panel{width:318px;max-width:42%;margin:2px 0 14px 22px;position:relative;z-index:1}.report-float-panel.right{float:right}.report-float-panel.left{float:left;margin:2px 22px 14px 0}.report-float-panel .diagnostic-grid{display:block;margin:0}.report-float-panel .diagnostic-card{min-height:0;margin:0 0 12px;padding:14px;border-radius:16px;box-shadow:0 8px 20px rgba(31,41,55,.06)}.report-float-panel .radar-chart{height:172px}.report-float-panel .dim-row{grid-template-columns:72px 1fr 30px;gap:8px;margin:8px 0}.report-float-panel .dim-row span{display:none}.report-float-panel .grid{display:block;margin:0}.report-float-panel .card{padding:14px;border-radius:16px;box-shadow:0 8px 20px rgba(31,41,55,.06);margin-bottom:12px}.report-float-panel table{font-size:12px}.report-float-panel th,.report-float-panel td{padding:7px 6px}.story-section:after{content:"";display:block;clear:both}@media(max-width:900px){.report-float-panel,.report-float-panel.left,.report-float-panel.right{float:none;width:100%;max-width:100%;margin:12px 0}}
+@page{size:A4;margin:10mm 9mm}@media print{body{background:#fff!important;color:#172033;font-size:11px;line-height:1.62;-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{width:192mm!important;max-width:none!important;margin:0 auto!important;padding:0!important}.hero{border-radius:14px!important;padding:18px 20px!important;box-shadow:none!important;break-inside:avoid}.hero h1{font-size:22px!important}.hero:after,.jumpbar,.connector-note{display:none!important}.kpis{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:8px!important;margin-top:12px!important}.kpi{border-radius:10px!important;padding:8px 10px!important}.kpi b{font-size:18px!important}.grid,.diagnostic-grid{grid-template-columns:1fr 1fr!important;gap:9px!important;margin-top:10px!important}.card,.diagnostic-card,.legacy-section,.story-section,.mini-panel,figure{box-shadow:none!important;border-color:#dfe7f2!important}.diagnostic-card{min-height:0!important;padding:12px!important;border-radius:12px!important}.radar-chart{height:150px!important}.dim-row{grid-template-columns:84px 28px 1fr!important;gap:7px!important;margin:5px 0!important}.dim-row span{display:none!important}.legacy-section,.story-section{break-inside:avoid;page-break-inside:avoid;border-radius:14px!important;padding:15px 17px!important;margin:0 0 10px!important;overflow:visible!important}.legacy-section h2,.story-section h2{font-size:15px!important;margin-bottom:10px!important;border-left-width:3px!important}.legacy-section p,.legacy-section li,.story-section p,.story-section li{font-size:10.2px!important;line-height:1.62!important}.legacy-section ul,.story-section ul{gap:5px!important;margin:7px 0!important}.legacy-section li,.story-section li{padding:7px 9px 7px 22px!important;border-radius:10px!important;break-inside:avoid}.legacy-step-card,.step-card{grid-template-columns:28px 1fr!important;gap:8px!important;margin:7px 0!important;padding:8px 10px!important;border-radius:10px!important;break-inside:avoid}.legacy-step-card b,.step-card b{width:24px!important;height:24px!important;border-radius:8px!important}.report-float-panel,.report-float-panel.left,.report-float-panel.right{float:none!important;width:100%!important;max-width:100%!important;margin:8px 0!important;break-inside:avoid}.mini-radar,.report-float-panel .radar-chart{height:135px!important}.mini-bar-row{grid-template-columns:58px 1fr 24px!important;margin:5px 0!important;gap:6px!important}.mini-bar-row b,.mini-bar-row em{font-size:9px!important}th,td,.legacy-data-table th,.legacy-data-table td,.mini-table-panel th,.mini-table-panel td,.report-float-panel th,.report-float-panel td{padding:5px 6px!important}.legacy-table-wrap,.data-table-wrap{overflow:visible!important;border-radius:10px!important}}
 </style>
 """
 
 
+def _a4_print_patch_css() -> str:
+    return """
+<style id="livewatch-report-print-a4">
+@page{size:A4;margin:10mm 9mm}
+@media print{
+html{scroll-behavior:auto}
+body{background:#fff!important;color:#172033!important;font-size:11px!important;line-height:1.62!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.page{width:192mm!important;max-width:none!important;margin:0 auto!important;padding:0!important}
+.hero{border-radius:14px!important;padding:18px 20px!important;box-shadow:none!important;break-inside:avoid;page-break-inside:avoid}
+.hero h1{font-size:22px!important}.hero p{font-size:11px!important}.hero:after,.jumpbar,.connector-note{display:none!important}
+.kpis{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:8px!important;margin-top:12px!important}
+.kpi{border-radius:10px!important;padding:8px 10px!important}.kpi b{font-size:18px!important}
+.grid,.diagnostic-grid{grid-template-columns:1fr 1fr!important;gap:9px!important;margin-top:10px!important}
+.card,.diagnostic-card,.legacy-section,.story-section,.mini-panel,figure{box-shadow:none!important;border-color:#dfe7f2!important}
+.diagnostic-card{min-height:0!important;padding:12px!important;border-radius:12px!important}
+.radar-chart{height:150px!important}.dim-row{grid-template-columns:84px 28px 1fr!important;gap:7px!important;margin:5px 0!important}.dim-row span{display:none!important}
+figure{border-radius:10px!important}figure img,.empty-shot div{height:102px!important}figcaption{font-size:9px!important;padding:5px 7px!important}
+.report-shell{margin-top:10px!important}
+.legacy-section,.story-section{break-inside:avoid;page-break-inside:avoid;border-radius:14px!important;padding:15px 17px!important;margin:0 0 10px!important;animation:none!important;overflow:visible!important}
+.legacy-section h2,.story-section h2{font-size:15px!important;margin-bottom:10px!important;border-left-width:3px!important}
+.legacy-section h3,.story-section h3{font-size:12px!important;margin:10px 0 5px!important}
+.legacy-section p,.legacy-section li,.story-section p,.story-section li{font-size:10.2px!important;line-height:1.62!important}
+.story-section .lead{font-size:11px!important;line-height:1.66!important;padding:9px 10px!important;border-radius:10px!important}
+.insight-list,.legacy-section ul,.story-section ul{gap:5px!important;margin:7px 0!important}
+.legacy-section li,.insight-list li,.story-section ul li{padding:7px 9px 7px 22px!important;border-radius:10px!important;break-inside:avoid}
+.legacy-step-card,.step-card{grid-template-columns:28px 1fr!important;gap:8px!important;margin:7px 0!important;padding:8px 10px!important;border-radius:10px!important;break-inside:avoid}
+.legacy-step-card b,.step-card b{width:24px!important;height:24px!important;border-radius:8px!important}
+.report-float-panel,.report-float-panel.left,.report-float-panel.right{float:none!important;width:100%!important;max-width:100%!important;margin:8px 0!important;break-inside:avoid}
+.report-float-panel .mini-panel,.report-float-panel .diagnostic-card{padding:10px!important;border-radius:12px!important;margin-bottom:7px!important}
+.mini-radar,.report-float-panel .radar-chart{height:135px!important}
+.mini-bar-row{grid-template-columns:58px 1fr 24px!important;margin:5px 0!important;gap:6px!important}.mini-bar-row b,.mini-bar-row em{font-size:9px!important}
+.mini-table-panel table,.report-float-panel table{font-size:9px!important}
+th,td,.legacy-data-table th,.legacy-data-table td,.mini-table-panel th,.mini-table-panel td,.report-float-panel th,.report-float-panel td{padding:5px 6px!important}
+.legacy-table-wrap,.data-table-wrap{overflow:visible!important;border-radius:10px!important}
+.quote-card{margin:8px 0!important;padding:8px 10px!important;border-radius:0 9px 9px 0!important}
+}
+</style>
+"""
+
+
+def _inline_layout_fix_css() -> str:
+    return """
+<style id="livewatch-inline-report-fix">
+.report-shell{display:block!important;margin-top:18px!important}
+.visual-rail{display:none!important}
+.report{width:100%!important;max-width:none!important}
+.legacy-inline-panel .diagnostic-grid{display:block!important;margin:0!important}
+.legacy-inline-panel .diagnostic-card{min-height:0!important;margin:0!important;padding:14px!important;border-radius:16px!important;box-shadow:0 8px 20px rgba(31,41,55,.06)!important}
+.legacy-inline-panel .diagnostic-card+ .diagnostic-card{display:none!important}
+.legacy-inline-panel .diagnostic-card h2{font-size:14px!important;margin-bottom:8px!important}
+.legacy-inline-panel .radar-chart{height:172px!important;width:100%!important}
+.legacy-inline-panel .grid{display:block!important;margin:0!important}
+.legacy-inline-panel .card{padding:14px!important;border-radius:16px!important;box-shadow:0 8px 20px rgba(31,41,55,.06)!important;margin:0!important}
+.legacy-inline-panel .card+ .card{display:none!important}
+.legacy-inline-panel table{font-size:12px!important}
+.legacy-inline-panel th,.legacy-inline-panel td{padding:7px 6px!important}
+.report-float-panel{width:318px!important;max-width:42%!important;margin:2px 0 14px 22px!important;position:relative!important;z-index:1!important}
+.report-float-panel.right{float:right!important}
+.report-float-panel.left{float:left!important;margin:2px 22px 14px 0!important}
+.story-section:after{content:"";display:block;clear:both}
+@media(max-width:900px){.report-float-panel,.report-float-panel.left,.report-float-panel.right{float:none!important;width:100%!important;max-width:100%!important;margin:12px 0!important}}
+</style>
+"""
+
+
+def _polish_report_html_text(raw_html: str) -> str:
+    document = raw_html
+    for raw, label in _TECH_LABELS.items():
+        document = re.sub(rf"`?\b{re.escape(raw)}\b`?", label, document, flags=re.I)
+    document = re.sub(r"`([^`]{1,60})`", r"\1", document)
+    document = document.replace("&ast;&ast;", "").replace("&#42;&#42;", "").replace("&#x2a;&#x2a;", "")
+    document = document.replace("**", "")
+    document = re.sub(r"\*\*([^*<>]{1,120})\*\*", r"\1", document)
+    document = re.sub(r"(<li[^>]*>)\s*(?:[-*•·]|&ast;)\s*", r"\1", document, flags=re.I)
+    document = re.sub(r"(<p[^>]*>)\s*(?:[-*•·]|&ast;)\s*", r"\1", document, flags=re.I)
+    document = re.sub(r"(<span[^>]*>)\s*(?:[-*•·]|&ast;)\s*", r"\1", document, flags=re.I)
+    document = re.sub(r"(证据显示[:：]?\s*)", "依据本场数据：", document)
+    document = re.sub(r"数据缺失或未记录", "暂无完整记录", document)
+    document = re.sub(r"证据不足以判断", "当前样本不足，建议结合录屏回看", document)
+    return document
+
+
+def _insert_diagnostic_block(raw_html: str) -> str:
+    if "report-float-panel" in raw_html or "mini-panel" in raw_html:
+        return raw_html
+    if '<section class="diagnostic-grid"' in raw_html:
+        return raw_html
+    metrics = _metrics_from_report_html(raw_html)
+    visual = _dimension_visual_html(_dimension_scores(metrics))
+    if not visual:
+        return raw_html
+    if "</section>\n<section class=\"grid\"" in raw_html:
+        return raw_html.replace("</section>\n<section class=\"grid\"", f"</section>\n{visual}\n<section class=\"grid\"", 1)
+    if '<section class="card report' in raw_html:
+        return raw_html.replace('<section class="card report', visual + '\n<section class="card report', 1)
+    if '<section class="report-shell"' in raw_html:
+        return raw_html.replace('<section class="report-shell"', visual + '\n<section class="report-shell"', 1)
+    return raw_html
+
+
+def _interleave_existing_report_blocks(raw_html: str) -> str:
+    if 'data-inline-report-layout="1"' in raw_html:
+        return raw_html
+    if "report-float-panel" in raw_html or "mini-panel" in raw_html:
+        return raw_html
+    document = raw_html
+    floating_blocks: list[str] = []
+    for pattern in (
+        r'\s*<section class="diagnostic-grid">.*?</section>\s*',
+        r'\s*<section class="grid" id="data">.*?</section>\s*',
+    ):
+        match = re.search(pattern, document, flags=re.S)
+        if match:
+            floating_blocks.append(match.group(0).strip())
+            document = document[: match.start()] + document[match.end():]
+    if not floating_blocks:
+        return document.replace("<body", '<body data-inline-report-layout="1"', 1)
+
+    article_matches = list(re.finditer(r'<article class="story-section[^"]*">', document))
+    if not article_matches:
+        return document
+    for idx, block in enumerate(floating_blocks):
+        target_idx = min(idx, len(article_matches) - 1)
+        article = article_matches[target_idx]
+        start = article.end()
+        h2 = re.search(r"</h2>", document[start:], flags=re.S)
+        insert_at = start + h2.end() if h2 else start
+        side = "right" if idx % 2 == 0 else "left"
+        panel = f'<aside class="report-float-panel {side} legacy-inline-panel">{block}</aside>'
+        document = document[:insert_at] + panel + document[insert_at:]
+        article_matches = list(re.finditer(r'<article class="story-section[^"]*">', document))
+    return document.replace("<body", '<body data-inline-report-layout="1"', 1)
+
+
 def upgrade_legacy_report_html(raw_html: str) -> str:
     """Upgrade old generated report files to the current card-based reading layout."""
-    if _REPORT_V2_MARKER in raw_html and "legacy-upgraded" not in raw_html and "<p>|" not in raw_html:
-        return raw_html
     upgraded = raw_html
     upgraded = _upgrade_legacy_tables(upgraded)
     upgraded = _upgrade_legacy_steps(upgraded)
     upgraded = _wrap_legacy_report_sections(upgraded)
+    upgraded = _polish_report_html_text(upgraded)
+    upgraded = _insert_diagnostic_block(upgraded)
+    upgraded = _interleave_existing_report_blocks(upgraded)
     upgraded = re.sub(r"<li>\s*[-*]\s*", "<li>", upgraded)
+    upgraded = re.sub(r"\.section-3\s+\.step-card:nth-of-type\(odd\)\s*\{[^}]*\}", "", upgraded)
+    upgraded = re.sub(r"\.step-card\{([^}]*)margin:10px 0;([^}]*)\}", r".step-card{\1margin:12px 0;\2}", upgraded)
     if "livewatch-report-upgrade" not in upgraded:
         css = _legacy_report_upgrade_css()
+        if "</head>" in upgraded:
+            upgraded = upgraded.replace("</head>", css + "</head>", 1)
+        else:
+            upgraded = css + upgraded
+    if "livewatch-inline-report-fix" not in upgraded:
+        css = _inline_layout_fix_css()
+        if "</head>" in upgraded:
+            upgraded = upgraded.replace("</head>", css + "</head>", 1)
+        else:
+            upgraded = css + upgraded
+    if "livewatch-report-print-a4" not in upgraded:
+        css = _a4_print_patch_css()
         if "</head>" in upgraded:
             upgraded = upgraded.replace("</head>", css + "</head>", 1)
         else:
@@ -1049,7 +1457,45 @@ def upgrade_legacy_report_html(raw_html: str) -> str:
 
 
 def report_view_html(path: Path) -> str:
-    return upgrade_legacy_report_html(path.read_text(encoding="utf-8", errors="ignore"))
+    raw = path.read_text(encoding="utf-8", errors="ignore")
+    upgraded = upgrade_legacy_report_html(raw)
+    if upgraded != raw:
+        try:
+            path.write_text(upgraded, encoding="utf-8")
+        except OSError:
+            pass
+    return upgraded
+
+
+def _html_report_to_pdf(html_path: Path, pdf_path: Path) -> None:
+    """Print the polished HTML report to PDF so export matches the preview."""
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as exc:  # pragma: no cover - optional runtime dependency
+        raise AIReportError("缺少 HTML 转 PDF 依赖 playwright。") from exc
+
+    html_path = html_path.resolve()
+    pdf_path = pdf_path.resolve()
+    if not html_path.is_file():
+        raise AIReportError("缺少 HTML 报告，无法按预览样式导出 PDF。")
+    report_view_html(html_path)
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            page = browser.new_page(viewport={"width": 1280, "height": 1600}, device_scale_factor=1)
+            page.goto(html_path.as_uri(), wait_until="networkidle", timeout=30_000)
+            page.emulate_media(media="print")
+            page.pdf(
+                path=str(pdf_path),
+                format="A4",
+                print_background=True,
+                margin={"top": "0", "right": "0", "bottom": "0", "left": "0"},
+                prefer_css_page_size=True,
+            )
+            browser.close()
+    except Exception as exc:
+        raise AIReportError(f"HTML 转 PDF 失败：{exc}") from exc
 
 
 def upgrade_report_file(path: Path) -> bool:
@@ -1347,7 +1793,9 @@ def generate_report(rids: list[str]) -> dict[str, object]:
     config.AI_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     path = config.AI_REPORT_DIR / filename
     path.write_text(report, encoding="utf-8")
-    brief = _brief_report(cfg, report)
+    # Do not spend an extra model call on the short brief. The full report has
+    # already paid for AI reasoning; the UI only needs a compact reading entry.
+    brief = _local_brief(report)
     pdf_filename = filename[:-3] + ".pdf"
     html_filename = filename[:-3] + ".html"
     pdf_path = config.AI_REPORT_DIR / pdf_filename
@@ -1393,14 +1841,34 @@ def ensure_pdf_report(filename: str) -> Path:
     pdf_path = (config.AI_REPORT_DIR / safe_name).resolve()
     if root not in pdf_path.parents and pdf_path != root:
         raise AIReportError("无效文件名。")
-    if pdf_path.exists():
-        return pdf_path
+    html_path = pdf_path.with_suffix(".html")
+    if html_path.is_file():
+        report_view_html(html_path)
+        if pdf_path.is_file() and pdf_path.stat().st_size > 0 and pdf_path.stat().st_mtime >= html_path.stat().st_mtime:
+            return pdf_path
+        try:
+            _html_report_to_pdf(html_path, pdf_path)
+            return pdf_path
+        except AIReportError:
+            if pdf_path.exists():
+                return pdf_path
     md_path = pdf_path.with_suffix(".md")
     if not md_path.is_file():
         raise AIReportError("缺少报告原文，无法生成 PDF。")
     report = md_path.read_text(encoding="utf-8")
     report_rids = [str(x) for x in _report_room_ids_from_markdown(report)]
     words = word_cloud(report_rids, limit=60)["words"] if report_rids else []
+    html_path = pdf_path.with_suffix(".html")
+    if not html_path.exists():
+        _write_html_report(report, html_path, overviews=[], words=words, visual_assets=[])  # type: ignore[arg-type]
+    report_view_html(html_path)
+    if pdf_path.is_file() and pdf_path.stat().st_size > 0 and pdf_path.stat().st_mtime >= html_path.stat().st_mtime:
+        return pdf_path
+    try:
+        _html_report_to_pdf(html_path, pdf_path)
+        return pdf_path
+    except AIReportError:
+        pass
     _markdown_to_pdf(
         report,
         pdf_path,
@@ -1419,7 +1887,8 @@ def _estimate_report_seconds(chunks: int, *, ai_ready: bool) -> int:
     if chunks <= 0:
         return 8
     if ai_ready:
-        return max(25, min(240, 18 + chunks * 18))
+        batches = max(1, (chunks + AI_CHUNK_WORKERS - 1) // AI_CHUNK_WORKERS)
+        return max(25, min(180, 24 + batches * 18))
     return max(8, min(45, 6 + chunks * 3))
 
 
@@ -1469,6 +1938,11 @@ def _streaming_report_preview(
     )
 
 
+def _streaming_brief_preview(preview: str) -> str:
+    """Create a compact UI brief from an in-progress Markdown preview."""
+    return _local_brief(preview, 210)
+
+
 def generate_report_events(rids: list[str]) -> Iterator[dict[str, object]]:
     started = time.time()
     yield {"type": "start", "message": "AI复盘开始：正在整理本地直播数据", "progress": 3}
@@ -1490,17 +1964,19 @@ def generate_report_events(rids: list[str]) -> Iterator[dict[str, object]]:
     summaries: list[dict[str, object]] = []
     total = len(chunks)
     estimate_sec = _estimate_report_seconds(total, ai_ready=cfg.ready)
+    partial_preview = _streaming_report_preview(
+        overviews,
+        summaries,
+        total_chunks=total,
+        stage="搭建报告框架",
+    )
     yield {
         "type": "plan",
         "message": f"已拆分为 {total} 段直播内容，预计约 {estimate_sec} 秒；将边分析边生成报告框架",
         "progress": 12,
         "estimate_sec": estimate_sec,
-        "partial_preview": _streaming_report_preview(
-            overviews,
-            summaries,
-            total_chunks=total,
-            stage="搭建报告框架",
-        ),
+        "partial_preview": partial_preview,
+        "brief_preview": _streaming_brief_preview(partial_preview),
     }
     if cfg.ready and total > 1:
         summary_slots: list[dict[str, object] | None] = [None] * total
@@ -1533,18 +2009,20 @@ def generate_report_events(rids: list[str]) -> Iterator[dict[str, object]]:
                         "chunk": idx,
                         "summary": summary.get("summary", ""),
                     }
+                partial_preview = _streaming_report_preview(
+                    overviews,
+                    summaries,
+                    total_chunks=total,
+                    stage=f"已完成 {done_count}/{total} 段内容",
+                )
                 yield {
                     "type": "chunk_done",
                     "message": f"第 {idx}/{total} 段已分析：已整理主题、观众问题和可引用原话",
                     "progress": 14 + int(done_count / max(total, 1) * 58),
                     "chunk": idx,
                     "summary": summary.get("summary", ""),
-                    "partial_preview": _streaming_report_preview(
-                        overviews,
-                        summaries,
-                        total_chunks=total,
-                        stage=f"已完成 {done_count}/{total} 段内容",
-                    ),
+                    "partial_preview": partial_preview,
+                    "brief_preview": _streaming_brief_preview(partial_preview),
                 }
         summaries = [item or _local_fallback_summary(chunks[idx], "该段话术未返回结果，已保留原始内容继续分析。") for idx, item in enumerate(summary_slots)]
     else:
@@ -1569,18 +2047,20 @@ def generate_report_events(rids: list[str]) -> Iterator[dict[str, object]]:
                     "chunk": idx,
                     "summary": summary.get("summary", ""),
                 }
+            partial_preview = _streaming_report_preview(
+                overviews,
+                summaries,
+                total_chunks=total,
+                stage=f"已完成第 {idx}/{total} 段内容",
+            )
             yield {
                 "type": "chunk_done",
                 "message": f"第 {idx}/{total} 段已分析：已整理主题、观众问题和可引用原话",
                 "progress": 14 + int(idx / max(total, 1) * 58),
                 "chunk": idx,
                 "summary": summary.get("summary", ""),
-                "partial_preview": _streaming_report_preview(
-                    overviews,
-                    summaries,
-                    total_chunks=total,
-                    stage=f"已完成第 {idx}/{total} 段内容",
-                ),
+                "partial_preview": partial_preview,
+                "brief_preview": _streaming_brief_preview(partial_preview),
             }
 
     yield {"type": "final_start", "message": "正在汇总全场表现并生成复盘报告", "progress": 78}
@@ -1596,8 +2076,8 @@ def generate_report_events(rids: list[str]) -> Iterator[dict[str, object]]:
         report = _fallback_markdown(overviews, summaries, truncated)
         used_ai = False
 
-    yield {"type": "brief_start", "message": "正在生成 200 字复盘简报", "progress": 90}
-    brief = _brief_report(cfg, report)
+    brief = _local_brief(report)
+    yield {"type": "brief_ready", "message": "复盘简报已生成，正在整理网页版报告", "progress": 90, "brief": brief}
     yield {"type": "render_start", "message": "正在整理网页版报告，PDF 可在需要时导出", "progress": 95}
     title = "、".join((b.nickname or b.rid) for b in bundles[:3])
     if len(bundles) > 3:

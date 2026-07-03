@@ -25,7 +25,7 @@ from pathlib import Path
 from statistics import mean, pstdev
 from typing import Any
 
-from . import ai_report, config, export
+from . import ai_report, config, export, sensitive_words
 
 
 STABLE_AFTER_SEC = 5 * 60
@@ -111,8 +111,8 @@ PERFORMANCE_SKILL_PROTOCOL = """
    如果录音和转写完整度高，数据完整性最低应给 8/10。互动为 0 只能影响互动、热度和粉丝粘性维度。
    如果 evidence.data_integrity.completeness >= 0.9，数据完整性维度不得低于 8/10；
    如果 completeness >= 0.75，数据完整性维度不得低于 6/10，除非 failed_transcripts 或 broken_segment 明显严重。
-8. 风险只按敏感词候选复核：歌词、游戏口嗨、玩笑、普通情绪表达、误识别命中时 is_real_risk=false，
-   deduction 必须为 0。攻击低俗词只有明确用于辱骂观众/他人时才扣分。
+8. 敏感词只做复核提示，不参与最终评分。歌词、游戏口嗨、玩笑、普通情绪表达、误识别命中时
+   必须在 risk_review 中说明语境，但不要扣分。攻击低俗词也只作为人工复核线索。
 9. ai_summary 只能写 80-140 字证据结论，不要写“综合评分/最终分/XX分”，最终分由后端统一计算展示。
 10. 当前没有可靠 gift/礼物事件字段，除非 evidence.event_counts 明确出现 gift 或礼物相关事件且数量大于 0，
     否则不要把“有无礼物”作为加分或扣分原因。
@@ -456,6 +456,7 @@ def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool, profi
     session_id = _bundle_session_id(bundle)
     metrics = _metrics(bundle)
     risks = _risk_segments(bundle) if include_detail else []
+    sensitive_summary = _sensitive_summary(bundle, include_samples=include_detail)
     frequent_questions = _frequent_questions(bundle) if include_detail else []
     data_insufficient, data_reason = _data_insufficient(metrics)
     evidence_hash = _data_fingerprint(bundle, metrics)
@@ -547,6 +548,10 @@ def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool, profi
         "rating": rating,
         "recommendation": recommendation,
         "risk_count": len(risks),
+        "sensitive_total": sensitive_summary["total"],
+        "sensitive_unique_terms": sensitive_summary["unique_terms"],
+        "sensitive_top_terms": sensitive_summary["top_terms"],
+        "sensitive_categories": sensitive_summary["by_category"],
         "frequent_question_count": len(frequent_questions),
         "ai_confidence": ai_confidence,
         "ai_summary": summary,
@@ -561,6 +566,7 @@ def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool, profi
         row.update({
             "dimensions": dimensions,
             "risk_review": risk_review,
+            "sensitive_summary": sensitive_summary,
             "highlight_segments": _highlight_segments(bundle),
             "low_efficiency_segments": _low_efficiency_segments(bundle),
             "risk_segments": risks,
@@ -605,7 +611,7 @@ def _analysis_messages(evidence: dict[str, Any]) -> list[dict[str, str]]:
         "track": "带货型直播|娱乐/聊天型直播|游戏/内容型直播|未分类",
         "template": "带货型直播|娱乐/聊天型直播|游戏/内容型直播|通用模板",
         "positive_score": "0-100，必须等于 dimensions.score 之和",
-        "risk_deduction": "0-20",
+        "risk_deduction": "固定为0；敏感词只做复核提示，不参与评分",
         "data_missing_deduction": "0-10",
         "final_score": "0-100 或 null，后端会忽略该字段并按维度求和重算",
         "rating": "优秀|良好|一般|较弱|低分|数据不足",
@@ -625,8 +631,9 @@ def _analysis_messages(evidence: dict[str, Any]) -> list[dict[str, str]]:
         + "\n\n"
         +
         "你只负责给固定维度打分，不负责最终求和；后端 Python 会把 dimensions.score 相加，"
-        "再扣 sensitive/risk_deduction 和 data_missing_deduction 得到最终直播效能分。"
-        "评分公式必须是：直播效能分 = sum(dimensions.score) - 敏感词扣分 - 数据缺失扣分。"
+        "再扣 data_missing_deduction 得到最终直播效能分。"
+        "评分公式必须是：直播效能分 = sum(dimensions.score) - 数据缺失扣分。"
+        "敏感词只做复核提示，不参与评分，risk_deduction 必须输出 0。"
         "风险合规只按证据包里的敏感词候选处理，不要自行扩大为违规判断；数据不足时 final_score 必须为 null。"
         "注意：能进入本分析的直播已经通过时长和稳定性门禁，原则上必须给出 final_score；"
         "互动少、弹幕少、无人提问、无购买意图只能作为效能弱项，不能直接判为数据不足。"
@@ -655,7 +662,7 @@ def _analysis_messages(evidence: dict[str, Any]) -> list[dict[str, str]]:
         "3）游戏/内容型直播：内容持续性、讨论度、控场、高光片段和粉丝粘性优先，但人数和热度高时仍要显著加分。"
         "不要引入 GMV、订单、ROI、成交归因、销售额等概念；「已经拍了」只能当用户反馈。"
         "低信息片段只是候选线索，可能来自沉默、音乐、ASR漏识别或主播停顿，不能直接认定为低效。"
-        "敏感词片段只做复核提示，扣分应轻，除非证据中明确出现站外引流、医疗功效、价格承诺等敏感词。"
+        "敏感词片段只做复核提示，不扣分；如需提醒，只写入 risk_review 的 reason/evidence。"
         "如果 risk_review 中 is_real_risk=false 或 level=待复核，则该条 deduction 必须为 0。"
         "ai_summary 禁止出现任何具体分数，例如「综合评分68分」「最终分72」等。"
         "禁止输出「建议合作」「不建议合作」「进入合作池」「合作优先」等替用户做选择的结论；只输出分数、评级和证据。"
@@ -737,6 +744,7 @@ def _evidence_pack(bundle: export.RoomBundle, metrics: MetricSnapshot, *, includ
         "frequent_questions": _frequent_questions(bundle),
         "high_intent_danmu": _high_intent_danmu(bundle)[:80],
         "risk_candidates": _risk_segments(bundle),
+        "sensitive_word_candidates": _sensitive_summary(bundle, include_samples=True),
         "stats_samples": stat_rows,
         "timeline": timeline_rows,
         "transcripts": transcript_rows,
@@ -747,7 +755,7 @@ def _evidence_pack(bundle: export.RoomBundle, metrics: MetricSnapshot, *, includ
             "analysis_prompt_version": ANALYSIS_PROMPT_VERSION,
             "min_duration_for_ai_sec": MIN_AI_DURATION_SEC,
             "stable_after_sec": STABLE_AFTER_SEC,
-            "final_formula": "sum(dimensions.score) - risk_deduction - data_missing_deduction",
+            "final_formula": "sum(dimensions.score) - data_missing_deduction",
             "score_owner": "AI 只负责固定维度打分；后端 Python 用维度分合计生成 positive_score 和 final_score。",
             "track_weighting": {
                 "娱乐/聊天型直播": "人气热度、弹幕、进场、粉丝团/social 都是核心正向信号；内容氛围和陪伴感用于解释人气质量。",
@@ -755,7 +763,7 @@ def _evidence_pack(bundle: export.RoomBundle, metrics: MetricSnapshot, *, includ
                 "游戏/内容型直播": "内容持续性和讨论度很重要，但人数、峰值在线、进场和点赞高时也必须显著加分。",
             },
             "comparison_rule": "优先同赛道比较；如果同赛道样本不足，退回全库热度参考，主要看人数、在线、进场、弹幕、点赞、fansclub/social。",
-            "risk_deduction_cap": 20,
+            "risk_deduction_cap": 0,
             "data_missing_deduction_cap": 10,
         },
     }
@@ -817,18 +825,15 @@ def _normalize_ai_result(data: dict[str, Any]) -> dict[str, Any]:
         # 兼容旧分析结果或异常模型输出：只有维度不完整时才退回 AI 总分。
         positive = _num(data.get("positive_score"), 0, 100)
     risk_review = _safe_risk_review(data.get("risk_review"))
-    real_risk_sum = sum(
-        int(row.get("deduction") or 0)
-        for row in risk_review
-        if row.get("is_real_risk") and str(row.get("level") or "") != "待复核"
-    )
-    risk = _num(real_risk_sum if risk_review else data.get("risk_deduction"), 0, 20)
+    # 敏感词/风险只做人工复核提示，不参与评分。
+    # 保留 risk_review 原文，便于详情页展示上下文，但最终分不扣风险分。
+    risk = 0
     missing = _num(data.get("data_missing_deduction"), 0, 10)
     raw_final = data.get("final_score")
     # 已通过后端时长/稳定性门禁并调用 AI 的场次，不能因为“互动少”逃成数据不足。
     # 最终分由后端公式统一生成，避免 AI 直接输出总分时聚集在 68-72。
     has_complete_dimensions = 95 <= dimension_max <= 105
-    final = int(_clamp(round(positive - risk - missing), 0, 100)) if raw_final is not None or positive > 0 or has_complete_dimensions else None
+    final = int(_clamp(round(positive - missing), 0, 100)) if raw_final is not None or positive > 0 or has_complete_dimensions else None
     # 评级必须由最终分数统一映射，避免 AI 出现“67分但评级良好”这类口径不一致。
     rating = _rating(final)
     out = {
@@ -1111,6 +1116,31 @@ def _risk_segments(bundle: export.RoomBundle) -> list[dict[str, Any]]:
                 })
                 break
     return risks[:30]
+
+
+def _sensitive_summary(bundle: export.RoomBundle, *, include_samples: bool) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    for t in bundle.transcripts:
+        text = t.text or ""
+        for hit in sensitive_words.scan_text(text):
+            rows.append({
+                "time": _fmt_dt(t.capture_start or t.segment_ts),
+                "end_time": _fmt_dt(t.capture_end or ((t.capture_start or t.segment_ts) + (t.duration_sec or 0))),
+                "source": "主播话术",
+                "term": hit.term,
+                "category_id": hit.category_id,
+                "category_name": hit.category_name,
+                "severity": _severity_cn(hit.severity),
+                "context_status": hit.context_status,
+                "context": _clip(hit.context, 110),
+                "speech": _clip(text, 160),
+                "audio_path": t.mp3_name,
+                "speaker": _speaker_label_cn(t.speaker_label),
+            })
+    summary = sensitive_words.summarize_hits(rows, sample_limit=18 if include_samples else 0)
+    if not include_samples:
+        summary["samples"] = []
+    return summary
 
 
 def _risk_context_allowed(risk_type: str, text: str) -> bool:
@@ -1515,6 +1545,20 @@ def _clamp(value: float, low: float, high: float) -> float:
 def _clip(text: str, limit: int) -> str:
     text = re.sub(r"\s+", " ", text or "").strip()
     return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _severity_cn(value: str) -> str:
+    mapping = {"low": "低", "medium": "中", "high": "高", "critical": "高"}
+    return mapping.get((value or "").lower(), value or "中")
+
+
+def _speaker_label_cn(value: str) -> str:
+    value = (value or "").strip()
+    if value.startswith("speaker_") and value != "speaker_uncertain":
+        return f"发言人{value.removeprefix('speaker_')}"
+    if value == "speaker_uncertain":
+        return "待确认"
+    return ""
 
 
 def _fmt_dt(ts: float | int | None) -> str:

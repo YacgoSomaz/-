@@ -80,10 +80,11 @@ class AIReportTests(unittest.TestCase):
                 html_path = Path(str(result["html_path"]))
                 self.assertTrue(html_path.exists())
                 html = html_path.read_text(encoding="utf-8")
-                self.assertIn("主播数据对比", html)
+                self.assertIn("数据看板", html)
+                self.assertIn("report-float-panel", html)
+                self.assertIn("mini-radar", html)
                 self.assertIn("画面线索", html)
                 self.assertIn("story-section", html)
-                self.assertIn("float-shot", html)
                 self.assertIn("jumpbar", html)
                 self.assertTrue(str(result["brief"]))
             finally:
@@ -133,8 +134,9 @@ class AIReportTests(unittest.TestCase):
             self.assertIn("一页总览", payload)
             self.assertIn("直播数据看板", payload)
             self.assertIn("核心洞察", payload)
-            self.assertIn("机会动作", payload)
+            self.assertIn("直播优化策略", payload)
             self.assertIn("风险复核", payload)
+            self.assertIn("live_operation_knowledge_base", payload)
             return "# 测试报告\n\n## 一页总览\n- 通过"
 
         with patch.object(ai_report, "_chat_completion", side_effect=fake_completion):
@@ -266,7 +268,7 @@ class AIReportTests(unittest.TestCase):
                      patch.object(ai_report, "word_cloud", return_value={"words": []}), \
                      patch.object(ai_report, "_summarize_chunk", side_effect=fake_summary), \
                      patch.object(ai_report, "_final_report", return_value="# AI 直播复盘报告\n\n## 一页总览\n- 通过"), \
-                     patch.object(ai_report, "_brief_report", return_value="复盘完成。"), \
+                     patch.object(ai_report, "_brief_report", side_effect=AssertionError("streaming report must not make a second AI brief call")), \
                      patch.object(ai_report, "_write_html_report", side_effect=lambda _report, path, **_kwargs: Path(path).write_text("<html></html>", encoding="utf-8")):
                     list(ai_report.generate_report_events(["123"]))
             finally:
