@@ -47,7 +47,6 @@ EXCLUDE_PATTERNS = {
 
 VENDOR_EXCLUDE_NAMES = {
     "protoc.exe",
-    "alipay.jpg",
     "_cookie_test.db",
     "_md5.txt",
     ".gitattributes",
