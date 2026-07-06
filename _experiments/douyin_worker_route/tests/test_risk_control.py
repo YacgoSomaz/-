@@ -1,9 +1,8 @@
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from pipeline.audio_capture import RiskControlChallenge, fetch_candidates
 from pipeline.runtime_health import GlobalCooldown, classify_room_page
-from run_worker import WorkerFetcher
 
 
 class RoomPageClassificationTests(unittest.TestCase):
@@ -56,32 +55,48 @@ class AudioRiskControlTests(unittest.TestCase):
         class _Response:
             text = "<html>captcha verifycenter</html>"
 
+            def raise_for_status(self):
+                return None
+
         class _Session:
-            def get(self, *_args, **_kwargs):
+            last_url = ""
+            last_headers = {}
+
+            def get(self, url, *, headers, timeout):
+                self.last_url = url
+                self.last_headers = headers
                 return _Response()
 
-        class _Fetcher:
-            live_url = "https://live.douyin.com/"
-            user_agent = "test"
-            session = _Session()
+        session = _Session()
 
-            def __init__(self, _live_id):
-                pass
-
-        with (
-            patch("liveMan.DouyinLiveWebFetcher", _Fetcher),
-            patch("pipeline.browser_cookies.cached_cookie_header", return_value="ttwid=test"),
+        with patch("pipeline.audio_capture.requests.Session", return_value=session), patch(
+            "pipeline.browser_cookies.cached_cookie_header", return_value="ttwid=test"
         ):
             with self.assertRaises(RiskControlChallenge):
                 fetch_candidates("123")
 
+        self.assertEqual(session.last_url, "https://live.douyin.com/123")
+        self.assertEqual(session.last_headers["cookie"], "ttwid=test")
+        self.assertEqual(session.last_headers["Referer"], "https://live.douyin.com/")
 
-class WorkerCookieTests(unittest.TestCase):
-    def test_worker_without_cached_cookie_stays_quiet(self) -> None:
-        with patch("pipeline.browser_cookies.cached_jar", return_value={}):
-            worker = WorkerFetcher("123", Mock())
+    def test_audio_fetch_extracts_m3u8_without_vendor_fetcher(self) -> None:
+        class _Response:
+            text = 'window.stream="https://pull.example/live/index.m3u8?sign=abc"'
 
-        self.assertEqual(worker.ttwid, "")
+            def raise_for_status(self):
+                return None
+
+        class _Session:
+            def get(self, *_args, **_kwargs):
+                return _Response()
+
+        with patch("pipeline.audio_capture.requests.Session", return_value=_Session()), patch(
+            "pipeline.browser_cookies.cached_cookie_header", return_value="ttwid=test"
+        ):
+            cands, raw_count = fetch_candidates("456")
+
+        self.assertEqual(raw_count, 1)
+        self.assertEqual(cands, ["https://pull.example/live/index.m3u8?sign=abc"])
 
 
 if __name__ == "__main__":

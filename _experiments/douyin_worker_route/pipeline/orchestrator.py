@@ -2,11 +2,10 @@
 
 三条线在一个进程里各跑各的线程，Ctrl+C 一键全停：
 
-  弹幕线  每房间一个 WorkerFetcher 长连（并发 WSS，握手后静默，风控面小），
+  监听线  每房间一个后端 fetcher（默认 audio_only，可切外部 sidecar），
           断线自动重连，落 multi_events.db（chat=评论区 / stat=直播数据 …）。
-  音频线  recorder_rotate 串行轮转录段（低并发，规避音频并发风控），
-          mp3 攒进 audio/pending/。
-  转写线  transcribe_batch 常驻轮询，把 pending 里的 mp3 用 SenseVoice 转写入库。
+  音频线  旧 CLI 兼容模式下串行录段；WebUI 正式路线使用 manager + muxer 连续录制。
+  转写线  transcribe_batch 常驻轮询，把已封口音频用 SenseVoice 转写入库。
 
 设计取舍：音频必须低并发（串行轮转），弹幕可并发（握手后几乎不碰风控）。
 两条采集线只共享房间列表，数据各写各库，导出时再按房间号关联（见 export.py）。
@@ -24,10 +23,10 @@ import sys
 import threading
 import time
 
-from run_worker import WorkerFetcher, SqliteSink  # noqa: E402
-
 from . import config
 from . import recorder_rotate
+from .danmu_backend import create_fetcher
+from .event_sink import SqliteSink
 from .sensevoice_engine import SenseVoiceEngine
 from .transcribe_batch import process_once
 from .transcript_store import TranscriptStore
@@ -40,11 +39,7 @@ def _danmu_room_loop(live_id: str, sink: SqliteSink, stop: threading.Event) -> N
     """单房间弹幕长连，断线自动重连，直到 stop 置位。"""
     while not stop.is_set():
         try:
-            fetcher = WorkerFetcher(live_id, sink)
-            if not fetcher.ttwid or not fetcher.room_id:
-                print(f"[弹幕] {live_id} 无 ttwid/room_id（未开播或风控），{RECONNECT_BACKOFF_SEC}s 后重试", flush=True)
-                stop.wait(RECONNECT_BACKOFF_SEC)
-                continue
+            fetcher = create_fetcher(live_id, sink)
 
             # 用看门狗线程在 stop 时主动断开阻塞的 start()
             def _watch() -> None:
@@ -55,7 +50,7 @@ def _danmu_room_loop(live_id: str, sink: SqliteSink, stop: threading.Event) -> N
                     pass
 
             threading.Thread(target=_watch, daemon=True).start()
-            print(f"[弹幕] {live_id} room_id={fetcher.room_id} 已连接", flush=True)
+            print(f"[弹幕] {live_id} room_id={fetcher.room_id or '?'} 已连接", flush=True)
             fetcher.start()  # 阻塞直到 WS 关闭
         except Exception as e:  # noqa: BLE001
             print(f"[弹幕] {live_id} 连接异常: {e!r}", flush=True)

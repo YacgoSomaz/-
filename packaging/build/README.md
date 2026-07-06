@@ -45,8 +45,10 @@ pwsh -File packaging\build\smoke_test.ps1
 ## 可重复性
 
 - 每次构建先 `Remove-Item` 清空 `staging\`，再全自动重建——**没有任何手工复制步骤**。
-- 源码用**白名单**拷贝（仅 `pipeline\*.py`、`vendor\`、`run_worker.py`），天然排除 `audio\`、`*.db`、
+- 源码用**白名单**拷贝（仅 `pipeline\*.py` 和项目自有入口；旧 `vendor\`、`run_worker.py`
+  已不再允许进入产物），天然排除 `audio\`、`*.db`、
   `browser_cookies.json`、`rooms.json`、`exports\`、日志、样本、`__pycache__`、`_scratch*`。
-- 安全扫描是构建的**强制关卡**，扫到任何敏感物即让整个构建失败。
+- 安全扫描是构建的**强制关卡**，扫到任何敏感物即让整个构建失败；若产物含旧 AGPL vendor
+  或 `run_worker.py`，也会失败。
 
 

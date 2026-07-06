@@ -74,6 +74,7 @@ def main() -> int:
     port = int(os.environ.get("LIVEWATCH_PORT", DEFAULT_PORT))
     url = f"http://127.0.0.1:{port}"
     app_dir = _find_app_dir()
+    os.environ.setdefault("LIVEWATCH_DANMU_BACKEND", "audio_only")
     bundled_bin = app_dir / "bin"
     if bundled_bin.exists():
         os.environ["PATH"] = str(bundled_bin) + os.pathsep + os.environ.get("PATH", "")
@@ -84,6 +85,7 @@ def main() -> int:
     print("  直播复盘侠")
     print("  ----------------------------------------")
     print(f"  安装目录: {app_dir}")
+    print(f"  弹幕后端: {os.environ.get('LIVEWATCH_DANMU_BACKEND', 'audio_only')}")
     print(f"  控制台:   {url}")
     print()
 

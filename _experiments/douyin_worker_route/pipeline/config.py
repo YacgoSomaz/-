@@ -16,7 +16,7 @@ from pathlib import Path
 # 录音文件名 seqNNNNN.mp3 的序号解析（segment muxer 用 -segment_start_number 连续编号）
 _SEQ_RE = re.compile(r"(?:seq)?0*(\d+)$", re.I)
 
-# douyin_worker_route/（程序代码目录；vendor 的 sign.js/a_bogus.js 等只读资源仍按它定位）
+# douyin_worker_route/（程序代码目录）
 ROUTE_DIR = Path(__file__).resolve().parent.parent
 
 # ---------- 程序文件 / 用户数据 / 只读资源 三分离（打包用，开发态行为不变） ----------
@@ -90,8 +90,14 @@ def set_video_quality(quality: str) -> bool:
 # audio/ 下的保留目录名（非房间号），房间目录扫描时排除
 RESERVED_AUDIO_SUBDIRS = {"failed", "pending", "done"}
 
-# 弹幕/评论/直播数据库（由 run_multi.py 的 WorkerFetcher 写入）
+# 弹幕/评论/直播数据库（由当前后端写入；audio_only 模式只负责录音录像，不产生弹幕）
 EVENTS_DB = DATA_DIR / "multi_events.db"
+
+# 直播状态 / 弹幕后端：
+# - audio_only：默认。只用项目自有取流逻辑判断开播并驱动录音录像，不连接弹幕 WSS。
+# - sidecar：可选。连接外部本地 JSON sidecar 服务以接收弹幕/进场/点赞事件。
+DANMU_BACKEND = os.environ.get("LIVEWATCH_DANMU_BACKEND", "audio_only").strip().lower() or "audio_only"
+DOUYIN_SIDECAR_WS = os.environ.get("LIVEWATCH_DOUYIN_SIDECAR_WS", "ws://127.0.0.1:1088").strip()
 
 # 导出目录（用户数据）
 EXPORT_DIR = DATA_DIR / "exports"

@@ -2,7 +2,7 @@
 
 数据源（两条线解耦，各写各的库，导出时按 room/live id 关联）：
   transcripts.db   音频转写（话术口播）   —— recorder_rotate + transcribe_batch
-  multi_events.db  弹幕/评论/进场/直播数据 —— run_multi.py 的 WorkerFetcher
+  multi_events.db  弹幕/评论/进场/直播数据 —— 当前监听后端写入
 
 输出（exports/，整目录 .gitignore 忽略）：
   <id>.md      单房间：话术全文 + 评论区样本 + 直播数据曲线

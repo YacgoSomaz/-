@@ -30,4 +30,10 @@
 安装包自带 Node、FFmpeg、SenseVoice 语音识别模型和 3D-Speaker 声纹模型，安装后即可离线运行。
 （仅"铸 Cookie"这一步需要联网过抖音验证墙，属正常。）
 
+## 第三方声明
+直播复盘侠主程序默认不内置旧弹幕 WSS 内核。弹幕/进场/点赞等互动事件可通过外部本地 sidecar 接入。
+
+如使用 `jwwsjlm/douyinLive` sidecar，请保留其 MIT License 与来源声明。安装目录内的 `THIRD_PARTY_NOTICES.md`
+记录了当前第三方组件、许可证和分发边界。
+
 

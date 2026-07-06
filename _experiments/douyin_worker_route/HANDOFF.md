@@ -1,7 +1,9 @@
-# LiveWatch 项目交接报告（最新）
+# LiveWatch 项目交接报告（历史）
 
-> 本文件是**唯一最新交接文档**，供下一个 AI 直接接手。读完即可上手。
-> 内部使用，无需脱敏。上一版交接较旧，以本文为准。
+> 本文件保留为历史交接记录，里面关于 `run_worker.py`、`vendor/DouyinLiveWebFetcher`
+> 的内容已经废弃。当前发行/默认运行路线以 `docs/DOUYIN_WSS_REPLACEMENT.md`
+> 和 `pipeline/danmu_backend.py` 为准：默认 `audio_only`，不再内置旧 WSS 内核。
+> 内部使用，无需脱敏。
 
 ---
 

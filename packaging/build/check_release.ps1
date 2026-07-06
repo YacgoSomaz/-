@@ -1,10 +1,10 @@
 <#
   构建产物安全扫描。发现以下任一即【构建失败】(exit 1)：
-    - 开发者 Cookie 文件 / 任意 cookie 令牌（ttwid/odin_tt）落进 json
+    - 开发者 Cookie 文件 / 任意 cookie 令牌（ttwid/odin_tt）落进 json/yaml/env 配置
     - 任意数据库 *.db
     - 任意音频 *.mp3 / *.wav
     - 日志 *.log、备份 *.bak、scratch/sample 临时件
-    - AI 配置 / API Key
+    - AI 配置 / API Key / sidecar 配置 / 证书私钥
     - rooms.json（含开发房间清单）
     - audio/ 或 exports/ 里有遗留文件
     - 任意文本（除模型词表外）出现已知开发房间号
@@ -12,7 +12,9 @@
   用法: pwsh -File check_release.ps1 -Target <staging目录>
 #>
 [CmdletBinding()]
-param([Parameter(Mandatory)][string]$Target)
+param(
+    [Parameter(Mandatory)][string]$Target
+)
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
@@ -30,11 +32,17 @@ $devRooms = @(
 )
 
 # 禁止的文件名/扩展（任意层级）
-$banName = @("browser_cookies.json","rooms.json","ai_config.json")
-$banExt  = @(".db",".mp3",".wav",".log",".bak")
+$banName = @("browser_cookies.json","rooms.json","ai_config.json",".env","config.yaml","config.yml")
+$banExt  = @(".db",".mp3",".wav",".log",".bak",".key",".pfx",".p12")
 $banGlob = @("_scratch*","sample_*","*.db-wal","*.db-shm")
 
-$allFiles = Get-ChildItem -Recurse -File -Force $root
+$allFiles = @(Get-ChildItem -Recurse -File -Force $root)
+
+$legacyVendor = Join-Path $root "app\vendor\DouyinLiveWebFetcher"
+$legacyWorker = Join-Path $root "app\run_worker.py"
+if ((Test-Path $legacyVendor) -or (Test-Path $legacyWorker)) {
+    Add-V "产物包含旧 AGPL WSS 内核；当前构建不允许分发 legacy vendor/run_worker"
+}
 
 foreach ($f in $allFiles) {
     $name = $f.Name
@@ -56,7 +64,7 @@ foreach ($d in @("app\audio","audio","app\exports","exports")) {
 }
 
 # 文本内容扫描（跳过 models 词表/二进制；只看会带文本的源码与配置）
-$textExt = @(".py",".js",".cjs",".json",".txt",".md",".csv",".cfg",".ini")
+$textExt = @(".py",".js",".cjs",".json",".txt",".md",".csv",".cfg",".ini",".yaml",".yml",".env")
 $modelsPrefix = (Join-Path $root "models").ToLower()
 foreach ($f in $allFiles) {
     if ($textExt -notcontains $f.Extension.ToLower()) { continue }
@@ -73,10 +81,13 @@ foreach ($f in $allFiles) {
     if ($content -match '"api_key"\s*:\s*"[^"]{6,}"') {
         Add-V "文本包含已填写 api_key: $rel"
     }
-    # cookie 令牌只在 json 里查（.py 源码里出现 'ttwid' 是合法代码）
-    if ($f.Extension.ToLower() -eq ".json") {
+    if ($content -match "-----BEGIN (RSA |DSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----") {
+        Add-V "文本包含私钥 PEM: $rel"
+    }
+    # cookie 令牌只在数据/配置文件里查（.py 源码里出现 'ttwid' 是合法代码）
+    if (@(".json",".yaml",".yml",".env",".cfg",".ini") -contains $f.Extension.ToLower()) {
         foreach ($tok in @("ttwid","odin_tt","s_v_web_id")) {
-            if ($content -match $tok) { Add-V "json 含 cookie 令牌 '$tok': $rel" }
+            if ($content -match $tok) { Add-V "配置含 cookie 令牌 '$tok': $rel" }
         }
     }
 }

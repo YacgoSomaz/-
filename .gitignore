@@ -71,6 +71,14 @@ _experiments/douyin_worker_route/_diag.log
 _experiments/douyin_worker_route/_tmp_*.png
 _experiments/douyin_worker_route/anchor_profiles.json
 _experiments/douyin_worker_route/avatar_cache/
+_experiments/douyin_worker_route/_screenshots/
+_experiments/douyin_worker_route/config.yaml
+_experiments/douyin_worker_route/config.yml
+_experiments/douyin_worker_route/.env
+_experiments/douyin_worker_route/*.pem
+_experiments/douyin_worker_route/*.key
+_experiments/douyin_worker_route/*.pfx
+_experiments/douyin_worker_route/*.p12
 
 # 开发调试 / 临时文件（不入库）
 _experiments/douyin_worker_route/_scratch_*.py
@@ -94,6 +102,9 @@ Thumbs.db
 
 # Temporary repository review clones
 _experiments/_repo_review_*/
+_third_party_eval/
+_ifupan_*.json
+_ifupan_*.png
 
 # Local security/network tools and scan outputs
 tools/

@@ -24,8 +24,8 @@ import threading
 import time
 from pathlib import Path
 
-# run_worker 模块级会做 sys.path / os.chdir(_VENDOR) 设置，import 即生效
-from run_worker import WorkerFetcher, SqliteSink  # noqa: E402
+from pipeline.danmu_backend import create_fetcher
+from pipeline.event_sink import SqliteSink
 
 
 def _run_room(
@@ -40,29 +40,15 @@ def _run_room(
         with lock:
             status[live_id] = s
 
-    fetcher = WorkerFetcher(live_id, sink)
-
-    # ttwid 检查（空 = 首页被拦）
     try:
-        tt = fetcher.ttwid
+        fetcher = create_fetcher(live_id, sink)
     except Exception as e:  # noqa: BLE001
-        _set(f"ttwid异常: {e!r}")
-        return
-    if not tt:
-        _set("ttwid为空(首页被风控)")
+        _set(f"初始化异常: {e!r}")
         return
 
-    # room_id 检查（空/异常 = 房间页被风控或未开播）
-    try:
-        rid = fetcher.room_id
-    except Exception as e:  # noqa: BLE001
-        _set(f"room_id异常(疑风控): {e!r}")
-        return
-    if not rid:
-        _set("无room_id(疑风控/未开播)")
-        return
+    rid = fetcher.room_id or ""
 
-    _set(f"room_id={rid} 连接中")
+    _set(f"room_id={rid or '?'} 连接中")
 
     def _stopper() -> None:
         time.sleep(seconds)
@@ -75,7 +61,7 @@ def _run_room(
 
     try:
         fetcher.start()  # 阻塞直到 ws 关闭
-        _set(f"room_id={rid} 正常结束")
+        _set(f"room_id={fetcher.room_id or rid or '?'} 正常结束")
     except Exception as e:  # noqa: BLE001
         _set(f"room_id={rid} 运行异常: {e!r}")
 

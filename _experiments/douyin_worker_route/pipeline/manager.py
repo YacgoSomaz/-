@@ -21,10 +21,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from run_worker import WorkerFetcher, SqliteSink  # noqa: E402
-
 from . import anchor_profiles, browser_cookies, config, profile_watch
 from .audio_capture import record_room_muxer
+from .danmu_backend import create_fetcher, is_managed_status_backend
+from .douyin_sidecar_client import SidecarStatus
+from .event_sink import SqliteSink
 from .sensevoice_engine import SenseVoiceEngine
 from .speaker_worker import process_once as process_speakers_once
 from .runtime_health import ErrorRegistry, GlobalCooldown
@@ -520,6 +521,43 @@ class RoomManager:
                     if self._control_epoch != epoch:
                         return
 
+        def _update_metadata(nick: str, avatar: str) -> None:
+            nick = (nick or "").strip()
+            avatar = (avatar or "").strip()
+            if not nick and not avatar:
+                return
+            changed = False
+            with self._lock:
+                st = self._rooms.get(rid)
+                if st is not None:
+                    if nick and st.anchor_name != nick:
+                        st.anchor_name = nick
+                        changed = True
+                    if avatar and st.avatar_url != avatar:
+                        st.avatar_url = avatar
+                        changed = True
+            if changed:
+                self._save_rooms()
+
+        def _sidecar_status(status: SidecarStatus) -> None:
+            if status.live is True:
+                _set("正在监听并录音", True, "recording")
+                return
+            if status.ended:
+                _set(
+                    f"主播已下播，{status.retry_interval_seconds or 60} 秒后继续观察",
+                    False,
+                    "waiting",
+                    int(time.time() + float(status.retry_interval_seconds or NOT_LIVE_BACKOFF_SEC)),
+                )
+                return
+            _set(
+                status.message or "等待主播开播",
+                False,
+                "waiting",
+                int(time.time() + float(status.retry_interval_seconds or NOT_LIVE_BACKOFF_SEC)),
+            )
+
         while not stop.is_set():
             was_connected = False
             try:
@@ -534,6 +572,26 @@ class RoomManager:
                     )
                     _wait_interruptible(min(remaining + 1, 60))
                     continue
+                if is_managed_status_backend():
+                    fetcher = create_fetcher(
+                        rid,
+                        self._sink,
+                        on_status=_sidecar_status,
+                        on_metadata=_update_metadata,
+                    )
+
+                    def _watch_sidecar() -> None:
+                        stop.wait()
+                        try:
+                            fetcher.stop()
+                        except Exception:  # noqa: BLE001
+                            pass
+
+                    threading.Thread(target=_watch_sidecar, daemon=True).start()
+                    _set("正在连接本地弹幕服务", False, "waiting")
+                    fetcher.start()  # sidecar 自己处理未开播轮询与 WSS 重连
+                    was_connected = fetcher.is_live
+                    continue
                 refresh = browser_cookies.auto_refresh(rid)
                 if refresh.get("refreshed"):
                     self.clear_risk_cooldown()
@@ -545,7 +603,7 @@ class RoomManager:
                         "needs_verification",
                     )
                     continue
-                fetcher = WorkerFetcher(rid, self._sink)
+                fetcher = create_fetcher(rid, self._sink)
                 if not fetcher.ttwid:
                     _backoff(
                         COOKIE_MISSING_BACKOFF_SEC,
@@ -603,19 +661,7 @@ class RoomManager:
                     self._sink.set_room_meta(rid, fetcher.anchor_nick)
                 except Exception:  # noqa: BLE001
                     pass
-                nick = (fetcher.anchor_nick or "").strip()
-                avatar = (fetcher.anchor_avatar or "").strip()
-                changed = False
-                if nick or avatar:
-                    with self._lock:
-                        st = self._rooms.get(rid)
-                        if st is not None:
-                            if nick and st.anchor_name != nick:
-                                st.anchor_name = nick; changed = True
-                            if avatar and st.avatar_url != avatar:
-                                st.avatar_url = avatar; changed = True
-                if changed:
-                    self._save_rooms()
+                _update_metadata(fetcher.anchor_nick, fetcher.anchor_avatar)
                 _set("正在监听并录音", True, "recording")
                 was_connected = True
                 fetcher.start()  # 阻塞直到 WS 关闭

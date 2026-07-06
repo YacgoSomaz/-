@@ -14,6 +14,7 @@ import html as _html
 import os
 import random
 import re
+import requests
 import subprocess
 import sys
 import time
@@ -28,12 +29,8 @@ import imageio_ffmpeg
 from . import config
 from .runtime_health import classify_room_page
 
-# 把 vendored DouyinLiveWebFetcher 加入 import 路径
-_VENDOR = config.ROUTE_DIR / "vendor" / "DouyinLiveWebFetcher"
-if str(_VENDOR) not in sys.path:
-    sys.path.insert(0, str(_VENDOR))
-
 _FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
+_LIVE_BASE = "https://live.douyin.com/"
 
 
 class RiskControlChallenge(RuntimeError):
@@ -92,20 +89,18 @@ def rank_m3u8(html_raw: str, quality: str | None = None) -> tuple[list[str], int
 
 def fetch_candidates(live_id: str, quality: str | None = None) -> tuple[list[str], int]:
     """取房间页 HTML 并解析出流地址候选。quality 非空时按该清晰度选流。异常上抛。"""
-    from liveMan import DouyinLiveWebFetcher
-
     from . import browser_cookies
     from .fingerprint import PAGE_HEADERS
 
-    f = DouyinLiveWebFetcher(live_id)
     headers = dict(PAGE_HEADERS)
-    headers["Referer"] = f.live_url
+    headers["Referer"] = _LIVE_BASE
     headers["cookie"] = browser_cookies.cached_cookie_header()
-    resp = f.session.get(
-        f.live_url + live_id,
+    resp = requests.Session().get(
+        _LIVE_BASE + str(live_id).strip().lstrip("/"),
         headers=headers,
         timeout=15,
     )
+    resp.raise_for_status()
     if classify_room_page(resp.text) == "challenge":
         raise RiskControlChallenge("抖音房间页要求安全验证")
     return rank_m3u8(resp.text, quality=quality)
@@ -389,6 +384,7 @@ def record_room_muxer(
         try:
             proc = subprocess.Popen(
                 cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdin=subprocess.PIPE,
                 creationflags=_NO_WINDOW,
             )
         except Exception:  # noqa: BLE001
@@ -499,9 +495,19 @@ def record_room_muxer(
 
 
 def _terminate(proc: subprocess.Popen) -> None:
-    """优雅终止 ffmpeg：terminate→等 5s→kill。"""
+    """优雅终止 ffmpeg：先发 q 让 segment muxer 封口，再 terminate→kill 兜底。"""
     if proc.poll() is not None:
         return
+    try:
+        if proc.stdin is not None and not proc.stdin.closed:
+            proc.stdin.write(b"q")
+            proc.stdin.flush()
+            proc.wait(timeout=8)
+            return
+    except (BrokenPipeError, OSError, subprocess.TimeoutExpired):
+        pass
+    except Exception:  # noqa: BLE001
+        pass
     try:
         proc.terminate()
         proc.wait(timeout=5)

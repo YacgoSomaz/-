@@ -5,14 +5,14 @@
        LIVEWATCH_DATA_DIR     → %LOCALAPPDATA%\\LiveWatch\\data （cookie / rooms.json / 库 / audio / exports / 日志）
        LIVEWATCH_RESOURCE_DIR → <安装目录>\\models               （SenseVoice / 3D-Speaker 模型）
      必须在 import pipeline.* 之前设置，因为 config 在导入时读取这两个变量。
-  2. 把内置 node.exe 所在的 app\\bin 挂到 PATH（vendor 的弹幕签名要调 node）。
+  2. 把内置 node.exe 所在的 app\\bin 挂到 PATH（少量解析/签名兼容逻辑可能用到 node）。
   3. 起 uvicorn 跑 pipeline.webui:app，并把日志写到数据目录 logs\\。
   4. 用 WebView2 显示独立客户端窗口；关闭窗口后缩到系统托盘继续监听。
 
 目录布局（安装目录 = 本 exe 所在目录）：
   <install>/LiveWatchLauncher.exe
   <install>/_internal/         PyInstaller 运行时（含 Python、各 wheel、imageio_ffmpeg 的 ffmpeg.exe）
-  <install>/app/              程序源码（pipeline / vendor / run_worker.py …）
+  <install>/app/              程序源码（pipeline；安全构建默认不含 legacy vendor）
   <install>/app/bin/node.exe  内置 Node
   <install>/models/          SenseVoice + 3D-Speaker 模型
 """
@@ -262,6 +262,7 @@ def main() -> int:
     # 1) 注入环境变量 —— 必须在 import pipeline.* 之前（config 在导入时读取）。
     os.environ["LIVEWATCH_DATA_DIR"] = str(data_dir)
     os.environ["LIVEWATCH_RESOURCE_DIR"] = str(resource_dir)
+    os.environ.setdefault("LIVEWATCH_DANMU_BACKEND", "audio_only")
     bundled_browsers = base / "browsers"
     if bundled_browsers.exists():
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(bundled_browsers)
@@ -300,6 +301,7 @@ def main() -> int:
     print(f"  安装目录: {app_dir}")
     print(f"  数据目录: {data_dir}")
     print(f"  模型目录: {resource_dir}")
+    print(f"  弹幕后端: {os.environ.get('LIVEWATCH_DANMU_BACKEND', 'audio_only')}")
     print(f"  控制台:   {url}")
     print()
 

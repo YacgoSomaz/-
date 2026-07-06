@@ -79,14 +79,10 @@ New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
 
 # ---------- 2. 程序源码（白名单拷贝，排除一切数据/缓存/样本） ----------
 Write-Step "拷贝程序源码 (allowlist)"
-# pipeline：只要 .py
+# pipeline：只要 .py。legacy vendor/run_worker 不再进入安装包。
 Invoke-Robocopy (Join-Path $Route "pipeline") (Join-Path $AppDir "pipeline") `
     @("/E", "/XD", "__pycache__", "/XF", "*.pyc")
-# vendor：内核脚本 + protobuf，排除缓存/库/临时
-Invoke-Robocopy (Join-Path $Route "vendor") (Join-Path $AppDir "vendor") `
-    @("/E", "/XD", "__pycache__", "/XF", "*.pyc", "*.db", "_*.txt")
-# run_worker.py（manager 运行时 import）
-Copy-Item (Join-Path $Route "run_worker.py") (Join-Path $AppDir "run_worker.py") -Force
+Write-Host "安全模式：不打包旧 AGPL WSS 内核；桌面端默认使用 audio_only 后端。" -ForegroundColor Green
 
 # ---------- 3. 内置 node + 模型 ----------
 Write-Step "内置 node 与模型"
@@ -98,7 +94,7 @@ Invoke-Robocopy $AsrModel (Join-Path $ModelsDir "sensevoice_onnx") @("/E")
 Invoke-Robocopy $SpkModel (Join-Path $ModelsDir "speaker") @("/E")
 
 # 不内置任何浏览器二进制（原来 Chromium + headless_shell 约 650MB）：
-#   · 铸 cookie 用目标机系统自带的 Edge（liveMan/browser_cookies 已优先 channel=msedge）。
+#   · 铸 cookie 用目标机系统自带的 Edge（browser_cookies 已优先 channel=msedge）。
 #   · 待开播主页探测已下线，不再需要 headless_shell。
 # 包体由此瘦约 650MB。
 
@@ -126,6 +122,10 @@ Invoke-Robocopy $PyiOut $Staging @("/E")
 Write-Step "拷贝文档"
 if (Test-Path (Join-Path $Assets "README_使用说明.md")) {
     Copy-Item (Join-Path $Assets "README_使用说明.md") (Join-Path $Staging "README_使用说明.md") -Force
+}
+$ThirdPartyNotices = Join-Path $Route "THIRD_PARTY_NOTICES.md"
+if (Test-Path $ThirdPartyNotices) {
+    Copy-Item $ThirdPartyNotices (Join-Path $Staging "THIRD_PARTY_NOTICES.md") -Force
 }
 
 # 清理 PyInstaller 临时
