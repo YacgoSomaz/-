@@ -67,13 +67,19 @@ _experiments/douyin_worker_route/video/
 _experiments/douyin_worker_route/ai_config.json
 # 浏览器铸的抖音信任 cookie（本机会话凭证，切勿入库）
 _experiments/douyin_worker_route/browser_cookies.json
+_experiments/douyin_worker_route/short_video_cookies.json
 _experiments/douyin_worker_route/_diag.log
 _experiments/douyin_worker_route/_tmp_*.png
 _experiments/douyin_worker_route/anchor_profiles.json
 _experiments/douyin_worker_route/short_video_profiles.json
+_experiments/douyin_worker_route/short_video_parse_cache.json
 _experiments/douyin_worker_route/short_video_jobs.json
 _experiments/douyin_worker_route/short_video_benchmarks.json
 _experiments/douyin_worker_route/short_video_assets/
+_experiments/douyin_worker_route/comment_leads.json
+_experiments/douyin_worker_route/comment_leads_seen.json
+_experiments/douyin_worker_route/comment_leads_browser_profile/
+_experiments/douyin_worker_route/exports/comment_leads/
 _experiments/douyin_worker_route/avatar_cache/
 _experiments/douyin_worker_route/logs/
 _experiments/douyin_worker_route/_screenshots/

@@ -108,6 +108,29 @@ def test_resolve_profile_accepts_arbitrary_incremental_target() -> None:
     assert result["videos"] == []
 
 
+def test_short_video_key_dedupes_query_variants() -> None:
+    a = {"url": "https://www.douyin.com/video/123456?source=Baiduspider"}
+    b = {"url": "https://www.douyin.com/video/123456?from=profile"}
+    assert short_video._video_key(a) == short_video._video_key(b) == "123456"
+    assert short_video._merge_unique_videos([a], [b]) == [a]
+
+
+def test_short_video_cache_merge_does_not_shrink() -> None:
+    cached = [
+        {"id": "1", "url": "https://www.douyin.com/video/1"},
+        {"id": "2", "url": "https://www.douyin.com/video/2"},
+    ]
+    fresh = [{"url": "https://www.douyin.com/video/2?from=refresh"}]
+    merged = short_video._merge_unique_videos(fresh, cached)
+    assert [short_video._video_key(v) for v in merged] == ["2", "1"]
+
+
+def test_limited_profile_warning_explains_weak_cookie_limit() -> None:
+    msg = short_video._limited_profile_warning(20, 25, {"ttwid": "trust-only"})
+    assert "前 20 条作品" in msg
+    assert "登录授权" in msg
+
+
 def test_scroll_until_enough_keeps_scrolling_until_target(monkeypatch) -> None:  # noqa: ANN001
     class _Page:
         def __init__(self) -> None:

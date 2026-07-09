@@ -106,14 +106,20 @@ AI_REPORT_DIR = EXPORT_DIR / "ai_reports"
 
 # 信任 cookie 缓存、房间清单、日志（用户数据）
 COOKIE_CACHE = DATA_DIR / "browser_cookies.json"
+SHORT_VIDEO_COOKIE_CACHE = DATA_DIR / "short_video_cookies.json"
 ROOMS_JSON = DATA_DIR / "rooms.json"
 PENDING_JSON = DATA_DIR / "pending_anchors.json"  # 待开播主播清单（只有 sec_user_id，等开播探测直播号）
 ANCHOR_PROFILE_CACHE = DATA_DIR / "anchor_profiles.json"
 AVATAR_CACHE_DIR = DATA_DIR / "avatar_cache"
 SHORT_VIDEO_JOBS_JSON = DATA_DIR / "short_video_jobs.json"
 SHORT_VIDEO_PROFILE_CACHE_JSON = DATA_DIR / "short_video_profiles.json"
+SHORT_VIDEO_PARSE_CACHE_JSON = DATA_DIR / "short_video_parse_cache.json"
 SHORT_VIDEO_BENCHMARKS_JSON = DATA_DIR / "short_video_benchmarks.json"
 SHORT_VIDEO_ASSET_DIR = DATA_DIR / "short_video_assets"
+COMMENT_LEADS_JSON = DATA_DIR / "comment_leads.json"
+COMMENT_LEADS_STATE_JSON = DATA_DIR / "comment_leads_seen.json"
+COMMENT_LEADS_EXPORT_DIR = EXPORT_DIR / "comment_leads"
+COMMENT_LEADS_PROFILE_DIR = DATA_DIR / "comment_leads_browser_profile"
 LOG_DIR = DATA_DIR / "logs"
 
 # ---------- 待开播主播开播探测（profile_watch）----------
@@ -176,6 +182,7 @@ def ensure_dirs() -> None:
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     AVATAR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
     SHORT_VIDEO_ASSET_DIR.mkdir(parents=True, exist_ok=True)
+    COMMENT_LEADS_EXPORT_DIR.mkdir(parents=True, exist_ok=True)
     SPEAKER_ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 
 

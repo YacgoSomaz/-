@@ -69,10 +69,10 @@ def test_short_video_center_has_profile_and_recent_selection() -> None:
     assert "短视频中心" in html
     assert "shortVideo.profileUrl" in html
     assert "shortVideo.targetCount" in html
-    assert "继续加 5 条" in html
-    assert "继续加 10 条" in html
+    assert "加 5 条" in html
+    assert "加 10 条" in html
     assert "customAppendCount" in html
-    assert "自定义追加" in html
+    assert "short-custom-append" in html
     assert "appendShortProfileVideos" in html
     assert "resolveShortProfile,appendShortProfileVideos" in html
     assert "resolveShortProfile" in html
@@ -85,6 +85,14 @@ def test_short_video_center_has_profile_and_recent_selection() -> None:
     assert "downloadShortVideoAssets" not in html
     assert "/api/short-video/resolve-profile/stream" in html
     assert "resp.body.getReader()" in html
+    assert "SHORT_PARSE_CACHE_KEY" in html
+    assert "saveShortParseCache" in html
+    assert "loadShortParseCache" in html
+    assert "/api/short-video/parse-cache" in html
+    assert "applyShortParseCache" in html
+    assert "shortVideo.profileUrl=''" in html
+    assert "已恢复上次解析结果" in html
+    assert "selectedKeys" in html
     assert "AI 正在努力获取账号资料" in html
     assert "short-parse-track" in html
     assert "shortParseSteps" in html

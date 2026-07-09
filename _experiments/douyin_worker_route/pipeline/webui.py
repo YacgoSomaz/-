@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import concurrent.futures
 import json
 import os
 import secrets
@@ -27,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_report, anchor_profiles, browser_cookies, config, diagnostics, performance_analysis, short_video, short_video_ai
+from . import ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, performance_analysis, short_video, short_video_ai
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import MAX_ACTIVE_ROOMS, RoomManager
@@ -68,6 +69,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 _mgr = RoomManager()
+
+
+def _run_blocking(fn, *args, **kwargs):
+    """Run browser-heavy sync work in a clean worker thread."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(fn, *args, **kwargs).result()
 _FRONTEND = Path(__file__).with_name("frontend.html")
 _STATIC = Path(__file__).with_name("static")
 app.mount("/static", StaticFiles(directory=_STATIC), name="static")
@@ -123,6 +130,20 @@ def api_cookie_remint(rid: str | None = Query(default=None)) -> JSONResponse:
     if result["ok"]:
         _mgr.clear_risk_cooldown()
     return JSONResponse(result, status_code=200 if result["ok"] else 503)
+
+
+@app.get("/api/short-video/cookie/status")
+def api_short_video_cookie_status() -> JSONResponse:
+    """短视频主页读取使用独立登录态；本接口只读状态。"""
+    return JSONResponse({"ok": True, **short_video.short_video_cookie_status()})
+
+
+@app.post("/api/short-video/cookie/remint")
+def api_short_video_cookie_remint(payload: dict[str, object] = Body(default={})) -> JSONResponse:
+    """用户手动打开抖音窗口，给短视频深度读取授权。"""
+    start_url = str(payload.get("start_url") or "").strip()
+    result = short_video.remint_short_video_cookie(start_url or None)
+    return JSONResponse(result, status_code=200 if result.get("ok") else 503)
 
 
 @app.post("/api/rooms/batch")
@@ -759,6 +780,78 @@ def api_short_video_resolve_profile_stream(payload: dict[str, object] = Body(...
     return StreamingResponse(_gen(), media_type="application/x-ndjson; charset=utf-8")
 
 
+def _short_video_parse_cache_payload(payload: dict[str, object]) -> dict[str, object]:
+    candidates = payload.get("candidates")
+    if not isinstance(candidates, list):
+        candidates = []
+    safe_candidates: list[dict[str, object]] = []
+    for item in candidates[:150]:
+        if not isinstance(item, dict):
+            continue
+        safe_candidates.append({
+            "id": str(item.get("id") or "")[:128],
+            "title": str(item.get("title") or "")[:300],
+            "url": str(item.get("url") or "")[:1000],
+            "cover_url": str(item.get("cover_url") or "")[:1200],
+            "play_url": str(item.get("play_url") or "")[:1200],
+            "like_count": item.get("like_count"),
+            "comment_count": item.get("comment_count") or 0,
+            "collect_count": item.get("collect_count") or 0,
+            "share_count": item.get("share_count") or 0,
+            "pinned": bool(item.get("pinned")),
+            "source": str(item.get("source") or "profile")[:40],
+            "selected": bool(item.get("selected")),
+        })
+    selected_keys = payload.get("selectedKeys")
+    if not isinstance(selected_keys, list):
+        selected_keys = []
+    return {
+        "version": 2,
+        "profileUrl": str(payload.get("profileUrl") or "")[:1200],
+        "profile": payload.get("profile") if isinstance(payload.get("profile"), dict) else None,
+        "initialCount": int(payload.get("initialCount") or 10),
+        "targetCount": int(payload.get("targetCount") or max(10, len(safe_candidates))),
+        "customAppendCount": int(payload.get("customAppendCount") or 20),
+        "positioning": payload.get("positioning") if isinstance(payload.get("positioning"), dict) else None,
+        "candidates": safe_candidates,
+        "selectedKeys": [str(x)[:256] for x in selected_keys[:150]],
+        "savedAt": int(time.time() * 1000),
+    }
+
+
+@app.get("/api/short-video/parse-cache")
+def api_short_video_parse_cache_get() -> JSONResponse:
+    try:
+        path = config.SHORT_VIDEO_PARSE_CACHE_JSON
+        if not path.exists():
+            return JSONResponse({"ok": True, "cache": None})
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            data = {}
+        return JSONResponse({"ok": True, "cache": data})
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"读取缓存失败：{type(exc).__name__}"}, status_code=500)
+
+
+@app.post("/api/short-video/parse-cache")
+def api_short_video_parse_cache_save(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    try:
+        data = _short_video_parse_cache_payload(payload)
+        config.SHORT_VIDEO_PARSE_CACHE_JSON.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        return JSONResponse({"ok": True})
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"保存缓存失败：{type(exc).__name__}"}, status_code=500)
+
+
+@app.delete("/api/short-video/parse-cache")
+def api_short_video_parse_cache_delete() -> JSONResponse:
+    try:
+        config.SHORT_VIDEO_PARSE_CACHE_JSON.unlink(missing_ok=True)
+        return JSONResponse({"ok": True})
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"清空缓存失败：{type(exc).__name__}"}, status_code=500)
+
+
 @app.get("/api/short-video/jobs")
 def api_short_video_jobs(limit: int = Query(default=50, ge=1, le=200)) -> JSONResponse:
     return JSONResponse({"ok": True, "jobs": short_video.list_jobs(limit=limit)})
@@ -944,6 +1037,103 @@ def api_short_video_search_benchmark_accounts(benchmark_id: str, payload: dict[s
         return JSONResponse({"ok": True, "benchmark": row})
     except short_video.ShortVideoError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+
+
+@app.get("/api/comment-leads/status")
+def api_comment_leads_status() -> JSONResponse:
+    return JSONResponse({"ok": True, **comment_leads.login_status()})
+
+
+@app.post("/api/comment-leads/login")
+def api_comment_leads_login(payload: dict[str, object] = Body(default={})) -> JSONResponse:
+    start_url = str(payload.get("start_url") or "https://www.douyin.com/").strip()
+    result = _run_blocking(comment_leads.open_login_browser, start_url=start_url, wait_ms=int(payload.get("wait_ms") or 30000))
+    return JSONResponse(result, status_code=200 if result.get("ok") else 503)
+
+
+@app.get("/api/comment-leads/monitors")
+def api_comment_leads_monitors() -> JSONResponse:
+    return JSONResponse({"ok": True, "monitors": comment_leads.list_monitors()})
+
+
+@app.post("/api/comment-leads/monitors")
+def api_comment_leads_add_monitor(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    try:
+        monitor = comment_leads.add_monitor(
+            str(payload.get("url") or ""),
+            title=str(payload.get("title") or ""),
+            owner=str(payload.get("owner") or ""),
+            max_comments=int(payload.get("max_comments") or 100),
+            max_videos=int(payload.get("max_videos") or 5),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "monitor": monitor})
+
+
+@app.post("/api/comment-leads/profile-videos")
+def api_comment_leads_profile_videos(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    try:
+        result = _run_blocking(
+            comment_leads.resolve_profile_works,
+            str(payload.get("url") or ""),
+            owner=str(payload.get("owner") or ""),
+            max_comments=int(payload.get("max_comments") or 100),
+            max_videos=int(payload.get("max_videos") or 5),
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(result, status_code=200 if result.get("ok") else 503)
+
+
+@app.get("/api/comment-leads/leads")
+def api_comment_leads_list(
+    status: str = Query(default=""),
+    keyword: str = Query(default=""),
+    limit: int = Query(default=500),
+) -> JSONResponse:
+    return JSONResponse({"ok": True, "leads": comment_leads.list_leads(status=status, keyword=keyword, limit=limit)})
+
+
+@app.post("/api/comment-leads/run")
+def api_comment_leads_run(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    selected_videos = payload.get("videos")
+    monitor_id = str(payload.get("monitor_id") or "").strip()
+    if monitor_id and isinstance(selected_videos, list):
+        try:
+            result = _run_blocking(
+                comment_leads.run_selected_videos,
+                monitor_id,
+                selected_videos,
+                max_comments=int(payload.get("max_comments") or 0) or None,
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse(result, status_code=200 if result.get("ok") else 503)
+    if monitor_id:
+        try:
+            result = _run_blocking(comment_leads.run_monitor, monitor_id)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return JSONResponse(result, status_code=200 if result.get("ok") else 503)
+    try:
+        monitor = comment_leads.add_monitor(
+            str(payload.get("url") or ""),
+            title=str(payload.get("title") or ""),
+            owner=str(payload.get("owner") or ""),
+            max_comments=int(payload.get("max_comments") or 100),
+            max_videos=int(payload.get("max_videos") or 5),
+        )
+        result = _run_blocking(comment_leads.run_monitor, monitor["id"])
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(result, status_code=200 if result.get("ok") else 503)
+
+
+@app.get("/api/comment-leads/export")
+def api_comment_leads_export() -> FileResponse:
+    out = comment_leads.export_leads_csv()
+    return FileResponse(out, media_type="text/csv", filename=out.name)
 
 
 @app.on_event("shutdown")

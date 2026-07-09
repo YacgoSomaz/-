@@ -29,6 +29,10 @@ button,input,textarea{font:inherit}
 .menu-icon{width:32px;height:32px;flex:0 0 32px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-right:6px;color:#66758b}
 .menu-item.active .menu-icon{color:var(--primary);background:var(--primary-soft)}
 .menu-icon .el-icon{font-size:17px}
+.menu-sub{width:90%;margin:-3px auto 6px;padding:3px 0 3px 38px;display:grid;gap:4px}
+.menu-sub button{height:30px;border:0;background:transparent;border-radius:8px;color:#7d8aa0;text-align:left;padding:0 9px;font-size:12px;font-weight:800;cursor:pointer}
+.menu-sub button:hover{background:rgba(255,255,255,.62);color:#2f3b52}
+.menu-sub button.active{background:#fff;color:var(--primary);box-shadow:0 3px 12px rgba(47,65,99,.05)}
 .side-foot{height:170px;padding:9px 14px 12px;color:#7f8b9d;font-size:11px}
 .disk-line{display:flex;justify-content:space-between;margin-bottom:6px}
 .disk-track{height:4px;background:#dfe6ef;border-radius:4px;overflow:hidden;margin-bottom:13px}
@@ -80,15 +84,15 @@ button,input,textarea{font:inherit}
 .ai-workspace{display:grid;grid-template-columns:minmax(470px,620px) minmax(0,1fr);gap:10px;align-items:start}.ai-left,.ai-right{min-width:0}.ai-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}.ai-toolbar .el-button{border-radius:5px}.ai-agent{background:#101828;color:#e7eefc;border-radius:8px;overflow:hidden;box-shadow:0 12px 30px rgba(16,24,40,.10)}.ai-agent-head{height:50px;display:flex;align-items:center;padding:0 16px;border-bottom:1px solid rgba(255,255,255,.08)}.ai-agent-title{font-size:15px;font-weight:900}.ai-agent-sub{margin-left:10px;font-size:12px;color:#94a3b8}.ai-progress{margin-left:auto;display:flex;align-items:center;gap:9px;color:#cbd5e1;font-size:12px}.ai-progress-track{width:120px;height:5px;background:#273449;border-radius:5px;overflow:hidden}.ai-progress-fill{height:100%;background:linear-gradient(90deg,#35d4ff,#6c63ff);border-radius:5px;transition:width .25s}.ai-events{height:205px;overflow:auto;padding:12px 16px}.ai-event{display:flex;gap:9px;margin-bottom:10px;color:#dbe7ff;font-size:12px}.ai-event-dot{width:8px;height:8px;border-radius:50%;background:#35d4ff;margin-top:5px;box-shadow:0 0 0 4px rgba(53,212,255,.12);flex:0 0 8px}.ai-event.warn .ai-event-dot{background:#f7c948}.ai-event.error .ai-event-dot{background:#ff5f66}.ai-event-time{color:#7d8aa3;margin-left:6px}.ai-report{background:#fff;border:1px solid var(--line);border-radius:8px;margin-top:10px;min-height:320px;display:flex;flex-direction:column}.ai-report-head{height:46px;display:flex;align-items:center;padding:0 14px;border-bottom:1px solid var(--line);font-weight:900;color:var(--ink)}.ai-report-pre{padding:16px;white-space:pre-wrap;word-break:break-word;color:#344054;line-height:1.8;font-size:13px;overflow:auto;max-height:540px}.ai-empty{flex:1;min-height:260px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#98a4b5}.ai-empty .el-icon{font-size:38px;color:#c7d0dc;margin-bottom:10px}.word-cloud{background:#fff;border-radius:6px;padding:14px;margin-bottom:10px}.word-cloud-body{min-height:118px;display:flex;align-items:center;align-content:center;gap:8px 12px;flex-wrap:wrap;padding:8px 2px}.cloud-word{display:inline-flex;align-items:center;border-radius:999px;padding:3px 8px;background:#f4f7ff;color:#364cff;font-weight:800;line-height:1.2}.cloud-word small{margin-left:5px;color:#8a95a8;font-size:10px}.ai-chat{background:#fff;border-radius:8px;border:1px solid var(--line);overflow:hidden}.ai-chat-head{height:44px;padding:0 14px;display:flex;align-items:center;font-weight:900;border-bottom:1px solid var(--line)}.ai-chat-body{height:300px;overflow:auto;padding:14px;background:#fbfdff}.chat-msg{display:flex;margin-bottom:12px}.chat-msg.user{justify-content:flex-end}.chat-bubble{max-width:84%;border-radius:10px;padding:10px 12px;line-height:1.7;white-space:pre-wrap;word-break:break-word;font-size:13px}.chat-msg.user .chat-bubble{background:var(--primary);color:#fff}.chat-msg.assistant .chat-bubble{background:#fff;border:1px solid #e7edf4;color:#344054}.ai-chat-input{display:flex;gap:8px;padding:12px;border-top:1px solid var(--line)}.ai-chat-input .el-textarea{flex:1}.ai-table-card{background:#fff;border-radius:6px;overflow:hidden}@media(max-width:1180px){.ai-workspace{grid-template-columns:1fr}.ai-events{height:170px}}
 .ai-report-html{padding:18px 22px;color:#273444;line-height:1.85;font-size:13px;overflow:auto;max-height:540px}.ai-report-html h1{font-size:20px;color:#151719;margin:0 0 16px;border-bottom:1px solid #edf1f5;padding-bottom:12px}.ai-report-html h2{font-size:16px;color:#151719;margin:20px 0 10px;padding-left:9px;border-left:4px solid var(--cyan)}.ai-report-html h3{font-size:14px;margin:14px 0 8px;color:#344054}.ai-report-html p{margin:8px 0}.ai-report-html ul{display:grid;gap:8px;margin:10px 0 12px;padding:0;list-style:none}.ai-report-html li{position:relative;margin:0;padding:9px 12px 9px 30px;border:1px solid #e8eef7;border-radius:10px;background:linear-gradient(180deg,#fff,#fbfdff);line-height:1.7}.ai-report-html li:before{content:"";position:absolute;left:13px;top:18px;width:7px;height:7px;border-radius:50%;background:#35d4ff;box-shadow:0 0 0 4px rgba(53,212,255,.12)}.ai-report-html strong{color:#111827}.ai-report-html blockquote{margin:10px 0;padding:9px 12px;background:#f7faff;border-left:3px solid #8aa2ff;color:#536176;border-radius:0 10px 10px 0}.ai-report-html .md-table-wrap{overflow:auto;border:1px solid #e3ebf7;border-radius:12px;margin:12px 0;background:#fff;box-shadow:0 8px 22px rgba(31,41,55,.04)}.ai-report-html table{width:100%;border-collapse:collapse;min-width:520px}.ai-report-html th,.ai-report-html td{padding:10px 12px;border-bottom:1px solid #edf2f7;text-align:left;vertical-align:top}.ai-report-html th{background:#f4f8ff;color:#536176;font-weight:900;white-space:nowrap}.ai-report-html tr:last-child td{border-bottom:0}.ai-report-html .md-step-card{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;margin:10px 0;padding:11px 12px;border:1px solid #e7edf7;border-radius:12px;background:#fff;box-shadow:0 8px 22px rgba(31,41,55,.04)}.ai-report-html .md-step-card b{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:9px;background:linear-gradient(135deg,#35d4ff,#5b61ff);color:#fff}.ai-report-html .md-step-card span{line-height:1.75}.ai-report-html .md-callout{background:#fff8e8;border:1px solid #ffe2ac;border-radius:12px;padding:10px 12px;color:#4b3b14}
 .ai-workspace{height:calc(100vh - 68px);grid-template-columns:minmax(460px,620px) minmax(0,1fr);overflow:hidden}.ai-left,.ai-right{height:100%;display:flex;flex-direction:column;gap:10px}.ai-select-panel{flex:1;min-height:0;padding:16px 20px;display:flex;flex-direction:column}.ai-select-panel .panel-title{margin-bottom:12px;flex:0 0 auto}.ai-select-panel .history-toolbar{flex:0 0 auto}.ai-table-card{flex:1;min-height:0}.ai-table-card .el-table{height:100%}.ai-side-summary{font-size:12px;color:#8b97a8;margin-left:4px;font-weight:400}.word-cloud{margin-bottom:0;min-height:178px;max-height:220px;overflow:hidden;flex:0 0 208px}.word-cloud .panel-title{display:flex;align-items:center;margin-bottom:6px}.word-cloud-body{min-height:122px;max-height:160px;overflow:auto}.ai-agent{height:205px;flex:0 0 205px}.ai-events{height:154px}.ai-report{flex:1;min-height:0;margin-top:0}.ai-report-html{max-height:none;flex:1}.ai-empty{min-height:0;height:100%}.ai-chat{height:238px;flex:0 0 238px}.ai-chat-body{height:137px}.ai-thinking{display:flex;align-items:center;gap:9px;color:#51607a}.ai-thinking i{width:7px;height:7px;border-radius:50%;background:var(--primary);animation:thinkPulse 1s infinite ease-in-out;flex:0 0 7px}.ai-thinking i:nth-child(2){animation-delay:.14s}.ai-thinking i:nth-child(3){animation-delay:.28s}@keyframes thinkPulse{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}.chat-bubble.thinking{color:#59667a;background:#f6f8ff;border-color:#dfe6ff}.ai-report-busy{height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#667386;gap:12px}.ai-report-busy strong{font-size:15px;color:#202938}
-.word-cloud{flex:0 0 238px;max-height:238px}.word-cloud-body{display:block;min-height:0;max-height:182px;padding:2px 0;overflow:auto}.freq-row{display:grid;grid-template-columns:76px 1fr 42px;align-items:center;gap:10px;height:26px;margin:4px 0}.freq-word{font-weight:800;color:#344054;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.freq-track{height:7px;border-radius:999px;background:#edf2ff;overflow:hidden}.freq-fill{display:block;width:0;height:100%;border-radius:999px;background:linear-gradient(90deg,#35d4ff,#5b61ff);transition:width .25s ease}.freq-count{text-align:right;color:#8a95a8;font-size:12px;font-variant-numeric:tabular-nums}.ai-agent{height:190px;flex-basis:190px}.ai-events{height:139px}.ai-report{flex:0 0 196px;min-height:196px}.ai-report-html{padding:14px 16px;max-height:150px;overflow:hidden;line-height:1.8}.ai-report-html h1{font-size:16px;margin-bottom:8px;padding-bottom:8px}.ai-report-html h2,.ai-report-html h3,.ai-report-html blockquote{display:none}.ai-report-html ul{margin:6px 0 0 18px}.ai-report-html li:nth-child(n+3),.ai-report-html p:nth-child(n+4){display:none}.ai-report-actions{display:flex;align-items:center;gap:8px}.ai-chat{flex:1;min-height:0;height:auto}.ai-chat-body{height:auto;flex:1;min-height:0}.ai-chat{display:flex;flex-direction:column}.ai-chat-input{flex:0 0 auto}
+.word-cloud{flex:0 0 238px;max-height:238px}.word-cloud-body{display:block;min-height:0;max-height:182px;padding:2px 0;overflow:auto}.freq-row{display:grid;grid-template-columns:76px 1fr 42px;align-items:center;gap:10px;height:26px;margin:4px 0}.freq-word{font-weight:800;color:#344054;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.freq-track{height:7px;border-radius:999px;background:#edf2ff;overflow:hidden}.freq-fill{display:block;width:0;height:100%;border-radius:999px;background:linear-gradient(90deg,#35d4ff,#5b61ff);transition:width .25s ease}.freq-count{text-align:right;color:#8a95a8;font-size:12px;font-variant-numeric:tabular-nums}.word-cloud-empty{min-height:122px;border:1px solid #e5eefb;background:linear-gradient(135deg,#fbfdff,#f6faff);border-radius:14px;padding:14px;display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;align-items:start}.word-cloud-empty i{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#e8f6ff,#f3f0ff);display:flex;align-items:center;justify-content:center;color:#315cff;font-style:normal;font-weight:1000}.word-cloud-empty b{display:block;color:#1f2937;margin-bottom:4px}.word-cloud-empty span{display:block;color:#708097;font-size:12px;line-height:1.7}.word-cloud-empty .el-button{margin-top:8px}.ai-agent{height:190px;flex-basis:190px}.ai-events{height:139px}.ai-report{flex:0 0 196px;min-height:196px}.ai-report-html{padding:14px 16px;max-height:150px;overflow:hidden;line-height:1.8}.ai-report-html h1{font-size:16px;margin-bottom:8px;padding-bottom:8px}.ai-report-html h2,.ai-report-html h3,.ai-report-html blockquote{display:none}.ai-report-html ul{margin:6px 0 0 18px}.ai-report-html li:nth-child(n+3),.ai-report-html p:nth-child(n+4){display:none}.ai-report-actions{display:flex;align-items:center;gap:8px}.ai-chat{flex:1;min-height:0;height:auto}.ai-chat-body{height:auto;flex:1;min-height:0}.ai-chat{display:flex;flex-direction:column}.ai-chat-input{flex:0 0 auto}
 .ai-workspace{height:calc(100vh - 68px);max-height:calc(100vh - 68px);align-items:stretch;overflow:hidden}.ai-left,.ai-right{height:calc(100vh - 68px);max-height:calc(100vh - 68px);min-height:0;overflow:hidden}.ai-select-panel{flex:1 1 auto;min-height:0}.word-cloud{flex:0 0 190px;max-height:190px}.word-cloud-body{max-height:136px}.ai-agent{height:170px;flex:0 0 170px}.ai-events{height:119px}.ai-report{flex:0 0 176px;min-height:176px}.ai-report-html{max-height:130px}.ai-chat{flex:1 1 auto;min-height:0}.ai-chat-body{min-height:0;overflow:auto}
-.short-page{display:flex;flex-direction:column;gap:10px}.short-card{background:#fff;border-radius:6px;padding:20px}.short-hero{display:grid;grid-template-columns:minmax(420px,680px) minmax(280px,1fr);gap:16px;align-items:end}.short-actions{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}.short-profile{border:1px solid #e6edf6;background:linear-gradient(135deg,#f8fcff,#fff);border-radius:12px;padding:14px;display:flex;gap:12px;align-items:center;min-height:92px}.short-profile-avatar{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#eef4fb;flex:0 0 58px}.short-profile strong{display:block;color:var(--ink);margin-bottom:4px;font-size:15px}.short-profile span{display:block;color:#718096;font-size:12px;word-break:break-all}.short-choice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}.short-choice .choice-pill{border:1px solid #dce6f3;background:#fff;border-radius:999px;height:30px;padding:0 13px;color:#526176;cursor:pointer;font-weight:700}.short-choice .choice-pill.active{background:var(--primary);border-color:var(--primary);color:#fff}.short-main-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;align-items:start}.short-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.short-manual-box{border:1px solid #edf2f8;background:#fbfdff;border-radius:8px;padding:10px;margin-bottom:12px}.short-video-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:14px;max-height:calc(100vh - 340px);min-height:360px;overflow:auto;padding:2px 2px 10px}.short-video-card{border:1px solid #e8eef7;background:#fff;border-radius:12px;position:relative;overflow:hidden;cursor:pointer;transition:.18s;box-shadow:0 8px 20px rgba(31,41,55,.04)}.short-video-card:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(52,130,255,.12)}.short-video-card.selected{border-color:#4b8cff;box-shadow:0 0 0 2px rgba(52,130,255,.14),0 14px 28px rgba(52,130,255,.13)}.short-cover-wrap{position:relative;background:#edf3fb;aspect-ratio:3/4;overflow:hidden}.short-cover{width:100%;height:100%;object-fit:cover;display:block}.short-cover.empty{display:flex;align-items:center;justify-content:center;color:#9aa6b5;font-size:12px}.short-video-check{position:absolute;left:8px;top:8px;z-index:2;background:rgba(255,255,255,.92);border-radius:6px}.short-like-badge{position:absolute;left:8px;bottom:8px;z-index:2;display:inline-flex;align-items:center;height:22px;border-radius:999px;background:rgba(15,23,42,.66);color:#fff;padding:0 8px;font-size:12px;font-weight:800}.short-pin-badge{position:absolute;right:8px;top:8px;z-index:2;height:22px;border-radius:999px;background:#ffd91a;color:#5b4400;padding:0 8px;font-size:12px;font-weight:900;line-height:22px}.short-video-info{padding:10px}.short-video-title{font-weight:800;color:#263244;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:40px}.short-video-url{font-size:12px;color:#8b97a8;margin-top:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.short-video-meta{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}.short-tag{display:inline-flex;align-items:center;height:22px;border-radius:999px;background:#eef4ff;color:#4169e1;padding:0 8px;font-size:12px;font-weight:800}.short-tag.hot{background:#fff2e8;color:#d46b08}.short-empty{min-height:360px;display:flex;align-items:center;justify-content:center;color:#98a4b5;border:1px dashed #d9e4f2;border-radius:8px;background:#fbfdff}.short-note{font-size:12px;color:#718096;line-height:1.8;margin-top:10px}.short-job-status{display:inline-flex;align-items:center;height:24px;border-radius:999px;background:#fff8e8;color:#9b6b13;padding:0 9px;font-size:12px;font-weight:800}.short-result-panel{position:sticky;top:10px;min-height:360px}.short-result-hero{border-radius:12px;background:linear-gradient(135deg,#eef7ff,#f7f5ff);border:1px solid #deebff;padding:16px;margin-bottom:12px}.short-result-num{font-size:34px;font-weight:900;color:var(--primary);line-height:1}.short-selected-list{display:grid;gap:8px;max-height:250px;overflow:auto}.short-selected-item{border:1px solid #edf2f7;border-radius:10px;padding:9px 10px;background:#fbfdff}.short-selected-title{font-weight:800;color:#344054;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.short-selected-sub{font-size:12px;color:#8b97a8;margin-top:3px}.short-result-empty{min-height:190px;display:flex;align-items:center;justify-content:center;text-align:center;color:#98a4b5;border:1px dashed #d9e4f2;border-radius:10px;background:#fbfdff;padding:20px}.short-last-job{border:1px solid #e6edf6;border-radius:10px;padding:10px;background:#fff;margin-top:12px}.short-last-job strong{display:block;margin-bottom:6px;color:var(--ink)}@media(max-width:1180px){.short-hero,.short-main-layout{grid-template-columns:1fr}.short-result-panel{position:static}.short-video-list{max-height:none}}
+.short-page{display:flex;flex-direction:column;gap:10px}.short-card{background:#fff;border-radius:6px;padding:20px}.short-hero{display:grid;grid-template-columns:minmax(420px,680px) minmax(280px,1fr);gap:16px;align-items:end}.short-actions{display:flex;align-items:center;gap:8px;margin-top:12px;flex-wrap:wrap}.short-profile{border:1px solid #e6edf6;background:linear-gradient(135deg,#f8fcff,#fff);border-radius:12px;padding:14px;display:flex;gap:12px;align-items:center;min-height:92px}.short-profile-avatar{width:58px;height:58px;border-radius:50%;object-fit:cover;background:#eef4fb;flex:0 0 58px}.short-profile strong{display:block;color:var(--ink);margin-bottom:4px;font-size:15px}.short-profile span{display:block;color:#718096;font-size:12px;word-break:break-all}.short-choice{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}.short-choice-label{height:30px;border-radius:999px;background:#f5f8fc;color:#718096;padding:0 10px;display:inline-flex;align-items:center;font-size:12px;font-weight:800}.short-choice .choice-pill{border:1px solid #dce6f3;background:#fff;border-radius:999px;height:30px;padding:0 13px;color:#526176;cursor:pointer;font-weight:700}.short-choice .choice-pill.active{background:var(--primary);border-color:var(--primary);color:#fff}.short-choice .choice-pill:disabled{cursor:not-allowed;opacity:.48}.short-custom-append{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 8px;border:1px solid #e3ebf5;border-radius:999px;background:#fbfdff}.short-custom-append span{font-size:12px;color:#7b8798;font-weight:800}.short-custom-append .el-input-number{width:86px!important}.short-custom-append .el-input__wrapper{border-radius:999px}.short-main-layout{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:10px;align-items:start}.short-panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.short-manual-box{border:1px solid #edf2f8;background:#fbfdff;border-radius:8px;padding:10px;margin-bottom:12px}.short-video-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:14px;max-height:calc(100vh - 340px);min-height:360px;overflow:auto;padding:2px 2px 10px}.short-video-card{border:1px solid #e8eef7;background:#fff;border-radius:12px;position:relative;overflow:hidden;cursor:pointer;transition:.18s;box-shadow:0 8px 20px rgba(31,41,55,.04)}.short-video-card:hover{transform:translateY(-2px);box-shadow:0 14px 28px rgba(52,130,255,.12)}.short-video-card.selected{border-color:#4b8cff;box-shadow:0 0 0 2px rgba(52,130,255,.14),0 14px 28px rgba(52,130,255,.13)}.short-cover-wrap{position:relative;background:#edf3fb;aspect-ratio:3/4;overflow:hidden}.short-cover{width:100%;height:100%;object-fit:cover;display:block}.short-cover.empty{display:flex;align-items:center;justify-content:center;color:#9aa6b5;font-size:12px}.short-video-check{position:absolute;left:8px;top:8px;z-index:2;background:rgba(255,255,255,.92);border-radius:6px}.short-like-badge{position:absolute;left:8px;bottom:8px;z-index:2;display:inline-flex;align-items:center;height:22px;border-radius:999px;background:rgba(15,23,42,.66);color:#fff;padding:0 8px;font-size:12px;font-weight:800}.short-pin-badge{position:absolute;right:8px;top:8px;z-index:2;height:22px;border-radius:999px;background:#ffd91a;color:#5b4400;padding:0 8px;font-size:12px;font-weight:900;line-height:22px}.short-video-info{padding:10px}.short-video-title{font-weight:800;color:#263244;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:40px}.short-video-url{font-size:12px;color:#8b97a8;margin-top:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.short-video-meta{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}.short-tag{display:inline-flex;align-items:center;height:22px;border-radius:999px;background:#eef4ff;color:#4169e1;padding:0 8px;font-size:12px;font-weight:800}.short-tag.hot{background:#fff2e8;color:#d46b08}.short-empty{min-height:360px;display:flex;align-items:center;justify-content:center;color:#98a4b5;border:1px dashed #d9e4f2;border-radius:8px;background:#fbfdff}.short-note{font-size:12px;color:#718096;line-height:1.8;margin-top:10px}.short-job-status{display:inline-flex;align-items:center;height:24px;border-radius:999px;background:#fff8e8;color:#9b6b13;padding:0 9px;font-size:12px;font-weight:800}.short-result-panel{position:sticky;top:10px;min-height:360px}.short-result-hero{border-radius:12px;background:linear-gradient(135deg,#eef7ff,#f7f5ff);border:1px solid #deebff;padding:16px;margin-bottom:12px}.short-result-num{font-size:34px;font-weight:900;color:var(--primary);line-height:1}.short-selected-list{display:grid;gap:8px;max-height:250px;overflow:auto}.short-selected-item{border:1px solid #edf2f7;border-radius:10px;padding:9px 10px;background:#fbfdff}.short-selected-title{font-weight:800;color:#344054;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.short-selected-sub{font-size:12px;color:#8b97a8;margin-top:3px}.short-result-empty{min-height:190px;display:flex;align-items:center;justify-content:center;text-align:center;color:#98a4b5;border:1px dashed #d9e4f2;border-radius:10px;background:#fbfdff;padding:20px}.short-last-job{border:1px solid #e6edf6;border-radius:10px;padding:10px;background:#fff;margin-top:12px}.short-last-job strong{display:block;margin-bottom:6px;color:var(--ink)}@media(max-width:1180px){.short-hero,.short-main-layout{grid-template-columns:1fr}.short-result-panel{position:static}.short-video-list{max-height:none}}
 .short-parse-progress{margin-top:12px;border:1px solid #dfeaff;background:linear-gradient(135deg,#f7fbff,#fff);border-radius:12px;padding:12px 14px;box-shadow:0 10px 28px rgba(54,107,255,.06)}.short-parse-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}.short-parse-dot{width:10px;height:10px;border-radius:50%;background:#35d4ff;box-shadow:0 0 0 6px rgba(53,212,255,.14);animation:shortPulse 1.2s ease-in-out infinite;flex:0 0 10px}.short-parse-title{font-weight:900;color:#22304a}.short-parse-status{margin-left:auto;color:#65748b;font-size:12px}.short-parse-track{height:7px;border-radius:999px;background:#edf3ff;overflow:hidden}.short-parse-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#35d4ff,#4b8cff,#6c63ff);transition:width .35s ease}.short-parse-mini{margin-top:8px;font-size:12px;color:#8190a5;display:flex;align-items:center;justify-content:space-between}.short-parse-steps{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-top:10px}.short-parse-step{height:26px;border-radius:999px;background:#f1f5fb;color:#8a96a8;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 8px}.short-parse-step:before{content:"";width:6px;height:6px;border-radius:50%;background:#c8d3e2;flex:0 0 6px}.short-parse-step.active{background:#eef5ff;color:#2764df}.short-parse-step.active:before{background:#35d4ff;box-shadow:0 0 0 4px rgba(53,212,255,.14)}.short-parse-step.done{background:#eefbf5;color:#19985a}.short-parse-step.done:before{background:#29c176}.short-loading-card{width:min(460px,92%);border:1px solid #dfeaff;border-radius:16px;background:linear-gradient(135deg,#fff,#f7fbff);padding:20px;box-shadow:0 14px 34px rgba(46,92,180,.08);text-align:left}.short-loading-head{display:flex;align-items:center;gap:10px;font-weight:900;color:#22304a;margin-bottom:12px}.short-loading-lines{display:grid;gap:9px}.short-loading-line{height:9px;border-radius:999px;background:linear-gradient(90deg,#edf3ff,#f6f9ff,#edf3ff);background-size:220% 100%;animation:shortShimmer 1.35s linear infinite}.short-loading-line:nth-child(2){width:82%}.short-loading-line:nth-child(3){width:66%}.short-loading-card .short-parse-track{margin-top:12px}.short-loading-card .short-parse-mini{margin-top:8px}@keyframes shortPulse{0%,100%{opacity:.5;transform:scale(.85)}50%{opacity:1;transform:scale(1.1)}}@keyframes shortShimmer{0%{background-position:0 0}100%{background-position:220% 0}}
 .position-card{border:1px solid #e4ecf7;border-radius:14px;background:linear-gradient(135deg,#fbfdff,#fff);padding:14px;margin-bottom:12px}.position-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}.position-title{font-weight:900;color:#1f2937}.position-badge{display:inline-flex;align-items:center;height:26px;border-radius:999px;background:#eef4ff;color:#4357ff;padding:0 10px;font-size:12px;font-weight:900}.position-summary{color:#526176;line-height:1.8;font-size:13px}.position-tags{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.position-tag{height:24px;border-radius:999px;background:#f1f7ff;color:#2764d9;border:1px solid #dceaff;padding:0 9px;display:inline-flex;align-items:center;font-size:12px;font-weight:800}.benchmark-list{display:grid;gap:8px;margin-top:10px}.benchmark-item{border:1px solid #eaf0f7;background:#fbfdff;border-radius:11px;padding:10px}.benchmark-name{font-weight:900;color:#263244}.benchmark-reason{font-size:12px;color:#718096;line-height:1.7;margin-top:3px}.monitor-list{padding-left:18px;margin:9px 0 0;color:#526176;line-height:1.9;font-size:13px}
 .benchmark-action{display:flex;align-items:center;gap:8px;margin-top:8px}.benchmark-pool{display:grid;gap:8px;max-height:260px;overflow:auto}.benchmark-pool-item{border:1px solid #e8eef7;border-radius:12px;background:#fff;padding:10px 11px}.benchmark-pool-top{display:flex;align-items:center;gap:8px;justify-content:space-between}.benchmark-pool-title{font-weight:900;color:#263244;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.benchmark-pool-status{height:22px;border-radius:999px;background:#f4f7ff;color:#5261d8;padding:0 8px;display:inline-flex;align-items:center;font-size:12px;font-weight:800;flex:0 0 auto}.benchmark-pool-sub{font-size:12px;color:#8b97a8;line-height:1.7;margin-top:4px}.benchmark-input{display:flex;gap:8px;margin-top:10px}
 .benchmark-pool-actions{display:flex;align-items:center;gap:6px;margin-top:8px;flex-wrap:wrap}.benchmark-search-list{display:grid;gap:6px;margin-top:8px}.benchmark-search-item{border:1px solid #edf3fb;background:#f8fbff;border-radius:10px;padding:8px}.benchmark-search-title{font-weight:900;color:#2f3b52;font-size:12px}.benchmark-search-link{font-size:12px;color:#2f6fed;text-decoration:none}
 .benchmark-account-list{display:grid;gap:7px;margin-top:9px}.benchmark-account-card{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:center;border:1px solid #e4ecf7;background:#fbfdff;border-radius:12px;padding:8px}.benchmark-account-avatar{width:34px;height:34px;border-radius:50%;object-fit:cover;background:#edf4fb}.benchmark-account-name{font-weight:900;color:#22304a;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.benchmark-account-reason{font-size:11px;color:#7b8798;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.setting-group{background:#fff;border-radius:6px;margin-bottom:10px;padding:0 20px}.setting-head{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;font-size:15px;color:var(--ink);font-weight:900}.setting-row{min-height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center}.setting-row:last-child{border-bottom:0}.setting-name{font-weight:700}.setting-desc{font-size:12px;color:#9aa5b4;margin-top:2px}.setting-value{margin-left:auto;display:flex;align-items:center;gap:8px;color:#687588}.health-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}.health-dot.bad{background:var(--red)}
+.setting-group{background:#fff;border-radius:6px;margin-bottom:10px;padding:0 20px}.setting-head{height:52px;border-bottom:1px solid var(--line);display:flex;align-items:center;font-size:15px;color:var(--ink);font-weight:900}.setting-row{min-height:64px;border-bottom:1px solid var(--line);display:flex;align-items:center}.setting-row:last-child{border-bottom:0}.setting-name{font-weight:700}.setting-desc{font-size:12px;color:#9aa5b4;margin-top:2px}.setting-value{margin-left:auto;display:flex;align-items:center;gap:8px;color:#687588}.health-dot{width:7px;height:7px;border-radius:50%;background:var(--green)}.health-dot.bad{background:var(--red)}.settings-status-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:14px 0}.settings-status-card{min-height:78px;border:1px solid #e6edf6;border-radius:12px;background:linear-gradient(135deg,#fbfdff,#fff);display:flex;align-items:center;gap:12px;padding:13px 14px;min-width:0}.settings-status-dot{width:10px;height:10px;border-radius:50%;background:var(--green);box-shadow:0 0 0 5px rgba(41,193,118,.12);flex:0 0 10px}.settings-status-dot.bad{background:var(--red);box-shadow:0 0 0 5px rgba(245,81,81,.12)}.settings-status-main{min-width:0;flex:1}.settings-status-main b{display:block;color:var(--ink);font-size:14px;margin-bottom:4px}.settings-status-main span{display:block;color:#7b8798;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.settings-status-action{margin-left:auto;flex:0 0 auto}@media(max-width:1180px){.settings-status-grid{grid-template-columns:1fr}}
 .steps{display:grid;grid-template-columns:repeat(4,1fr);background:#fff;border-radius:6px;padding:22px 16px;margin-bottom:10px}.step{position:relative;text-align:center;color:#738095}.step:not(:last-child):after{content:"";position:absolute;height:1px;background:#dfe6ef;top:16px;left:62%;right:-38%}.step-num{width:32px;height:32px;border-radius:50%;margin:0 auto 8px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:900}.step-title{font-weight:700;color:var(--text);font-size:13px}.step-desc{font-size:11px;margin-top:3px}
 .perf-layout{display:grid;grid-template-columns:minmax(0,1fr);gap:10px}.perf-filters{background:#fff;border-radius:6px;padding:14px 16px;display:grid;grid-template-columns:240px auto;gap:10px;align-items:center}.perf-score{font-size:22px;font-weight:900;color:var(--primary);font-variant-numeric:tabular-nums}.perf-score.pending{font-size:13px;color:#8a96a8;line-height:1.2}.rating-tag{display:inline-flex;align-items:center;height:24px;padding:0 9px;border-radius:999px;background:#eef0ff;color:var(--primary);font-weight:800;font-size:12px}.rating-tag.good{background:#ebfff4;color:#14a45a}.rating-tag.warn{background:#fff8e8;color:#b7791f}.rating-tag.bad{background:#fff0f0;color:#d94343}.rating-tag.gray{background:#eef2f7;color:#718096}.perf-summary-cell{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.55;color:#41516a}.perf-detail{display:grid;grid-template-columns:330px minmax(0,1fr);gap:10px}.perf-hero{background:#fff;border-radius:6px;padding:18px}.perf-hero-main{display:flex;gap:12px;align-items:center;margin-bottom:16px}.perf-hero-title{font-size:16px;font-weight:900;color:var(--ink)}.perf-big-score{font-size:48px;line-height:1;font-weight:900;color:var(--primary);margin:8px 0}.perf-meta{font-size:12px;color:#718096;line-height:1.9}.perf-ai-rule{margin-top:12px;padding:10px 12px;border-radius:6px;background:#f7fbff;color:#57708f;font-size:12px;line-height:1.7}.dim-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:10px}.dim-card{background:#fff;border-radius:6px;padding:14px;border-top:3px solid var(--cyan)}.dim-name{font-weight:900;color:var(--ink)}.dim-score{font-size:24px;font-weight:900;color:var(--primary);margin:6px 0}.dim-text{font-size:12px;color:#6b778a;line-height:1.65}.perf-section{background:#fff;border-radius:6px;padding:16px;margin-bottom:10px}.perf-section-title{font-weight:900;color:var(--ink);font-size:15px;margin-bottom:12px;display:flex;align-items:center}.perf-section-title:before{content:"";width:4px;height:16px;background:var(--cyan);border-radius:2px;margin-right:9px}.evidence-list{display:grid;gap:8px}.evidence-item{border:1px solid var(--line);border-radius:6px;padding:10px 12px;background:#fbfdff;font-size:12px;line-height:1.7}.evidence-head{display:flex;gap:8px;align-items:center;color:#718096;margin-bottom:4px}.risk-high{color:#d94343;font-weight:800}.question-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.small-list{display:flex;flex-wrap:wrap;gap:8px}.small-pill{background:#f5f7ff;border-radius:999px;padding:5px 9px;font-size:12px;color:#5261d8}.perf-empty{height:220px;display:flex;align-items:center;justify-content:center;color:#9aa5b4}.perf-back{margin-bottom:10px}
 .sensitive-cell{display:flex;flex-direction:column;gap:3px;align-items:center}.sensitive-count{font-weight:900;color:#d94343}.sensitive-count.clean{color:#8a96a8}.sensitive-mini{max-width:130px;color:#8a96a8;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sensitive-grid{display:grid;grid-template-columns:220px minmax(0,1fr);gap:12px}.sensitive-stat{background:#fbfdff;border:1px solid var(--line);border-radius:8px;padding:12px}.sensitive-stat strong{font-size:26px;color:#d94343}.sensitive-stat .quiet{margin-top:2px}.sensitive-context{line-height:1.7;color:#344054}.review-tag{display:inline-flex;align-items:center;height:22px;border-radius:999px;padding:0 8px;background:#fff8e8;color:#9b6b13;font-size:12px;font-weight:800}.review-tag.ok{background:#eefaf4;color:#18864b}
@@ -221,6 +225,7 @@ button,input,textarea{font:inherit}
   @media(max-width:1280px){.short-report-shell{grid-template-columns:1fr}.short-report-list{max-height:300px}.short-report-detail{max-height:none}.short-history-row{grid-template-columns:1fr}.short-history-row>.quiet{display:none}}
   .short-hero{grid-template-columns:minmax(480px,1fr) minmax(340px,520px);align-items:stretch;padding:16px 18px}.short-hero>div:first-child{min-width:0;display:grid;grid-template-columns:1fr auto;grid-template-areas:"title title" "form form" "choice actions" "progress progress";column-gap:14px;align-content:start}.short-hero .panel-title{grid-area:title;margin-bottom:10px}.short-hero .el-form{grid-area:form}.short-hero .el-form-item{margin-bottom:8px}.short-hero .el-textarea__inner{min-height:72px!important}.short-hero .short-choice{grid-area:choice;margin:0;align-self:center}.short-hero .short-actions{grid-area:actions;margin-top:0;align-self:center;justify-content:flex-end}.short-hero .short-parse-progress{grid-area:progress}.short-profile{height:100%;min-height:122px;align-self:stretch;border-radius:14px;padding:16px;background:linear-gradient(135deg,#f8fbff,#fff);box-shadow:0 8px 22px rgba(31,41,55,.035)}.short-profile strong{font-size:16px}.short-profile span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .short-main-layout.parse{display:block;overflow:hidden}.short-main-layout.parse>.short-card{padding:16px 20px}.short-panel-head{height:38px;margin-bottom:10px}.short-panel-head .short-actions{margin-top:0}.short-manual-box{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px;padding:10px 12px;margin-bottom:14px}.short-manual-box .el-textarea__inner{min-height:40px!important;height:40px!important;line-height:20px}.short-manual-box .short-actions{margin-top:0;align-items:center}.short-manual-box .short-note{display:none}.short-video-list{grid-template-columns:repeat(auto-fill,minmax(150px,178px));align-items:start;justify-content:start;gap:12px;min-height:310px;max-height:calc(100vh - 405px);padding:4px 2px 12px}.short-video-card{border-radius:13px;transform:none!important}.short-video-card:hover{transform:none!important}.short-video-card.selected{box-shadow:inset 0 0 0 2px rgba(52,130,255,.14),0 10px 24px rgba(52,130,255,.10)}.short-video-title{font-size:13px;min-height:38px}.short-video-info{padding:9px}.short-video-url{font-size:11px}.short-video-meta{margin-top:7px}.short-tag{height:21px;font-size:11px;padding:0 7px}
+  .short-empty.guide{align-items:center;min-height:248px;padding:18px;background:linear-gradient(135deg,#fbfdff,#f6faff);border-style:solid;border-color:#e5eefb}.short-empty-guide{width:min(560px,94%);display:grid;gap:12px;text-align:left}.short-empty-top{display:flex;align-items:center;gap:12px}.short-empty-icon{width:38px;height:38px;border-radius:13px;background:linear-gradient(135deg,#e8f6ff,#f3f0ff);color:#315cff;display:flex;align-items:center;justify-content:center;font-weight:1000;font-size:17px;box-shadow:0 12px 28px rgba(52,130,255,.10)}.short-empty-title{font-weight:1000;color:#1f2937;font-size:16px}.short-empty-sub{color:#7a8798;font-size:12px;margin-top:3px}.short-empty-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.short-empty-step{border:1px solid #e2ebf7;background:#fff;border-radius:12px;padding:9px 10px;min-height:68px}.short-empty-step b{display:block;color:#315cff;margin-bottom:5px}.short-empty-step span{display:block;color:#667386;font-size:12px;line-height:1.45}.short-empty-actions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}.short-queue-panel .short-empty.guide{min-height:210px;padding:16px}.short-queue-panel .short-empty-steps{grid-template-columns:1fr}.short-queue-panel .short-empty-step{min-height:auto}
   @media(max-width:1180px){.short-hero{grid-template-columns:1fr}.short-hero>div:first-child{grid-template-columns:1fr;grid-template-areas:"title" "form" "choice" "actions" "progress"}.short-hero .short-actions{justify-content:flex-start}.short-manual-box{grid-template-columns:1fr}.short-video-list{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));max-height:none}}
   .short-workspace-shell{padding:16px 18px;overflow:hidden}
   .short-workbench-grid{display:grid;grid-template-columns:280px minmax(0,1fr) 360px;gap:12px;align-items:start;width:100%;min-height:calc(100vh - 230px);overflow:hidden}
@@ -252,6 +257,14 @@ button,input,textarea{font:inherit}
   .short-history-block{margin-top:14px;border-top:1px solid #edf2f8;padding-top:12px}
   .short-history-list.vertical{display:flex;flex-direction:column;gap:6px;overflow:visible;padding:0}
   .short-history-list.vertical .short-history-chip{width:100%;height:auto;min-height:30px;justify-content:flex-start;border-radius:10px;white-space:normal;text-align:left}
+  .short-history-modal-list{display:grid;gap:10px;max-height:62vh;overflow:auto;padding:2px 4px 2px 2px}
+  .short-history-modal-item{width:100%;border:1px solid #e2ebf8;background:linear-gradient(180deg,#fff,#f8fbff);border-radius:14px;padding:10px;display:grid;grid-template-columns:54px minmax(0,1fr) 128px;align-items:center;gap:12px;text-align:left;cursor:pointer;transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease}
+  .short-history-modal-item:hover{border-color:#6aa5ff;box-shadow:0 12px 28px rgba(52,130,255,.12);transform:translateY(-1px)}
+  .short-history-modal-item img,.short-history-modal-item .short-report-cover{width:54px;height:72px;border-radius:10px;object-fit:cover}
+  .short-history-modal-main{min-width:0}.short-history-modal-main b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#172033;font-size:14px}.short-history-modal-main em{display:block;margin-top:7px;font-style:normal;color:#8793a6;font-size:12px}
+  .short-history-modal-score{text-align:right}.short-history-modal-score strong{display:block;font-size:26px;line-height:1;color:#3b56ff}.short-history-modal-score small{display:block;margin-top:7px;color:#7d8aa0;font-size:12px}.short-mini-link{margin-top:8px;border:1px solid #cfe0ff;background:#f7fbff;color:#3158e8;border-radius:999px;height:24px;padding:0 9px;font-size:12px;font-weight:800;cursor:pointer}.short-mini-link:hover{background:#edf5ff;border-color:#6aa5ff}
+  .short-transcript-dialog{display:grid;gap:12px}.short-transcript-meta{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#7c8aa0;font-size:12px}
+  .short-transcript-box{max-height:58vh;overflow:auto;border:1px solid #e2ebf8;border-radius:14px;background:linear-gradient(180deg,#fbfdff,#fff);padding:14px 16px;white-space:pre-wrap;line-height:1.85;color:#243044;font-size:13px}
   .short-progress-compact{margin-bottom:12px}
   .score-orb.text{font-size:15px;line-height:1.15;text-align:center;padding:0 8px}
   .short-insight-grid.compact{grid-template-columns:1fr;gap:8px}
@@ -271,6 +284,31 @@ button,input,textarea{font:inherit}
   @media(max-width:1500px){.short-workbench-grid{grid-template-columns:250px minmax(0,1fr) 320px}.short-focus-panel .short-report-hero{grid-template-columns:72px minmax(0,1fr)}.short-focus-panel .short-report-hero img,.short-focus-panel .short-report-hero-cover{width:72px;height:96px}.short-report-actions{grid-column:1/-1;justify-content:flex-start}}
   @media(max-width:1280px){.short-cover-analysis{grid-template-columns:132px minmax(0,1fr)}.short-cover-preview{width:132px}}
   @media(max-width:1180px){.short-workbench-grid{grid-template-columns:1fr;overflow:visible}.short-queue-panel,.short-tools-panel{position:static;max-height:none}.short-focus-panel .short-report-detail{max-height:none}}
+.lead-grid{display:grid;grid-template-columns:420px minmax(0,1fr);gap:10px}
+.lead-card{background:#fff;border-radius:6px;padding:18px;border:1px solid #edf2f7}
+.lead-card .panel-title{margin-bottom:14px}
+.lead-textarea .el-textarea__inner{min-height:102px}
+.lead-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.lead-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.lead-stat{background:#fff;border:1px solid #edf2f7;border-radius:6px;padding:14px 16px}
+.lead-stat b{display:block;font-size:24px;color:var(--primary);line-height:1.1}.lead-stat span{font-size:12px;color:#8491a3}
+.lead-status{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:#edf7ff;color:#2878e8;font-size:12px;font-weight:800}
+.lead-status.ok{background:#eafaf2;color:#16a264}.lead-status.warn{background:#fff6e5;color:#b87612}
+.lead-monitor-list{display:grid;gap:8px;max-height:360px;overflow:auto;padding-right:4px}
+.lead-monitor{border:1px solid #e8eef6;border-radius:6px;padding:12px;background:#fbfdff;display:grid;gap:9px}
+.lead-monitor-head{display:flex;align-items:center;gap:10px;min-width:0}
+.lead-monitor-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#edf3fa;border:1px solid #dce8f6;flex:0 0 auto}
+.lead-monitor-fallback{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#edf6ff,#e8eff8);display:flex;align-items:center;justify-content:center;color:#3c5d8b;font-weight:900;flex:0 0 auto}
+.lead-monitor-title{min-width:0;display:grid;gap:2px}.lead-monitor-title strong{color:#172033;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lead-monitor-title span{font-size:12px;color:#8a96a8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lead-monitor .url{font-size:12px;color:#8a96a8;word-break:break-all}.lead-monitor-meta{display:flex;gap:8px;align-items:center;color:#8a96a8;font-size:12px;flex-wrap:wrap}
+.lead-video-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,178px));gap:12px;padding:14px 18px;max-height:430px;overflow:auto}
+.lead-leads-card{margin-top:10px;background:#fff;border-radius:6px;border:1px solid #edf2f7;overflow:hidden}
+.lead-toolbar{height:58px;padding:0 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)}
+.lead-table-wrap{max-height:520px;overflow:auto}
+.lead-content{max-width:520px;white-space:normal;line-height:1.55}.lead-user{display:flex;align-items:center;min-width:0}.lead-user b{color:#172033;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lead-contact-btn{font-weight:900;border-radius:999px;padding:0 16px;box-shadow:0 8px 18px rgba(52,130,255,.18)}
+.lead-empty{height:260px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#95a1af;gap:8px}
+.lead-progress{margin-top:12px;padding:12px;border-radius:6px;background:#0f1b2c;color:#dbeafe}.lead-progress strong{display:block;margin-bottom:8px}.lead-progress .short-parse-track{background:#25334a}
+@media(max-width:1280px){.lead-grid{grid-template-columns:1fr}.lead-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -298,9 +336,19 @@ button,input,textarea{font:inherit}
   <aside class="side">
     <div class="logo"><div class="logo-mark"><i></i></div><strong>直播复盘侠</strong><small>直播复盘助手</small></div>
     <nav class="menu">
-      <div v-for="item in navs" :key="item.key" class="menu-item" :class="{active:view===item.key}" @click="view=item.key">
-        <span class="menu-icon"><el-icon><component :is="item.icon"/></el-icon></span><span>{{item.label}}</span>
-      </div>
+      <template v-for="item in navs" :key="item.key">
+        <div class="menu-item" :class="{active:view===item.key||(item.key==='review'&&view==='pre')}" @click="view=item.key">
+          <span class="menu-icon"><el-icon><component :is="item.icon"/></el-icon></span><span>{{item.label}}</span>
+        </div>
+        <div v-if="item.key==='shortVideo'&&view==='shortVideo'" class="menu-sub">
+          <button type="button" :class="{active:shortVideo.activeTab==='parse'}" @click.stop="shortVideo.activeTab='parse'">作品拆解</button>
+          <button type="button" :class="{active:shortVideo.activeTab==='workspace'}" @click.stop="shortVideo.activeTab='workspace'">AI工作台</button>
+        </div>
+        <div v-if="item.key==='review'&&(view==='review'||view==='pre')" class="menu-sub">
+          <button type="button" :class="{active:view==='pre'}" @click.stop="view='pre'">直播效能</button>
+          <button type="button" :class="{active:view==='review'}" @click.stop="view='review'">AI直播复盘</button>
+        </div>
+      </template>
     </nav>
     <div class="side-foot">
       <div class="disk-line"><span>磁盘空间</span><span>{{diag.disk_text}}</span></div>
@@ -341,16 +389,110 @@ button,input,textarea{font:inherit}
         </div>
       </template>
 
+      <template v-else-if="view==='leadRadar'">
+        <div class="lead-stats">
+          <div class="lead-stat"><b>{{leadStats.monitors}}</b><span>监控主页</span></div>
+          <div class="lead-stat"><b>{{leadStats.leads}}</b><span>累计线索</span></div>
+          <div class="lead-stat"><b>{{leadStats.pending}}</b><span>待跟进</span></div>
+          <div class="lead-stat"><b>{{leadStats.today}}</b><span>今日新增</span></div>
+        </div>
+        <div class="lead-grid">
+          <div class="lead-card">
+            <div class="panel-title">1. 解析竞品主页</div>
+            <el-input v-model="leadRadar.url" class="lead-textarea" type="textarea" :rows="4" placeholder="粘贴竞品抖音主页链接，先读取作品列表。"></el-input>
+            <div class="lead-actions">
+              <el-input v-model="leadRadar.owner" style="width:150px" placeholder="负责客服"></el-input>
+              <span class="quiet">读取作品</span>
+              <el-input-number v-model="leadRadar.maxVideos" :min="1" :max="50" :step="1" controls-position="right" style="width:132px"></el-input-number>
+              <span class="quiet">每条评论</span>
+              <el-input-number v-model="leadRadar.maxComments" :min="20" :max="2000" :step="20" controls-position="right" style="width:150px"></el-input-number>
+              <el-button type="primary" :loading="leadRadar.loading&&!leadRadar.runningId" @click="parseLeadProfile">解析作品</el-button>
+              <el-button :loading="leadRadar.loginLoading" @click="loginLeadRadar">抖音授权</el-button>
+            </div>
+            <div style="margin-top:12px">
+              <span class="lead-status" :class="leadRadar.loginStatus.logged_in?'ok':'warn'">{{leadRadar.loginStatus.logged_in?'已授权':'未授权'}}</span>
+              <span class="quiet" style="margin-left:8px">只采集公开视频评论，不自动私信，不获取真实 IP。</span>
+            </div>
+            <div v-if="leadRadar.loading" class="lead-progress">
+              <strong>{{leadRadar.progressText}}</strong>
+              <div class="short-parse-track"><div class="short-parse-fill" :style="{width:leadRadar.progress+'%'}"></div></div>
+              <div style="margin-top:8px;font-size:12px;color:#9fb7d8">已读取 {{leadRadar.lastResult?.captured||0}} 条评论，新增 {{leadRadar.lastResult?.inserted||0}} 条线索</div>
+            </div>
+          </div>
+          <div class="lead-card">
+            <div class="panel-title">监控账号</div>
+            <div v-if="leadRadar.monitor||leadRadar.profile" class="lead-monitor">
+              <div class="lead-monitor-head">
+                <img v-if="leadRadar.monitor?.author_avatar||leadRadar.profile?.avatar_url" class="lead-monitor-avatar" :src="leadRadar.monitor?.author_avatar||leadRadar.profile?.avatar_url" @error="handleAvatarError">
+                <div v-else class="lead-monitor-fallback">{{avatarFallbackText(leadRadar.monitor?.author_name||leadRadar.profile?.nickname||'抖音')}}</div>
+                <div class="lead-monitor-title">
+                  <strong>{{leadRadar.monitor?.author_name||leadRadar.profile?.nickname||'已识别账号'}}</strong>
+                  <span>已读取 {{leadRadar.videos.length}} 条作品，已选 {{leadSelectedVideos.length}} 条</span>
+                </div>
+              </div>
+              <div class="lead-monitor-meta"><span>主页作品评论</span><span>上次读取 {{leadRadar.monitor?.last_count||0}}</span><span>每条 {{leadRadar.maxComments}} 条评论</span></div>
+            </div>
+            <div v-else class="lead-empty"><el-icon><Promotion/></el-icon><strong>先解析主页</strong><span>解析后这里会显示账号头像、名称和作品数量。</span></div>
+          </div>
+        </div>
+        <div class="lead-leads-card">
+          <div class="lead-toolbar">
+            <div class="panel-title" style="margin:0">2. 选择作品采集评论 <span class="ai-side-summary">已选 {{leadSelectedVideos.length}} / {{leadRadar.videos.length}}</span></div>
+            <span class="grow"></span>
+            <el-button :disabled="!leadRadar.videos.length" @click="selectAllLeadVideos">全选</el-button>
+            <el-button :disabled="!leadRadar.videos.length" @click="invertLeadVideos">反选</el-button>
+            <el-button type="primary" :loading="leadRadar.loading&&!!leadRadar.runningId" :disabled="!leadSelectedVideos.length" @click="runSelectedLeadVideos">采集所选作品评论</el-button>
+          </div>
+          <div v-if="leadRadar.videos.length" class="lead-video-list">
+            <div v-for="item in leadRadar.videos" :key="item.url||item.id" class="short-video-card" :class="{selected:item.selected}" @click="item.selected=!item.selected">
+              <div class="short-cover-wrap">
+                <el-checkbox v-model="item.selected" class="short-video-check" @click.stop></el-checkbox>
+                <img v-if="item.cover_url" :src="item.cover_url" class="short-cover" loading="lazy">
+                <div v-else class="short-cover empty">无封面</div>
+                <span v-if="item.pinned" class="short-pin-badge">置顶</span>
+                <span class="short-like-badge">♡ {{item.like_count??0}}</span>
+              </div>
+              <div class="short-video-info">
+                <div class="short-video-title">{{item.title||'未命名作品'}}</div>
+                <div class="short-video-url">{{item.url}}</div>
+                <div class="short-video-meta"><span class="short-tag">待采集评论</span></div>
+              </div>
+            </div>
+          </div>
+          <div v-else class="short-empty">解析主页后，作品会显示在这里。先选作品，再采评论。</div>
+        </div>
+        <div class="lead-leads-card">
+          <div class="lead-toolbar">
+            <div class="panel-title" style="margin:0">评论线索</div>
+            <el-input v-model="leadRadar.keyword" style="width:260px;margin-left:12px" clearable placeholder="搜索评论或昵称"></el-input>
+            <el-select v-model="leadRadar.ipFilter" clearable filterable placeholder="IP属地" style="width:150px">
+              <el-option v-for="ip in leadIpOptions" :key="ip" :label="ip" :value="ip"></el-option>
+            </el-select>
+            <span class="grow"></span>
+            <el-button @click="fetchLeadRadar">刷新</el-button>
+            <el-button type="primary" :disabled="!leadRadar.leads.length" @click="exportLeadRadar"><el-icon><Download/></el-icon>&nbsp;导出 CSV</el-button>
+          </div>
+          <div class="lead-table-wrap">
+            <el-table :data="filteredLeadRows" empty-text="暂无线索，采集评论后会显示在这里" style="width:100%">
+              <el-table-column label="评论人" width="160">
+                <template #default="{row}"><div class="lead-user"><b>{{row.commenter_nickname||'未命名用户'}}</b></div></template>
+              </el-table-column>
+              <el-table-column label="评论内容" min-width="360"><template #default="{row}"><div class="lead-content">{{row.content||'无内容'}}</div></template></el-table-column>
+              <el-table-column label="IP属地" width="100"><template #default="{row}">{{row.comment_ip_location||'暂无'}}</template></el-table-column>
+              <el-table-column label="时间" width="110"><template #default="{row}">{{fmtAgo(row.create_time||row.captured_at)}}</template></el-table-column>
+              <el-table-column label="跟进" width="125" align="right">
+                <template #default="{row}">
+                  <el-button v-if="row.commenter_profile_url" size="small" type="primary" class="lead-contact-btn" @click="openLeadProfile(row)">去联系</el-button>
+                  <span v-else class="lead-status">{{row.status||'待联系'}}</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+      </template>
+
       <template v-else-if="view==='shortVideo'">
         <div class="short-page">
-          <div class="short-work-tabs">
-            <button type="button" :class="{active:shortVideo.activeTab==='parse'}" @click="shortVideo.activeTab='parse'">
-              <b>作品解析</b><span>账号、作品墙、候选作品</span>
-            </button>
-            <button type="button" :class="{active:shortVideo.activeTab==='workspace'}" @click="shortVideo.activeTab='workspace'">
-              <b>AI工作台</b><span>评分、预测、拆解、对标学习</span>
-            </button>
-          </div>
           <div v-if="shortVideo.activeTab==='parse'" class="short-card short-hero">
             <div>
               <div class="panel-title">短视频中心</div>
@@ -360,16 +502,21 @@ button,input,textarea{font:inherit}
                 </el-form-item>
               </el-form>
               <div class="short-choice">
-                <span class="quiet">作品读取</span>
+                <span class="short-choice-label">读取</span>
                 <button type="button" class="choice-pill active">首批 {{shortVideo.initialCount}} 条</button>
-                <button type="button" class="choice-pill" :disabled="shortVideo.loading||!shortVideo.profile" @click="appendShortProfileVideos(5)">继续加 5 条</button>
-                <button type="button" class="choice-pill" :disabled="shortVideo.loading||!shortVideo.profile" @click="appendShortProfileVideos(10)">继续加 10 条</button>
-                <el-input-number v-model="shortVideo.customAppendCount" :min="1" :max="100" :step="1" size="small" controls-position="right" style="width:104px" :disabled="shortVideo.loading||!shortVideo.profile"></el-input-number>
-                <button type="button" class="choice-pill" :disabled="shortVideo.loading||!shortVideo.profile" @click="appendShortProfileVideos(shortVideo.customAppendCount)">自定义追加</button>
+                <button type="button" class="choice-pill" :disabled="shortVideo.loading||!shortVideo.profile" @click="appendShortProfileVideos(5)">加 5 条</button>
+                <button type="button" class="choice-pill" :disabled="shortVideo.loading||!shortVideo.profile" @click="appendShortProfileVideos(10)">加 10 条</button>
+                <span v-if="shortVideo.profile" class="short-custom-append">
+                  <span>追加</span>
+                  <el-input-number v-model="shortVideo.customAppendCount" :min="1" :max="100" :step="1" size="small" controls-position="right" :disabled="shortVideo.loading"></el-input-number>
+                  <button type="button" class="choice-pill" :disabled="shortVideo.loading" @click="appendShortProfileVideos(shortVideo.customAppendCount)">确认</button>
+                </span>
               </div>
               <div class="short-actions">
                 <el-button type="primary" :loading="shortVideo.loading" @click="resolveShortProfile">解析账号与首批作品</el-button>
+                <el-button :loading="shortVideo.cookieLoading" @click="authorizeShortVideoCookie">登录后读取更多</el-button>
               </div>
+              <div v-if="shortVideo.cookieStatus" class="short-note">{{shortVideo.cookieStatus}}</div>
               <div v-if="shortVideo.loading" class="short-parse-progress">
                 <div class="short-parse-row">
                   <i class="short-parse-dot"></i>
@@ -408,11 +555,11 @@ button,input,textarea{font:inherit}
             <div v-if="shortVideo.activeTab==='parse'" class="short-card">
               <div class="short-panel-head">
                 <div class="panel-title" style="margin-bottom:0">作品列表 <span class="ai-side-summary">已选 {{shortVideoSelected.length}} 条</span></div>
-                <div class="short-actions" style="margin-top:0">
+                <div v-if="shortVideo.candidates.length" class="short-actions" style="margin-top:0">
                   <el-button @click="selectAllShortCandidates">全选</el-button>
                   <el-button @click="invertShortCandidates">反选</el-button>
                   <el-button type="primary" :disabled="!shortVideoSelected.length" @click="sendShortVideosToWorkspace">追加到AI工作台</el-button>
-                  <el-button text type="danger" @click="shortVideo.candidates=[];shortVideoSelected=[]">清空</el-button>
+                  <el-button text type="danger" @click="clearShortParseCache">清空</el-button>
                 </div>
               </div>
               <div class="short-manual-box">
@@ -457,7 +604,22 @@ button,input,textarea{font:inherit}
                   <div class="short-note">正在复用信任 Cookie 打开主页并等待作品接口返回，稍等一下就会展示封面墙。</div>
                 </div>
               </div>
-              <div v-else class="short-empty">解析账号后，作品会像抖音作品墙一样展示在这里。</div>
+              <div v-else class="short-empty guide">
+                <div class="short-empty-guide">
+                  <div class="short-empty-top">
+                    <div class="short-empty-icon">1</div>
+                    <div>
+                      <div class="short-empty-title">先解析账号，作品会自动恢复到这里</div>
+                      <div class="short-empty-sub">粘贴抖音主页链接后，系统会读取封面、标题和互动数据；下次打开会默认保留上一次结果。</div>
+                    </div>
+                  </div>
+                  <div class="short-empty-steps">
+                    <div class="short-empty-step"><b>解析账号</b><span>读取主页作品墙，按封面卡片展示，便于快速挑选。</span></div>
+                    <div class="short-empty-step"><b>勾选作品</b><span>支持全选、反选、追加候选，不会覆盖已选工作台。</span></div>
+                    <div class="short-empty-step"><b>进入工作台</b><span>统一生成 AI 评分、拆解报告和后续对标分析。</span></div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div v-if="shortVideo.activeTab==='workspace'" class="short-card short-result-panel short-workspace-shell">
@@ -468,6 +630,7 @@ button,input,textarea{font:inherit}
                 </div>
                 <div class="short-actions" style="margin-top:0">
                   <el-button @click="shortVideo.activeTab='parse'">返回作品解析</el-button>
+                  <el-button :disabled="!shortVideo.workHistory.length" @click="shortHistoryDialog=true">历史报告</el-button>
                   <el-button type="primary" :loading="shortVideo.analysisLoading" :disabled="!shortVideo.profile||!shortVideoWorkQueue.length" @click="analyzeShortVideos">AI拆解队列作品</el-button>
                 </div>
               </div>
@@ -488,12 +651,19 @@ button,input,textarea{font:inherit}
                       <span><b class="short-report-title">{{item.title||'短视频作品'}}</b><em class="short-selected-sub">{{item.like_count!==null&& item.like_count!==undefined?'点赞 '+item.like_count:'暂无点赞'}}</em><span class="short-report-meta"><span v-if="hasShortReportPart(item,'score')">已评分</span><span v-if="hasShortReportPart(item,'analysis')">已拆解</span><span v-if="!getShortWorkReport(item)" class="muted">待处理</span></span></span>
                       <em class="short-queue-delete" @click.stop="removeShortQueueItem(item)">删除</em>
                     </button>
-                    <div v-if="!shortVideoWorkQueue.length" class="short-result-empty">先在作品解析页选择作品，然后追加到 AI 工作台。</div>
-                  </div>
-                  <div v-if="shortVideo.workHistory.length" class="short-history-block">
-                    <div class="short-panel-head compact"><div><b>历史报告</b><span>最近 10 条</span></div></div>
-                    <div class="short-history-list vertical">
-                      <button v-for="h in shortVideo.workHistory.slice(0,10)" :key="h.key+h.updated_at" class="short-history-chip" @click="openShortHistory(h)"><b>{{shortHistoryScore(h)}}</b>{{shortHistoryTitle(h)}}</button>
+                    <div v-if="!shortVideoWorkQueue.length" class="short-empty guide">
+                      <div class="short-empty-guide">
+                        <div class="short-empty-top">
+                          <div class="short-empty-icon">+</div>
+                          <div>
+                            <div class="short-empty-title">还没有待拆解作品</div>
+                            <div class="short-empty-sub">回到作品解析页，勾选作品后追加到这里。</div>
+                          </div>
+                        </div>
+                        <div class="short-empty-actions">
+                          <el-button type="primary" @click="shortVideo.activeTab='parse'">去选择作品</el-button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </aside>
@@ -504,6 +674,9 @@ button,input,textarea{font:inherit}
                       <div><h3>{{currentShortWork.title||'短视频作品'}}</h3><div class="short-note">{{currentShortWork.url}}</div></div>
                       <div class="short-report-actions">
                         <el-button type="primary" :loading="shortVideo.analysisLoading||shortVideo.scoreLoading" @click="analyzeSingleShortVideo(currentShortWork)">AI拆解</el-button>
+                        <el-button v-if="currentShortReport" @click="downloadShortReportMarkdown(currentShortReport,currentShortWork)">下载报告MD</el-button>
+                        <el-button v-if="currentHasAnalysis&&shortTranscriptText(currentShortReport,currentShortWork)" @click="openShortTranscript(currentShortWork,currentShortReport)">查看逐字稿</el-button>
+                        <el-button v-if="currentHasAnalysis&&shortTranscriptText(currentShortReport,currentShortWork)" @click="downloadShortTranscript(currentShortWork,currentShortReport)">下载逐字稿</el-button>
                       </div>
                     </div>
                     <div class="short-report-detail">
@@ -653,7 +826,14 @@ button,input,textarea{font:inherit}
               <div class="panel-title" style="margin-bottom:6px">高频词排行 <span class="grow"></span><el-button text type="primary" @click="refreshWordCloud">刷新</el-button></div>
               <div class="word-cloud-body">
                 <div v-for="w in aiWords.slice(0,12)" :key="w.word" class="freq-row"><span class="freq-word">{{w.word}}</span><span class="freq-track"><i class="freq-fill" :style="{width:freqWidth(w)}"></i></span><span class="freq-count">{{w.count}}</span></div>
-                <span v-if="!aiWords.length" class="quiet">选择主播后自动生成高频词。</span>
+                <div v-if="!aiWords.length" class="word-cloud-empty">
+                  <i>词</i>
+                  <div>
+                    <b>等待选择复盘对象</b>
+                    <span>勾选主播后，这里会展示直播里反复出现的主题词，方便你快速判断话术重点。</span>
+                    <el-button size="small" @click="toggleAllHist">全选 / 取消</el-button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -708,7 +888,7 @@ button,input,textarea{font:inherit}
               </div>
             </div>
             <div v-if="!aiReporting" class="ai-report">
-              <div class="ai-report-head"><span>复盘简报</span><span class="grow"></span><div class="ai-report-actions"><el-button v-if="aiHtmlFile" text type="primary" @click="viewAiReport">查看完整报告</el-button><el-button v-if="aiPdfFile" text type="primary" :loading="pdfDownloading" @click="downloadAiReport">导出PDF</el-button><el-button v-if="aiReportDir" text type="primary" @click="openAiReportDir">打开目录</el-button></div></div>
+              <div class="ai-report-head"><span>复盘简报</span><span class="grow"></span><div class="ai-report-actions"><el-button v-if="aiHtmlFile" text type="primary" @click="viewAiReport">查看完整报告</el-button><el-button v-if="aiHtmlFile" text type="primary" @click="downloadAiMarkdown">导出Markdown</el-button><el-button v-if="aiPdfFile" text type="primary" :loading="pdfDownloading" @click="downloadAiReport">导出PDF</el-button><el-button v-if="aiReportDir" text type="primary" @click="openAiReportDir">打开目录</el-button></div></div>
               <div v-if="aiReportHistory.length" class="history-strip"><button v-for="h in aiReportHistory.slice(0,10)" :key="h.htmlFile+h.createdAt" @click="openAiReportHistory(h)">{{h.title}} · {{h.time}}</button></div>
               <div v-if="aiBrief || aiPreview" :class="aiReporting?'ai-stream-card':'ai-report-card'">
                 <div class="ai-report-kicker">
@@ -852,7 +1032,7 @@ button,input,textarea{font:inherit}
       </template>
 
       <template v-else-if="view==='settings'">
-        <div class="setting-group"><div class="setting-head">运行环境</div><div class="setting-row"><div><div class="setting-name">登录状态</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.cookie_ok}"></i>{{diag.cookie_text}}<el-button size="small" @click="remint">重新登录</el-button></div></div><div class="setting-row"><div><div class="setting-name">语音转文字</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.models_ok}"></i>{{diag.models_text}}</div></div><div class="setting-row"><div><div class="setting-name">处理状态</div></div><div class="setting-value"><i class="health-dot" :class="{bad:!diag.queue_ok}"></i>{{diag.queue_text}}</div></div></div>
+        <div class="setting-group"><div class="setting-head">运行环境</div><div class="settings-status-grid"><div class="settings-status-card"><i class="settings-status-dot" :class="{bad:!diag.cookie_ok}"></i><div class="settings-status-main"><b>抖音登录</b><span>{{diag.cookie_text}}</span></div><el-button class="settings-status-action" size="small" @click="remint">重新登录</el-button></div><div class="settings-status-card"><i class="settings-status-dot" :class="{bad:!diag.models_ok}"></i><div class="settings-status-main"><b>语音转文字</b><span>{{diag.models_text}}</span></div></div><div class="settings-status-card"><i class="settings-status-dot" :class="{bad:!diag.queue_ok}"></i><div class="settings-status-main"><b>后台处理</b><span>{{diag.queue_text}}</span></div></div></div></div>
         <div class="setting-group"><div class="setting-head">AI 复盘</div><div class="setting-row"><div><div class="setting-name">接口地址</div><div class="setting-desc">兼容 OpenAI 格式，例如 https://api.openai.com/v1</div></div><div class="setting-value"><el-input v-model="aiConfig.base_url" size="small" style="width:300px" placeholder="https://api.openai.com/v1"></el-input></div></div><div class="setting-row"><div><div class="setting-name">模型名称</div><div class="setting-desc">DeepSeek / Kimi / Qwen / OpenAI 兼容模型均可</div></div><div class="setting-value"><el-input v-model="aiConfig.model" size="small" style="width:220px" placeholder="gpt-4.1-mini"></el-input></div></div><div class="setting-row"><div><div class="setting-name">API Key</div><div class="setting-desc">{{aiConfig.has_api_key?'已保存，可留空保持不变':'未保存，请填写后保存'}}</div></div><div class="setting-value"><el-input v-model="aiConfig.api_key" type="password" show-password size="small" style="width:260px" placeholder="留空则不修改已保存密钥"></el-input><el-button size="small" type="primary" :loading="aiSaving" @click="saveAiConfig">保存</el-button><el-button size="small" :loading="aiTesting" @click="testAiConfig">测试</el-button></div></div></div>
         <div class="setting-group"><div class="setting-head">短视频封面识别</div><div class="setting-row"><div><div class="setting-name">火山接口地址</div><div class="setting-desc">仅用于短视频封面画面分析，不影响 DeepSeek 文本分析。</div></div><div class="setting-value"><el-input v-model="aiConfig.vision_base_url" size="small" style="width:300px" placeholder="https://ark.cn-beijing.volces.com/api/v3"></el-input></div></div><div class="setting-row"><div><div class="setting-name">多模态模型</div><div class="setting-desc">火山 Seed / Ark 多模态模型 Endpoint ID</div></div><div class="setting-value"><el-input v-model="aiConfig.vision_model" size="small" style="width:260px" placeholder="ep-m-20260518173100-t8kjz"></el-input></div></div><div class="setting-row"><div><div class="setting-name">多模态 API Key</div><div class="setting-desc">{{aiConfig.has_vision_api_key?'已保存，可留空保持不变':'未保存，封面分析会跳过'}}</div></div><div class="setting-value"><el-input v-model="aiConfig.vision_api_key" type="password" show-password size="small" style="width:260px" placeholder="留空则不修改已保存密钥"></el-input><el-button size="small" type="primary" :loading="aiSaving" @click="saveAiConfig">保存</el-button></div></div></div>
         <div class="setting-group"><div class="setting-head">网络与代理</div><div class="setting-row"><div><div class="setting-name">代理服务器</div><div class="setting-desc" style="max-width:320px;word-break:break-all">{{proxyUrl||'未配置（直连）'}}</div></div><div class="setting-value"><el-input v-model="proxyInput" placeholder="http://127.0.0.1:10809" size="small" style="width:220px;margin-right:8px" @keyup.enter="saveProxy"/><el-button size="small" type="primary" @click="saveProxy">保存</el-button><el-button size="small" @click="testProxy" :loading="proxyTesting">测试</el-button><el-button size="small" v-if="proxyUrl" @click="clearProxy">清除</el-button></div></div></div>
@@ -862,6 +1042,36 @@ button,input,textarea{font:inherit}
     </section>
   </main>
 </div>
+<el-dialog v-model="shortHistoryDialog" title="短视频历史报告" width="780px" destroy-on-close>
+  <div v-if="shortVideo.workHistory.length" class="short-history-modal-list">
+    <div v-for="h in shortVideo.workHistory" :key="h.key+h.updated_at" role="button" tabindex="0" class="short-history-modal-item" @click="openShortHistory(h);shortHistoryDialog=false" @keydown.enter="openShortHistory(h);shortHistoryDialog=false">
+      <img v-if="h.work&&h.work.cover_url" :src="h.work.cover_url"><span v-else class="short-report-cover">无封面</span>
+      <span class="short-history-modal-main">
+        <b>{{shortHistoryTitle(h)}}</b>
+        <em>{{shortHistoryTime(h)}}</em>
+      </span>
+      <span class="short-history-modal-score">
+        <strong>{{shortHistoryScore(h)}}</strong>
+        <small>{{h.analysis?'已拆解':'未拆解'}} · {{h.score?'已评分':'未评分'}}</small>
+        <button type="button" class="short-mini-link" @click.stop="downloadShortReportMarkdown(h)">下载MD</button>
+      </span>
+    </div>
+  </div>
+  <div v-else class="short-result-empty">暂无历史报告。完成 AI 拆解后会自动保存在这里。</div>
+</el-dialog>
+<el-dialog v-model="shortTranscriptDialog.open" title="视频逐字稿" width="820px" destroy-on-close>
+  <div class="short-transcript-dialog">
+    <div class="short-transcript-meta">
+      <span>{{shortTranscriptDialog.title}}</span>
+      <span>{{shortTranscriptDialog.text.length}} 字</span>
+    </div>
+    <div class="short-transcript-box">{{shortTranscriptDialog.text||'暂无逐字稿'}}</div>
+    <div class="short-actions" style="justify-content:flex-end;margin-top:0">
+      <el-button @click="shortTranscriptDialog.open=false">关闭</el-button>
+      <el-button type="primary" :disabled="!shortTranscriptDialog.text" @click="downloadShortTranscript()">下载 TXT</el-button>
+    </div>
+  </div>
+</el-dialog>
 <el-dialog v-model="addDialog" title="添加主播" width="640px" destroy-on-close>
   <div class="panel" style="padding:0;box-shadow:none;border:0">
     <el-form label-position="top"><el-form-item label="主播分享链接或直播号"><el-input v-model="addText" type="textarea" :rows="5" placeholder="直播间链接 / 直播号 / 主页链接 / 分享文案，均可"/></el-form-item></el-form>
@@ -904,14 +1114,17 @@ const app=createApp({setup(){
   const lastOk=ref(0);  // 最近一次成功刷新的秒戳；服务断连后据此冻结时长，避免假跳
   // 录制时长 HH:MM:SS；since=0 或非录制态返回空串。数据陈旧(>8s 没刷到)则冻结在最后已知时刻。
   const fmtDur=since=>{if(!since)return '';const end=(clock.value-lastOk.value>8)?lastOk.value:clock.value;const s=Math.max(0,end-since);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0')};
-  const navs=[{key:'dashboard',label:'数据大盘',desc:'主播监听与录制状态',icon:'DataBoard'},{key:'shortVideo',label:'短视频中心',desc:'账号作品与爆款拆解',icon:'VideoCamera'},{key:'pre',label:'效能分析',desc:'直播评分',icon:'TrendCharts'},{key:'review',label:'AI复盘',desc:'智能报告、词云与追问',icon:'DataAnalysis'},{key:'cloud',label:'数据中台',desc:'本地数据汇总与导出',icon:'Cloudy'},{key:'help',label:'帮助中心',desc:'使用说明与常见问题',icon:'QuestionFilled'},{key:'settings',label:'系统设置',desc:'本地服务与模型设置',icon:'Setting'}];
-  const activeNav=computed(()=>navs.find(n=>n.key===view.value)||navs[0]);
+  const navs=[{key:'dashboard',label:'数据大盘',desc:'主播监听与录制状态',icon:'DataBoard'},{key:'shortVideo',label:'短视频中心',desc:'账号作品与爆款拆解',icon:'VideoCamera'},{key:'leadRadar',label:'AI获客系统',desc:'评论线索 · 客服跟进',icon:'Promotion'},{key:'review',label:'AI复盘',desc:'直播效能与AI直播复盘',icon:'DataAnalysis'},{key:'cloud',label:'数据中台',desc:'本地数据汇总与导出',icon:'Cloudy'},{key:'help',label:'帮助中心',desc:'使用说明与常见问题',icon:'QuestionFilled'},{key:'settings',label:'系统设置',desc:'本地服务与模型设置',icon:'Setting'}];
+  const activeNav=computed(()=>view.value==='pre'?{key:'review',label:'AI复盘',desc:'直播效能'}:(navs.find(n=>n.key===view.value)||navs[0]));
   const risk=reactive({active:false,until_ts:0,reason:''}),diag=reactive({disk_text:'检查中',free_gb:0,cookie_ok:false,cookie_text:'检查中',models_ok:false,models_text:'检查中',disk_ok:true,queue_ok:true,queue_text:'检查中'}),cookieNotice=ref('');
   const addDialog=ref(false),addText=ref(''),resolved=ref(null),resolving=ref(false),adding=ref(false),addErr=ref('');
-  const shortVideo=reactive({activeTab:'parse',profileUrl:'',profile:null,initialCount:10,targetCount:10,customAppendCount:20,manualText:'',benchmarkText:'',candidates:[],loading:false,parseProgress:0,parseStatus:'等待解析',parsePhase:'link',positioning:null,positioningLoading:false,benchmarkLoading:false,analysisLoading:false,analysisResult:null,scoreLoading:false,scoreResult:null,scriptText:'',scriptLoading:false,scriptPrediction:null,benchmarkLearnLoading:false,benchmarkLearnResult:null,retroText:'',retroLoading:false,retroResult:null,workReports:{},workHistory:[],activeWorkKey:'',workProgress:{active:false,title:'',status:'',progress:0,steps:[]}});
-  const shortVideoSelected=ref([]),shortVideoWorkQueue=ref([]),shortVideoBenchmarks=ref([]);
-  let shortParseTimer=null,shortWorkProgressTimer=null;
+  const shortVideo=reactive({activeTab:'parse',profileUrl:'',profile:null,initialCount:10,targetCount:10,customAppendCount:20,manualText:'',benchmarkText:'',candidates:[],loading:false,cookieLoading:false,cookieStatus:'',parseProgress:0,parseStatus:'等待解析',parsePhase:'link',positioning:null,positioningLoading:false,benchmarkLoading:false,analysisLoading:false,analysisResult:null,scoreLoading:false,scoreResult:null,scriptText:'',scriptLoading:false,scriptPrediction:null,benchmarkLearnLoading:false,benchmarkLearnResult:null,retroText:'',retroLoading:false,retroResult:null,workReports:{},workHistory:[],activeWorkKey:'',workProgress:{active:false,title:'',status:'',progress:0,steps:[]}});
+  const shortVideoSelected=ref([]),shortVideoWorkQueue=ref([]),shortVideoBenchmarks=ref([]),shortHistoryDialog=ref(false);
+  const shortTranscriptDialog=reactive({open:false,title:'',text:'',filename:'短视频逐字稿.txt'});
+  const leadRadar=reactive({url:'',owner:'',maxVideos:5,maxComments:100,keyword:'',ipFilter:'',monitors:[],leads:[],profile:null,videos:[],monitor:null,loading:false,loginLoading:false,runningId:'',progress:0,progressText:'等待采集',loginStatus:{logged_in:false,has_profile:false,profile_dir:''},lastResult:null});
+  let shortParseTimer=null,shortWorkProgressTimer=null,shortParseBackendCacheTimer=null;
   const SHORT_WORK_HISTORY_KEY='livewatch_short_video_reports';
+  const SHORT_PARSE_CACHE_KEY='livewatch_short_video_parse_cache';
   const shortParseSteps=[
     {key:'link',label:'校验链接',doneAt:8},
     {key:'browser',label:'打开主页',doneAt:24},
@@ -937,6 +1150,27 @@ const app=createApp({setup(){
       };
     }
     return null;
+  });
+  const filteredLeadRows=computed(()=>{
+    const kw=(leadRadar.keyword||'').trim().toLowerCase();
+    const rows=leadRadar.leads||[];
+    return rows.filter(row=>{
+      if(leadRadar.ipFilter&& String(row.comment_ip_location||'暂无')!==leadRadar.ipFilter)return false;
+      if(!kw)return true;
+      return [row.content,row.commenter_nickname,row.ai_label,row.assigned_to].some(v=>String(v||'').toLowerCase().includes(kw));
+    });
+  });
+  const leadIpOptions=computed(()=>Array.from(new Set((leadRadar.leads||[]).map(row=>String(row.comment_ip_location||'暂无')).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'zh-CN')));
+  const leadSelectedVideos=computed(()=>leadRadar.videos.filter(v=>v.selected));
+  const leadStats=computed(()=>{
+    const now=new Date(),start=new Date(now.getFullYear(),now.getMonth(),now.getDate()).getTime()/1000;
+    const leads=leadRadar.leads||[];
+    return {
+      monitors:(leadRadar.monitors||[]).length,
+      leads:leads.length,
+      pending:leads.filter(v=>(v.status||'待联系')==='待联系').length,
+      today:leads.filter(v=>Number(v.captured_at||0)>=start).length,
+    };
   });
   const refreshingAnchors=reactive(new Set());
   const avatarAttempted=reactive(new Set());
@@ -1195,6 +1429,16 @@ const app=createApp({setup(){
   watch(aiSessionFilter,()=>{nextTick(()=>{if(ht.value)ht.value.clearSelection();selData.value=[];refreshWordCloud()})});
   function rowRid(row){return String(row?.rid||row?.web_id||row?.room_id||'').trim()}
   function fmtTs(ts){if(!ts)return '暂无';try{return new Date(Number(ts)*1000).toLocaleString('zh-CN',{hour12:false})}catch(e){return '暂无'}}
+  function fmtAgo(ts){
+    const n=Number(ts||0);
+    if(!n)return '暂无';
+    const diff=Math.max(0,Math.floor(Date.now()/1000-n));
+    if(diff<60)return '刚刚';
+    if(diff<3600)return Math.floor(diff/60)+'分钟前';
+    if(diff<86400)return Math.floor(diff/3600)+'小时前';
+    if(diff<86400*30)return Math.floor(diff/86400)+'天前';
+    return fmtTs(n).slice(5,16);
+  }
   function applyAnchorProfile(rid,anchor){
     rid=String(rid||'').trim();if(!rid||!anchor)return;
     const name=anchor.anchor_name||anchor.nickname||'',avatar=anchor.avatar_url||'';
@@ -1249,6 +1493,93 @@ const app=createApp({setup(){
     if(shortParseTimer){clearInterval(shortParseTimer);shortParseTimer=null}
     if(success){shortVideo.parseProgress=100;shortVideo.parseStatus='作品资料读取完成';shortVideo.parsePhase='videos'}
   }
+  function shortParseSnapshot(){
+    return {
+      version:2,
+      profileUrl:shortVideo.profileUrl||'',
+      profile:shortVideo.profile||null,
+      initialCount:shortVideo.initialCount,
+      targetCount:shortVideo.targetCount,
+      customAppendCount:shortVideo.customAppendCount,
+      positioning:shortVideo.positioning||null,
+      candidates:shortVideo.candidates.slice(0,150).map(v=>({
+        id:v.id,title:v.title,url:v.url,cover_url:v.cover_url||'',play_url:v.play_url||'',
+        like_count:v.like_count,comment_count:v.comment_count||0,collect_count:v.collect_count||0,share_count:v.share_count||0,
+        pinned:!!v.pinned,source:v.source||'profile',selected:!!v.selected
+      })),
+      selectedKeys:shortVideo.candidates.filter(v=>v.selected).map(shortWorkKey).filter(Boolean),
+      savedAt:Date.now()
+    };
+  }
+  function saveShortParseCache(){
+    try{
+      if(!shortVideo.profile&&!shortVideo.candidates.length)return;
+      const snapshot=shortParseSnapshot();
+      if(window.localStorage)window.localStorage.setItem(SHORT_PARSE_CACHE_KEY,JSON.stringify(snapshot));
+      if(shortParseBackendCacheTimer)clearTimeout(shortParseBackendCacheTimer);
+      shortParseBackendCacheTimer=setTimeout(()=>persistShortParseCache(snapshot),300);
+    }catch(e){}
+  }
+  async function persistShortParseCache(snapshot){
+    try{
+      await fetch('/api/short-video/parse-cache',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)});
+    }catch(e){}
+  }
+  function applyShortParseCache(cache,{force=false}={}){
+    if(!force&&shortVideo.candidates.length)return false;
+    if(!cache||!Array.isArray(cache.candidates)||!cache.candidates.length)return false;
+    const selected=new Set(Array.isArray(cache.selectedKeys)?cache.selectedKeys:[]);
+    shortVideo.profileUrl=cache.profileUrl||shortVideo.profileUrl||'';
+    shortVideo.profile=cache.profile||null;
+    shortVideo.initialCount=Number(cache.initialCount)||shortVideo.initialCount;
+    shortVideo.targetCount=Math.max(Number(cache.targetCount)||cache.candidates.length,cache.candidates.length);
+    shortVideo.customAppendCount=Number(cache.customAppendCount)||shortVideo.customAppendCount;
+    shortVideo.positioning=cache.positioning||null;
+    const restored=[],seen=new Set();
+    cache.candidates.forEach((v,idx)=>{
+      const key=shortVideoDedupeKey(v);
+      if(!key||seen.has(key))return;
+      seen.add(key);
+      restored.push({
+        id:v.id||key||('cached_'+idx),title:v.title||('作品 '+(restored.length+1)),url:v.url||'',cover_url:v.cover_url||'',play_url:v.play_url||'',
+        like_count:v.like_count,comment_count:v.comment_count||0,collect_count:v.collect_count||0,share_count:v.share_count||0,
+        pinned:!!v.pinned,source:v.source||'cache',selected:selected.size?selected.has(shortWorkKey(v)):!!v.selected
+      });
+    });
+    shortVideo.candidates=restored;
+    shortVideo.parseProgress=100;
+    shortVideo.parseStatus='已恢复上次解析结果';
+    shortVideo.parsePhase='videos';
+    syncShortVideoSelected();
+    return true;
+  }
+  async function loadShortParseCache({force=false}={}){
+    try{
+      if(!force&&shortVideo.candidates.length)return false;
+      if(window.localStorage){
+        const localCache=JSON.parse(window.localStorage.getItem(SHORT_PARSE_CACHE_KEY)||'null');
+        if(applyShortParseCache(localCache,{force}))return true;
+      }
+      const resp=await fetch('/api/short-video/parse-cache');
+      const data=await resp.json();
+      return applyShortParseCache(data.cache,{force});
+    }catch(e){}
+    return false;
+  }
+  function clearShortParseCache(){
+    shortVideo.profile=null;
+    shortVideo.profileUrl='';
+    shortVideo.candidates=[];
+    shortVideoSelected.value=[];
+    shortVideo.positioning=null;
+    shortVideo.analysisResult=null;
+    shortVideo.parseProgress=0;
+    shortVideo.parseStatus='等待解析';
+    shortVideo.parsePhase='link';
+    try{if(window.localStorage)window.localStorage.removeItem(SHORT_PARSE_CACHE_KEY)}catch(e){}
+    fetch('/api/short-video/parse-cache',{method:'DELETE'}).catch(()=>{});
+    ElMessage.success('已清空作品解析缓存');
+  }
   function parseShortStreamEvent(line){
     const raw=String(line||'').trim();
     if(!raw||raw==='[DONE]'||raw==='data: [DONE]')return null;
@@ -1256,23 +1587,55 @@ const app=createApp({setup(){
     if(!payload)return null;
     return JSON.parse(payload);
   }
+  function shortVideoDedupeKey(item){
+    const v=item||{};
+    const id=String(v.id||v.aweme_id||'').trim();
+    if(id)return id;
+    const raw=String(v.url||'').trim();
+    if(!raw)return '';
+    const m=raw.match(/\/(?:video|note)\/(\d+)/);
+    if(m)return m[1];
+    try{
+      const u=new URL(raw);
+      return u.origin+u.pathname;
+    }catch(e){
+      return raw.split('?')[0].split('#')[0];
+    }
+  }
   function handleShortProfileEvent(evt,seen){
     if(!evt)return null;
     if(evt.ok===false||evt.type==='error')throw new Error(evt.message||evt.error||'解析失败');
     if(evt.type==='status'){setShortParseProgress(evt.progress||shortVideo.parseProgress,evt.message||'',evt.phase||'');return null}
-    if(evt.type==='profile'){shortVideo.profile=evt.profile;setShortParseProgress(28,'已识别账号，正在读取作品','profile');return null}
+    if(evt.type==='profile'){shortVideo.profile=evt.profile;setShortParseProgress(28,'已识别账号，正在读取作品','profile');saveShortParseCache();return null}
     if(evt.type==='video'&& evt.video){
-      const v=evt.video,url=v.url||v.id;
-      if(seen.has(url))return null;
-      seen.add(url);
-      shortVideo.candidates.push({id:v.id||('video_'+shortVideo.candidates.length),title:v.title||('作品 '+(shortVideo.candidates.length+1)),url:v.url,cover_url:v.cover_url||'',play_url:v.play_url||'',like_count:v.like_count,pinned:!!v.pinned,source:v.source||'profile',selected:shortVideo.candidates.length<shortVideo.targetCount});
+      const v=evt.video,key=shortVideoDedupeKey(v);
+      if(!key||seen.has(key))return null;
+      seen.add(key);
+      shortVideo.candidates.push({id:v.id||key||('video_'+shortVideo.candidates.length),title:v.title||('作品 '+(shortVideo.candidates.length+1)),url:v.url,cover_url:v.cover_url||'',play_url:v.play_url||'',like_count:v.like_count,pinned:!!v.pinned,source:v.source||'profile',selected:shortVideo.candidates.length<shortVideo.targetCount});
       setShortParseProgress(42+Math.min(48,Math.round(shortVideo.candidates.length/Math.max(1,shortVideo.targetCount)*48)),'正在生成作品封面墙','videos');
       syncShortVideoSelected();
+      saveShortParseCache();
       return null;
     }
     if(evt.type==='warning'&& evt.message)ElMessage.warning(evt.message);
     if(evt.type==='done')return evt.count;
     return null;
+  }
+  async function authorizeShortVideoCookie(){
+    shortVideo.cookieLoading=true;
+    shortVideo.cookieStatus='请在弹出的抖音窗口完成登录，完成后窗口会自动关闭。';
+    try{
+      const resp=await fetch('/api/short-video/cookie/remint',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start_url:shortVideo.profileUrl||'https://www.douyin.com/'})});
+      const r=await resp.json();
+      if(!resp.ok||!r.ok)throw new Error(r.message||'授权失败');
+      shortVideo.cookieStatus=r.message||'短视频授权已保存';
+      ElMessage.success(shortVideo.cookieStatus);
+    }catch(e){
+      shortVideo.cookieStatus=e.message||'授权失败，请稍后重试';
+      ElMessage.error(shortVideo.cookieStatus);
+    }finally{
+      shortVideo.cookieLoading=false;
+    }
   }
   async function runShortProfileResolve({append=false,increment=0}={}){
     if(!shortVideo.profileUrl.trim())return ElMessage.warning('请粘贴抖音主页链接');
@@ -1289,7 +1652,7 @@ const app=createApp({setup(){
       const resp=await fetch('/api/short-video/resolve-profile/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({input_text:shortVideo.profileUrl,recent_count:shortVideo.targetCount})});
       if(!resp.ok||!resp.body)throw new Error('解析失败');
       const reader=resp.body.getReader(),decoder=new TextDecoder('utf-8');let buffer='',doneCount=null;
-      const seen=new Set(shortVideo.candidates.map(v=>v.url||v.id).filter(Boolean));
+      const seen=new Set(shortVideo.candidates.map(shortVideoDedupeKey).filter(Boolean));
       while(true){
         const {value,done}=await reader.read();
         if(done)break;
@@ -1306,6 +1669,7 @@ const app=createApp({setup(){
       }
       syncShortVideoSelected();
       stopShortParseProgress(true);
+      saveShortParseCache();
       const added=Math.max(0,shortVideo.candidates.length-baseCount);
       ElMessage.success(append?'新增 '+added+' 条，当前共 '+shortVideo.candidates.length+' 条作品':'已读取 '+(doneCount??shortVideo.candidates.length)+' 条作品');
     }catch(e){stopShortParseProgress(false);shortVideo.parseStatus='解析失败，请稍后重试';ElMessage.error(e.message||'解析失败')}finally{setTimeout(()=>{shortVideo.loading=false},360)}
@@ -1317,10 +1681,17 @@ const app=createApp({setup(){
     if(!text)return ElMessage.warning('请先粘贴作品链接');
     const urls=[...new Set((text.match(/https?:\/\/[^\s]+/g)||[]).map(u=>u.replace(/[，。；;、)]+$/,'')))].filter(u=>u.includes('douyin.com'));
     if(!urls.length)return ElMessage.warning('没有识别到抖音作品链接');
-    const existing=new Set(shortVideo.candidates.map(v=>v.url));
-    urls.forEach((url,idx)=>{if(!existing.has(url))shortVideo.candidates.push({id:Date.now()+'_'+idx,title:'指定作品 '+(shortVideo.candidates.length+1),url,cover_url:'',play_url:'',like_count:null,pinned:false,source:'manual',selected:true})});
+    const existing=new Set(shortVideo.candidates.map(shortVideoDedupeKey).filter(Boolean));
+    urls.forEach((url,idx)=>{
+      const key=shortVideoDedupeKey({url});
+      if(key&&!existing.has(key)){
+        existing.add(key);
+        shortVideo.candidates.push({id:key||Date.now()+'_'+idx,title:'指定作品 '+(shortVideo.candidates.length+1),url,cover_url:'',play_url:'',like_count:null,pinned:false,source:'manual',selected:true});
+      }
+    });
     shortVideo.manualText='';
     syncShortVideoSelected();
+    saveShortParseCache();
     ElMessage.success('已加入 '+urls.length+' 个候选作品');
   }
   function shortWorkKey(item){return String(item?.id||item?.url||item?.title||'').trim()}
@@ -1328,6 +1699,109 @@ const app=createApp({setup(){
   function hasShortReportPart(item,part){const r=getShortWorkReport(item);return !!(r&& r[part])}
   function shortHistoryScore(row){return row&& row.score&& row.score.overall_score!==undefined&& row.score.overall_score!==null?row.score.overall_score:'--'}
   function shortHistoryTitle(row){return row&& row.work&& row.work.title?row.work.title:'短视频作品'}
+  function shortHistoryTime(row){return row&& row.updated_at?new Date(row.updated_at).toLocaleString():'最近生成'}
+  function shortTranscriptText(report=currentShortReport.value,work=currentShortWork.value){
+    return String((report&& (report.transcript||(report.analysis&&report.analysis.transcript)||(report.work&&report.work.transcript)))||(work&&(work.transcript||work.audio_transcript))||'').trim();
+  }
+  function shortSafeName(name){return String(name||'短视频作品').replace(/[\\/:*?"<>|]+/g,'_').replace(/\s+/g,' ').trim().slice(0,80)||'短视频作品'}
+  function downloadTextFile(filename,text,type='text/markdown;charset=utf-8'){
+    const blob=new Blob([text||''],{type});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1200);
+    a.remove();
+  }
+  function mdText(v){return String(v===undefined||v===null?'':v).replace(/\r/g,'').trim()}
+  function mdList(lines,title,items){
+    const arr=(Array.isArray(items)?items:[]).map(mdText).filter(Boolean);
+    if(!arr.length)return;
+    lines.push('',`## ${title}`,'');
+    arr.forEach(x=>lines.push(`- ${x}`));
+  }
+  function mdKv(lines,k,v){
+    const text=mdText(v);
+    if(text)lines.push(`- **${k}**：${text}`);
+  }
+  function shortReportMarkdown(report=currentShortReport.value,work=currentShortWork.value){
+    const r=report||{};
+    const w=work||r.work||{};
+    const score=r.score||{};
+    const pred=r.prediction||score||{};
+    const analysis=r.analysis||{};
+    const textAnalysis=analysis.text_analysis||{};
+    const coverAnalysis=analysis.cover_analysis||{};
+    const title=mdText(w.title||r.title||'短视频作品');
+    const lines=[`# ${title} AI拆解报告`,''];
+    lines.push(`生成时间：${new Date(r.updated_at||Date.now()).toLocaleString()}`,'');
+    lines.push('## 作品信息','');
+    mdKv(lines,'作品链接',w.url);
+    mdKv(lines,'点赞数',w.like_count);
+    mdKv(lines,'评论数',w.comment_count);
+    mdKv(lines,'收藏数',w.collect_count);
+    mdKv(lines,'分享数',w.share_count);
+    if(w.cover_url)mdKv(lines,'封面链接',w.cover_url);
+    lines.push('','## 作品潜力分','');
+    mdKv(lines,'总分',score.overall_score!==undefined?score.overall_score+' 分':'暂无');
+    mdKv(lines,'模板',score.template||pred.template);
+    mdKv(lines,'预测区间',pred.prediction_bucket||score.prediction_bucket);
+    if(pred.confidence!==undefined)mdKv(lines,'预测置信度',Math.round((Number(pred.confidence)||0)*100)+'%');
+    if(Array.isArray(score.dimensions)&&score.dimensions.length){
+      lines.push('','### 维度评分','');
+      score.dimensions.forEach(d=>{
+        lines.push(`- **${mdText(d.name||'维度')}**：${mdText(d.score)}/${mdText(d.max_score||10)}`);
+        if(d.evidence)lines.push(`  - 依据：${mdText(d.evidence)}`);
+        if(d.suggestion)lines.push(`  - 建议：${mdText(d.suggestion)}`);
+      });
+    }
+    mdList(lines,'关键加分点',score.highlights||textAnalysis.strengths||coverAnalysis.strengths);
+    mdList(lines,'关键问题',score.problems||textAnalysis.problems||coverAnalysis.problems);
+    mdList(lines,'修改建议',score.rewrite_suggestions||textAnalysis.rewrite_suggestions||coverAnalysis.suggestions);
+    lines.push('','## 话术拆解','');
+    lines.push(mdText(textAnalysis.summary||'暂无话术拆解。'));
+    mdList(lines,'开头钩子',textAnalysis.opening_hook);
+    mdList(lines,'核心卖点',textAnalysis.selling_points);
+    mdList(lines,'目标用户',textAnalysis.audience_fit);
+    mdList(lines,'行动引导',textAnalysis.conversion_path);
+    mdList(lines,'节奏结构',textAnalysis.pacing);
+    lines.push('','## 封面画面','');
+    lines.push(mdText(coverAnalysis.summary||'暂无封面画面分析。'));
+    mdList(lines,'画面优势',coverAnalysis.strengths);
+    mdList(lines,'画面问题',coverAnalysis.problems);
+    mdList(lines,'封面优化建议',coverAnalysis.suggestions);
+    mdList(lines,'可能爆的原因',pred.may_win);
+    mdList(lines,'可能不爆的原因',pred.may_lose);
+    const transcript=shortTranscriptText(r,w);
+    if(transcript){
+      lines.push('','## 视频逐字稿','',transcript);
+    }
+    return lines.join('\n').replace(/\n{3,}/g,'\n\n').trim()+'\n';
+  }
+  function downloadShortReportMarkdown(report=currentShortReport.value,work=currentShortWork.value){
+    const r=report||{};
+    const w=work||r.work||{};
+    if(!r.score&&!r.analysis&&!r.prediction)return ElMessage.warning('这条作品还没有可下载的AI报告');
+    const filename=shortSafeName(w.title||r.title||shortHistoryTitle(r))+'_AI拆解报告.md';
+    downloadTextFile(filename,shortReportMarkdown(r,w));
+    ElMessage.success('Markdown 报告已开始下载');
+  }
+  function shortTranscriptFileName(work=currentShortWork.value,report=currentShortReport.value){return shortSafeName((work&&work.title)||(report&&report.work&&report.work.title)||'短视频作品')+'_逐字稿.txt'}
+  function openShortTranscript(work=currentShortWork.value,report=currentShortReport.value){
+    const text=shortTranscriptText(report,work);
+    if(!text)return ElMessage.warning('这条作品还没有逐字稿，请先完成AI拆解');
+    shortTranscriptDialog.title=(work&&work.title)||(report&&report.work&&report.work.title)||'短视频作品';
+    shortTranscriptDialog.text=text;
+    shortTranscriptDialog.filename=shortTranscriptFileName(work,report);
+    shortTranscriptDialog.open=true;
+  }
+  function downloadShortTranscript(work=currentShortWork.value,report=currentShortReport.value){
+    const text=shortTranscriptDialog.open?shortTranscriptDialog.text:shortTranscriptText(report,work);
+    if(!text)return ElMessage.warning('这条作品还没有逐字稿，请先完成AI拆解');
+    const filename=shortTranscriptDialog.open?shortTranscriptDialog.filename:shortTranscriptFileName(work,report);
+    downloadTextFile(filename,text,'text/plain;charset=utf-8');
+  }
   function shortPredictionBucket(){
     const pred=currentShortPrediction.value;
     const report=currentShortReport.value;
@@ -1358,7 +1832,11 @@ const app=createApp({setup(){
     const key=shortWorkKey(item);
     if(!key)return null;
     const prev=shortVideo.workReports[key]||{};
-    const report={...prev,key,work:{...(prev.work||{}),...enrichShortWork(item)},...patch};
+    const work={...(prev.work||{}),...enrichShortWork(item)};
+    const transcript=String((patch&& (patch.transcript||(patch.analysis&&patch.analysis.transcript)))||work.transcript||(prev&&prev.transcript)||'').trim();
+    if(transcript)work.transcript=transcript;
+    const report={...prev,key,work,...patch};
+    if(transcript)report.transcript=transcript;
     rememberShortReport(report);
     return report;
   }
@@ -1412,6 +1890,7 @@ const app=createApp({setup(){
   }
   function syncShortVideoSelected(){
     shortVideoSelected.value=shortVideo.candidates.filter(v=>v.selected);
+    saveShortParseCache();
   }
   function selectAllShortCandidates(){
     if(!shortVideo.candidates.length)return;
@@ -1989,6 +2468,26 @@ const app=createApp({setup(){
   function askQuick(q){aiQuestion.value='';askAi(q)}
   async function openAiReportDir(){if(!aiReportDir.value)return;try{await fetch('/api/open-folder',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:aiReportDir.value})})}catch(e){}}
   function viewAiReport(){if(aiHtmlFile.value)window.open('/api/ai/report/view?filename='+encodeURIComponent(aiHtmlFile.value),'_blank')}
+  async function downloadAiMarkdown(){
+    if(!aiHtmlFile.value)return;
+    const mdName=String(aiHtmlFile.value).replace(/\.html?$/i,'.md');
+    try{
+      const resp=await fetch('/api/ai/report/download?filename='+encodeURIComponent(mdName));
+      if(!resp.ok){const e=await resp.text();throw new Error(e||'Markdown 导出失败')}
+      const blob=await resp.blob();
+      const objectUrl=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=objectUrl;
+      a.download=mdName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>URL.revokeObjectURL(objectUrl),1500);
+      ElMessage.success('Markdown 已开始下载');
+    }catch(e){
+      ElMessage.error('Markdown 导出失败：'+(e.message||e));
+    }
+  }
   async function downloadAiReport(){
     if(!aiPdfFile.value||pdfDownloading.value)return;
     pdfDownloading.value=true;
@@ -2059,21 +2558,119 @@ const app=createApp({setup(){
   function saveWords(){localStorage.setItem('livewatch_words',JSON.stringify(words.value))}
   function addWord(){const text=wordInput.value.trim();if(!text)return;if(!words.value.some(w=>w.text===text&& w.type===wordType.value))words.value.push({text,type:wordType.value});wordInput.value='';saveWords()}
   function removeWord(i){words.value.splice(i,1);saveWords()}
-  function refreshAll(){refresh();refreshData();fetchShortBenchmarks();fetchPerformance();refreshDiag();fetchExportDir();fetchProxy();fetchAiConfig();fetchVideoQuality();ElMessage.success('已刷新')}
+  async function fetchLeadRadar(){
+    try{
+      const [status,monitors,leads]=await Promise.all([
+        fetch('/api/comment-leads/status').then(r=>r.json()).catch(()=>({logged_in:false})),
+        fetch('/api/comment-leads/monitors').then(r=>r.json()).catch(()=>({monitors:[]})),
+        fetch('/api/comment-leads/leads?limit=1000').then(r=>r.json()).catch(()=>({leads:[]})),
+      ]);
+      leadRadar.loginStatus=status||leadRadar.loginStatus;
+      leadRadar.monitors=monitors.monitors||[];
+      leadRadar.leads=leads.leads||[];
+    }catch(e){}
+  }
+  function startLeadProgress(text='正在采集评论线索'){
+    leadRadar.loading=true;leadRadar.progress=8;leadRadar.progressText=text;
+    const started=Date.now();
+    const timer=setInterval(()=>{
+      if(!leadRadar.loading){clearInterval(timer);return}
+      const elapsed=(Date.now()-started)/1000;
+      leadRadar.progress=Math.min(88,Math.max(leadRadar.progress,Math.round(18+elapsed*9)));
+      if(elapsed>2)leadRadar.progressText='正在读取公开视频评论';
+      if(elapsed>6)leadRadar.progressText='正在去重并生成客服线索';
+    },600);
+  }
+  function leadVideoKey(v){return String(v?.url||v?.id||v?.title||'')}
+  function normalizeLeadVideo(v,idx){
+    const key=leadVideoKey(v)||('lead_video_'+idx);
+    return {id:v.id||key,title:v.title||('作品 '+(idx+1)),url:v.url||'',cover_url:v.cover_url||v.video_cover||'',like_count:v.like_count,pinned:!!v.pinned,selected:idx<leadRadar.maxVideos};
+  }
+  async function parseLeadProfile(){
+    if(!leadRadar.url.trim())return ElMessage.warning('请先粘贴竞品抖音主页链接');
+    leadRadar.loading=true;leadRadar.progress=12;leadRadar.progressText='正在解析主页作品';
+    leadRadar.lastResult=null;
+    try{
+      const resp=await fetch('/api/comment-leads/profile-videos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:leadRadar.url,owner:leadRadar.owner,max_comments:leadRadar.maxComments,max_videos:leadRadar.maxVideos})});
+      const r=await resp.json();
+      if(!resp.ok||!r.ok)throw new Error(r.detail||r.error||'解析失败');
+      leadRadar.profile=r.profile||null;
+      leadRadar.monitor=r.monitor||null;
+      leadRadar.videos=(r.videos||[]).map(normalizeLeadVideo);
+      leadRadar.progress=100;
+      await fetchLeadRadar();
+      if(!leadRadar.videos.length)ElMessage.warning(r.warning||'没有读取到作品，请稍后重试或先登录抖音');
+      else ElMessage.success('已读取 '+leadRadar.videos.length+' 条作品，请选择要采集评论的视频');
+    }catch(e){ElMessage.error(e.message||'解析失败')}
+    finally{setTimeout(()=>{leadRadar.loading=false},500)}
+  }
+  async function addLeadMonitor(){return parseLeadProfile()}
+  function selectAllLeadVideos(){leadRadar.videos.forEach(v=>v.selected=true)}
+  function invertLeadVideos(){leadRadar.videos.forEach(v=>v.selected=!v.selected)}
+  async function runSelectedLeadVideos(){
+    const monitor=leadRadar.monitor||leadRadar.monitors[0];
+    const selected=leadSelectedVideos.value;
+    if(!monitor?.id)return ElMessage.warning('请先解析主页作品');
+    if(!selected.length)return ElMessage.warning('请先选择要采集评论的作品');
+    leadRadar.runningId=monitor.id;
+    leadRadar.lastResult=null;
+    startLeadProgress('正在采集所选作品评论');
+    try{
+      const resp=await fetch('/api/comment-leads/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monitor_id:monitor.id,videos:selected,max_comments:leadRadar.maxComments})});
+      const r=await resp.json();
+      if(!resp.ok||!r.ok)throw new Error(r.error||r.detail||'采集失败');
+      leadRadar.lastResult=r;
+      leadRadar.progress=100;
+      await fetchLeadRadar();
+      ElMessage.success('采集完成，新增 '+(r.inserted||0)+' 条线索');
+    }catch(e){ElMessage.error(e.message||'采集失败；如未授权，请先点抖音授权')}
+    finally{setTimeout(()=>{leadRadar.loading=false;leadRadar.runningId=''},700)}
+  }
+  async function runLeadMonitor(monitor){
+    if(!monitor)return;
+    leadRadar.runningId=monitor.id;
+    leadRadar.lastResult=null;
+    startLeadProgress('正在打开视频并等待评论区');
+    try{
+      const resp=await fetch('/api/comment-leads/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({monitor_id:monitor.id})});
+      const r=await resp.json();
+      if(!resp.ok||!r.ok)throw new Error(r.error||r.detail||'采集失败');
+      leadRadar.lastResult=r;
+      leadRadar.progress=100;
+      await fetchLeadRadar();
+      ElMessage.success('采集完成，新增 '+(r.inserted||0)+' 条线索');
+    }catch(e){ElMessage.error(e.message||'采集失败；如未授权，请先点抖音授权')}
+    finally{setTimeout(()=>{leadRadar.loading=false;leadRadar.runningId=''},700)}
+  }
+  async function loginLeadRadar(){
+    leadRadar.loginLoading=true;
+    try{
+      const resp=await fetch('/api/comment-leads/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({start_url:leadRadar.url||'https://www.douyin.com/'})});
+      const r=await resp.json();
+      if(!resp.ok||!r.ok)throw new Error(r.error||r.message||'授权失败');
+      await fetchLeadRadar();
+      ElMessage.success(r.message||'授权完成');
+    }catch(e){ElMessage.error(e.message||'授权失败')}
+    finally{leadRadar.loginLoading=false}
+  }
+  function exportLeadRadar(){window.open('/api/comment-leads/export','_blank')}
+  function openLeadProfile(row){const url=row&&row.commenter_profile_url;if(url)window.open(url,'_blank')}
+  function refreshAll(){refresh();refreshData();fetchShortBenchmarks();fetchPerformance();fetchLeadRadar();refreshDiag();fetchExportDir();fetchProxy();fetchAiConfig();fetchVideoQuality();ElMessage.success('已刷新')}
   function _onTourKey(e){if(tour.active&& e.key==='Escape')endTour()}
   function _onTourResize(){if(tour.active)positionTour()}
   let timer,clockTimer;onMounted(()=>{
     try{const _pw=JSON.parse(localStorage.getItem('livewatch_words')||'[]');words.value=Array.isArray(_pw)?_pw:[]}catch(e){}
     loadShortWorkHistory();
+    loadShortParseCache();
     loadAiReportHistory();
     refreshAll();timer=setInterval(refresh,3000);clockTimer=setInterval(()=>{clock.value=Math.floor(Date.now()/1000)},1000);
     window.addEventListener('keydown',_onTourKey);window.addEventListener('resize',_onTourResize);
     // 首次进入自动开始新手引导；之后不再自动弹（localStorage 标记）。失败绝不阻塞界面。
     if(!localStorage.getItem('livewatch_tour_done')){setTimeout(()=>{try{startTour()}catch(e){}},800)}
   });
-  onUnmounted(()=>{clearInterval(timer);clearInterval(clockTimer);if(shortParseTimer)clearInterval(shortParseTimer);if(shortWorkProgressTimer)clearInterval(shortWorkProgressTimer);stopAiPulse();if(pdfDownloadTimer)clearInterval(pdfDownloadTimer);window.removeEventListener('keydown',_onTourKey);window.removeEventListener('resize',_onTourResize)});
-  watch(view,v=>{if(['review','cloud','settings'].includes(v))refreshData();if(v==='review')setTimeout(refreshWordCloud,120);if(v==='shortVideo')fetchShortBenchmarks();if(v==='pre')fetchPerformance();if(['pre','settings'].includes(v))refreshDiag();if(['review','cloud','pre'].includes(v))relayoutTables()});
-  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,aiDateFilter,aiSessionFilter,aiDateOptions,aiSessionOptions,filteredAiDataRooms,selectedDurationText,displayRecordDuration,displaySessionLabel,avatarFallbackText,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addDialog,addText,resolved,resolving,adding,addErr,shortVideo,shortParseSteps,shortVideoSelected,shortVideoWorkQueue,shortVideoBenchmarks,currentShortWork,currentShortReport,currentHasScore,currentHasAnalysis,currentShortPrediction,shortPredictionBucket,shortPredictionConfidence,shortWorkKey,getShortWorkReport,hasShortReportPart,shortHistoryScore,shortHistoryTitle,openShortWork,openShortHistory,resetShortReportsForSession,resolveShortProfile,appendShortProfileVideos,addShortVideosFromText,syncShortVideoSelected,selectAllShortCandidates,invertShortCandidates,removeShortQueueItem,analyzeShortPositioning,analyzeAndRecommendBenchmarks,recommendShortBenchmarks,addShortBenchmark,addShortBenchmarkFromInput,searchShortBenchmark,searchShortBenchmarkAccounts,addShortAccountCandidate,useShortBenchmarkProfile,sendShortVideosToWorkspace,analyzeShortVideos,analyzeSingleShortVideo,scoreShortVideoWork,predictShortScript,learnFromBenchmark,retroShortVideoPrediction,dimensionPct,fmtTs,refreshingAnchors,handleAvatarError,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,pdfDownloading,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportHistory,openAiReportHistory,aiReportDir,aiPdfFile,aiHtmlFile,aiQuestion,aiEtaText,aiPulse,aiElapsedSec,aiPipelineRound,aiCanvasNodes,aiCanvasLinks,aiCanvasMergeLinks,aiCanvasAllLinks,aiMergeVisible,aiFusionNode,aiCanvasCursor,aiCanvasStatus,aiTaskTotals,aiLatestMessage,aiStageText,aiEvents,aiMessages,aiWords,aiQuickQuestions,aiVisualSteps,videoQuality,videoQualityChoices,performanceSessions,perfDetail,perfLoading,perfAnalyzing,perfFilters,filteredPerformance,scoreText,metricText,rateText,valueOrEmpty,perfMetric,detailMetric,sensitiveSummaryValue,sensitiveSummaryList,messageStepCount,sensitiveTopText,statusClass,canAnalyzePerformance,analyzePerformance,analyzeReadyPerformance,openPerformance,fetchPerformance,saveVideoQuality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,askQuick,chatHtml,refreshWordCloud,freqWidth,openAiReportDir,viewAiReport,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,openAddDialog,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
+  onUnmounted(()=>{clearInterval(timer);clearInterval(clockTimer);if(shortParseTimer)clearInterval(shortParseTimer);if(shortWorkProgressTimer)clearInterval(shortWorkProgressTimer);if(shortParseBackendCacheTimer)clearTimeout(shortParseBackendCacheTimer);stopAiPulse();if(pdfDownloadTimer)clearInterval(pdfDownloadTimer);window.removeEventListener('keydown',_onTourKey);window.removeEventListener('resize',_onTourResize)});
+  watch(view,v=>{if(['review','cloud','settings'].includes(v))refreshData();if(v==='review')setTimeout(refreshWordCloud,120);if(v==='shortVideo'){loadShortParseCache();fetchShortBenchmarks()}if(v==='leadRadar')fetchLeadRadar();if(v==='pre')fetchPerformance();if(['pre','settings'].includes(v))refreshDiag();if(['review','cloud','pre'].includes(v))relayoutTables()});
+  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,aiDateFilter,aiSessionFilter,aiDateOptions,aiSessionOptions,filteredAiDataRooms,selectedDurationText,displayRecordDuration,displaySessionLabel,avatarFallbackText,navs,activeNav,risk,diag,cookieNotice,filteredRooms,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addDialog,addText,resolved,resolving,adding,addErr,shortVideo,shortParseSteps,shortVideoSelected,shortVideoWorkQueue,shortVideoBenchmarks,shortHistoryDialog,shortTranscriptDialog,currentShortWork,currentShortReport,currentHasScore,currentHasAnalysis,currentShortPrediction,shortPredictionBucket,shortPredictionConfidence,shortWorkKey,getShortWorkReport,hasShortReportPart,shortHistoryScore,shortHistoryTitle,shortHistoryTime,shortTranscriptText,openShortTranscript,downloadShortTranscript,downloadShortReportMarkdown,openShortWork,openShortHistory,resetShortReportsForSession,authorizeShortVideoCookie,resolveShortProfile,appendShortProfileVideos,addShortVideosFromText,syncShortVideoSelected,selectAllShortCandidates,invertShortCandidates,clearShortParseCache,removeShortQueueItem,analyzeShortPositioning,analyzeAndRecommendBenchmarks,recommendShortBenchmarks,addShortBenchmark,addShortBenchmarkFromInput,searchShortBenchmark,searchShortBenchmarkAccounts,addShortAccountCandidate,useShortBenchmarkProfile,sendShortVideosToWorkspace,analyzeShortVideos,analyzeSingleShortVideo,scoreShortVideoWork,predictShortScript,learnFromBenchmark,retroShortVideoPrediction,dimensionPct,fmtTs,fmtAgo,leadRadar,leadSelectedVideos,filteredLeadRows,leadIpOptions,leadStats,fetchLeadRadar,addLeadMonitor,parseLeadProfile,selectAllLeadVideos,invertLeadVideos,runSelectedLeadVideos,runLeadMonitor,loginLeadRadar,exportLeadRadar,openLeadProfile,refreshingAnchors,handleAvatarError,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,pdfDownloading,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportHistory,openAiReportHistory,aiReportDir,aiPdfFile,aiHtmlFile,aiQuestion,aiEtaText,aiPulse,aiElapsedSec,aiPipelineRound,aiCanvasNodes,aiCanvasLinks,aiCanvasMergeLinks,aiCanvasAllLinks,aiMergeVisible,aiFusionNode,aiCanvasCursor,aiCanvasStatus,aiTaskTotals,aiLatestMessage,aiStageText,aiEvents,aiMessages,aiWords,aiQuickQuestions,aiVisualSteps,videoQuality,videoQualityChoices,performanceSessions,perfDetail,perfLoading,perfAnalyzing,perfFilters,filteredPerformance,scoreText,metricText,rateText,valueOrEmpty,perfMetric,detailMetric,sensitiveSummaryValue,sensitiveSummaryList,messageStepCount,sensitiveTopText,statusClass,canAnalyzePerformance,analyzePerformance,analyzeReadyPerformance,openPerformance,fetchPerformance,saveVideoQuality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,askQuick,chatHtml,refreshWordCloud,freqWidth,openAiReportDir,viewAiReport,downloadAiMarkdown,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,openAddDialog,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
 }});
 window.__liveApp=app;
 app.config.errorHandler=(err,_vm,info)=>{
@@ -2107,6 +2704,7 @@ app.use(ElementPlus);for(const[k,c]of Object.entries(ElementPlusIconsVue))app.co
 </script>
 </body>
 </html>
+
 
 
 

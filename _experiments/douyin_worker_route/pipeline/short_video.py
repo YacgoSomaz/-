@@ -51,6 +51,171 @@ class ShortVideoError(ValueError):
     """短视频中心输入错误。"""
 
 
+def _video_key(video: dict[str, Any] | None) -> str:
+    """作品去重键：优先作品 id，其次规范化后的作品链接。"""
+    if not isinstance(video, dict):
+        return ""
+    raw_id = str(video.get("id") or video.get("aweme_id") or "").strip()
+    if raw_id:
+        return raw_id
+    url = str(video.get("url") or "").strip()
+    if not url:
+        return ""
+    match = _VIDEO_ID_RE.search(url)
+    if match:
+        return match.group(1)
+    parsed = urlparse(normalize_url(url))
+    if parsed.netloc and parsed.path:
+        return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", "", ""))
+    return normalize_url(url)
+
+
+def _merge_unique_videos(*groups: list[dict[str, Any]] | tuple[dict[str, Any], ...]) -> list[dict[str, Any]]:
+    """按作品去重合并，保持传入顺序；用于缓存不缩水和翻页合并。"""
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for group in groups:
+        for item in group or []:
+            if not isinstance(item, dict):
+                continue
+            key = _video_key(item)
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            merged.append(item)
+    return merged
+
+
+def _has_douyin_login_cookie(jar: dict[str, str] | None) -> bool:
+    """判断当前 Cookie 是否像完整登录态；弱信任 Cookie 通常只能读主页首屏作品。"""
+    if not jar:
+        return False
+    login_keys = {
+        "sessionid",
+        "sessionid_ss",
+        "sid_guard",
+        "sid_tt",
+        "passport_csrf_token",
+        "passport_csrf_token_default",
+    }
+    return any(bool(jar.get(key)) for key in login_keys)
+
+
+def _load_short_video_cookie_cache() -> tuple[dict[str, str], float]:
+    path = config.SHORT_VIDEO_COOKIE_CACHE
+    if not path.exists():
+        return {}, 0.0
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return dict(data.get("jar") or {}), float(data.get("ts") or 0)
+    except (OSError, ValueError, TypeError):
+        return {}, 0.0
+
+
+def _save_short_video_cookie_cache(jar: dict[str, str]) -> None:
+    try:
+        config.SHORT_VIDEO_COOKIE_CACHE.write_text(
+            json.dumps({"jar": jar, "ts": time.time()}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
+def _short_video_cookie_jar() -> dict[str, str]:
+    """短视频主页读取优先使用独立登录态，避免污染直播监听 Cookie。"""
+    jar, _ = _load_short_video_cookie_cache()
+    return jar or browser_cookies.cached_jar()
+
+
+def short_video_cookie_status() -> dict[str, Any]:
+    jar, ts = _load_short_video_cookie_cache()
+    return {
+        "ok": bool(jar),
+        "has_login": _has_douyin_login_cookie(jar),
+        "cookie_count": len(jar),
+        "minted_ts": int(ts) if ts else 0,
+    }
+
+
+def remint_short_video_cookie(start_url: str | None = None, *, timeout_sec: int = 180) -> dict[str, Any]:
+    """用户手动触发短视频登录授权。
+
+    主页深度下滑常常需要完整登录态；这里只在用户点击时打开浏览器，
+    后台解析绝不自动弹窗。
+    """
+    from playwright.sync_api import sync_playwright
+
+    target = normalize_url(start_url or "https://www.douyin.com/")
+    if "douyin.com" not in target:
+        target = "https://www.douyin.com/"
+    existing = _short_video_cookie_jar()
+    with sync_playwright() as p:
+        browser = None
+        for launch_kwargs in ({"channel": "msedge"}, {}):
+            try:
+                browser = p.chromium.launch(headless=False, timeout=20000, **launch_kwargs)
+                break
+            except Exception:  # noqa: BLE001
+                continue
+        if browser is None:
+            return {"ok": False, "message": "无法打开浏览器，请检查 Edge 或 Chromium 环境。"}
+        try:
+            ctx = browser.new_context(
+                user_agent=USER_AGENT,
+                viewport={"width": 1360, "height": 900},
+                locale="zh-CN",
+            )
+            if existing:
+                ctx.add_cookies([
+                    {"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
+                    for k, v in existing.items()
+                ])
+            page = ctx.new_page()
+            try:
+                page.goto(target, wait_until="domcontentloaded", timeout=30000)
+            except Exception:  # noqa: BLE001
+                pass
+            deadline = time.time() + max(30, min(300, int(timeout_sec)))
+            jar: dict[str, str] = {}
+            has_login = False
+            while time.time() < deadline:
+                page.wait_for_timeout(1000)
+                jar = {
+                    c["name"]: c["value"]
+                    for c in ctx.cookies()
+                    if c.get("domain", "").endswith("douyin.com")
+                }
+                has_login = _has_douyin_login_cookie(jar)
+                if has_login:
+                    break
+            if not jar.get("ttwid"):
+                return {"ok": False, "message": "没有取得抖音 Cookie，请在弹出的窗口完成登录后重试。"}
+            _save_short_video_cookie_cache(jar)
+            return {
+                "ok": True,
+                "has_login": has_login,
+                "cookie_count": len(jar),
+                "message": "短视频授权已保存，可以继续加载更多作品。" if has_login else "已保存基础 Cookie；如仍只能读取 20 条，请在弹窗内完成抖音登录。",
+            }
+        finally:
+            try:
+                browser.close()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def _limited_profile_warning(found: int, requested: int, jar: dict[str, str] | None = None) -> str:
+    if found >= requested:
+        return ""
+    if requested > 20 and found >= 20 and not _has_douyin_login_cookie(jar):
+        return (
+            f"本次只读取到 {found} 条作品。当前是未登录/弱 Cookie 会话，"
+            "抖音主页通常只开放前 20 条作品；需要读取更多作品，请先完成短视频账号登录授权。"
+        )
+    return f"本次只读取到 {found} 条作品，可能是账号作品不足、部分作品未公开或平台接口未继续返回。"
+
+
 _TRACK_RULES: list[tuple[str, list[str]]] = [
     ("房产置业", ["房产", "买房", "户型", "现房", "精装", "楼盘", "小区", "学区", "首付", "阳台"]),
     ("教育升学", ["招生", "小升初", "高考", "中考", "学校", "学区", "附中", "教育", "录取"]),
@@ -137,7 +302,8 @@ def resolve_profile(input_text: str, recent_count: int = 5, *, fetch_videos: boo
         try:
             rendered = _render_profile(profile["source_url"], recent_count)
             profile.update({k: v for k, v in rendered.get("profile", {}).items() if v})
-            videos = rendered.get("videos", [])[:recent_count]
+            rendered_videos = rendered.get("videos", [])
+            videos = _merge_unique_videos(rendered_videos, cached_videos)[:recent_count]
             if videos:
                 _write_profile_cache(profile["sec_user_id"], {"profile": profile, "videos": videos})
             elif cached:
@@ -155,6 +321,8 @@ def resolve_profile(input_text: str, recent_count: int = 5, *, fetch_videos: boo
         profile.update({k: v for k, v in cached.get("profile", {}).items() if v})
         videos = (cached.get("videos") or [])[:recent_count]
     profile["video_count"] = str(len(videos))
+    if videos and not warning and len(videos) < recent_count:
+        warning = _limited_profile_warning(len(videos), recent_count, _short_video_cookie_jar())
     return {"profile": profile, "videos": videos, "warning": warning}
 
 
@@ -194,15 +362,25 @@ def iter_resolve_profile_events(input_text: str, recent_count: int = 5) -> Any:
                 elif event.get("type") == "video":
                     video = event.get("video")
                     if isinstance(video, dict):
-                        videos.append(video)
-                        yield {"type": "video", "video": video}
+                        merged = _merge_unique_videos(videos, [video])
+                        if len(merged) > len(videos):
+                            videos = merged
+                            yield {"type": "video", "video": video}
             if videos:
                 profile["video_count"] = str(len(videos))
-                _write_profile_cache(profile["sec_user_id"], {"profile": profile, "videos": videos})
+                cached_videos = list(cached.get("videos") or []) if cached else []
+                _write_profile_cache(
+                    profile["sec_user_id"],
+                    {"profile": profile, "videos": _merge_unique_videos(videos, cached_videos)},
+                )
                 if len(videos) < recent_count:
                     yield {
                         "type": "warning",
-                        "message": f"本次只读取到 {len(videos)} 条作品，可能是账号作品不足、部分作品未公开或平台接口未继续返回。",
+                        "message": _limited_profile_warning(
+                            len(videos),
+                            recent_count,
+                            _short_video_cookie_jar(),
+                        ),
                     }
                 yield {"type": "done", "count": len(videos)}
                 return
@@ -587,7 +765,7 @@ def _download_video_mp3_with_ytdlp(
 
 
 def _write_ytdlp_cookie_file(out_dir: Path) -> Path | None:
-    jar = browser_cookies.cached_jar()
+    jar = _short_video_cookie_jar()
     if not jar:
         return None
     cookie_file = out_dir / "cookies.txt"
@@ -612,7 +790,7 @@ def _render_video_play_url(video_url: str) -> str:
                 viewport={"width": 1280, "height": 900},
                 locale="zh-CN",
             )
-            jar = browser_cookies.cached_jar()
+            jar = _short_video_cookie_jar()
             if jar:
                 ctx.add_cookies([
                     {"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
@@ -697,7 +875,7 @@ def _render_profile(url: str, recent_count: int) -> dict[str, Any]:
         elif event.get("type") == "video":
             video = event.get("video")
             if isinstance(video, dict):
-                videos.append(video)
+                videos = _merge_unique_videos(videos, [video])
     return {"profile": profile, "videos": videos}
 
 
@@ -730,7 +908,7 @@ def _render_profile_events_locked(profile: dict[str, str], recent_count: int) ->
             viewport={"width": 1920, "height": 1200},
             locale="zh-CN",
         )
-        jar = browser_cookies.cached_jar()
+        jar = _short_video_cookie_jar()
         if jar:
             ctx.add_cookies([
                 {"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
@@ -750,7 +928,7 @@ def _render_profile_events_locked(profile: dict[str, str], recent_count: int) ->
             post_api_state["has_more"] = bool(data.get("has_more"))
             post_api_state["max_cursor"] = data.get("max_cursor")
             for video in _videos_from_aweme_list(data.get("aweme_list") or []):
-                if not any(v.get("url") == video.get("url") for v in api_videos):
+                if not any(_video_key(v) == _video_key(video) for v in api_videos):
                     api_videos.append(video)
             if data.get("aweme_list"):
                 author = (data["aweme_list"][0] or {}).get("author") or {}
@@ -775,10 +953,13 @@ def _render_profile_events_locked(profile: dict[str, str], recent_count: int) ->
                 pass
 
         page.on("response", capture_profile_api)
+        # 深度读取作品墙时要尽量模拟真实用户下滑。抖音的瀑布流有时依赖
+        # 图片/视频卡片加载和可视区域变化触发继续加载；这里只拦字体，避免
+        # 把继续加载链路误伤成“永远只有首屏 20 条”。
         page.route(
             "**/*",
             lambda route: route.abort()
-            if route.request.resource_type in {"font", "media"}
+            if route.request.resource_type == "font"
             else route.continue_(),
         )
         yield {"type": "status", "message": "浏览器已就绪，正在进入账号主页", "progress": 18, "phase": "browser"}
@@ -845,7 +1026,7 @@ def _render_profile_events_locked(profile: dict[str, str], recent_count: int) ->
                 }
                 api_profile.clear()
             for video in list(api_videos):
-                url_key = str(video.get("url") or "")
+                url_key = _video_key(video)
                 if not url_key or url_key in seen:
                     continue
                 seen.add(url_key)
@@ -860,7 +1041,7 @@ def _render_profile_events_locked(profile: dict[str, str], recent_count: int) ->
                 if len(seen) >= recent_count:
                     return
             for video in _read_page_videos(page):
-                url_key = str(video.get("url") or "")
+                url_key = _video_key(video)
                 if not url_key or url_key in seen:
                     continue
                 seen.add(url_key)
@@ -885,7 +1066,7 @@ def _render_profile_events_locked(profile: dict[str, str], recent_count: int) ->
                     fetched_cursors.add(cursor_key)
                     yield {
                         "type": "status",
-                        "message": "正在读取下一页作品数据",
+                        "message": "正在继续下滑读取更多作品",
                         "progress": min(88, 48 + len(seen) * 4),
                         "phase": "waiting",
                     }
@@ -897,7 +1078,7 @@ def _render_profile_events_locked(profile: dict[str, str], recent_count: int) ->
                         post_api_state["has_more"] = bool(next_data.get("has_more"))
                         post_api_state["max_cursor"] = next_data.get("max_cursor")
                         for video in _videos_from_aweme_list(next_data.get("aweme_list") or []):
-                            url_key = str(video.get("url") or "")
+                            url_key = _video_key(video)
                             if not url_key or url_key in seen:
                                 continue
                             seen.add(url_key)
@@ -1048,7 +1229,7 @@ def _scroll_until_enough(page: Any, count: int) -> None:
     target = max(1, int(count))
     stagnant = 0
     last_found = -1
-    max_rounds = 16 if target <= 25 else 28
+    max_rounds = 18 if target <= 25 else 42
     for _ in range(max_rounds):
         found = page.eval_on_selector_all(
             'a[href*="/video/"],a[href*="/note/"]',
@@ -1068,24 +1249,46 @@ def _scroll_until_enough(page: Any, count: int) -> None:
         if stagnant >= 5 and current > 0:
             return
         _scroll_profile_page(page, target)
-        page.wait_for_timeout(650)
+        page.wait_for_timeout(900 if target > 20 else 650)
 
 
 def _scroll_profile_page(page: Any, target: int) -> int:
     """向下滚动主页和内部滚动容器，触发抖音继续加载作品卡片。"""
     try:
-        page.mouse.wheel(0, 1450)
+        page.mouse.move(960, 1040)
+        # 连续小步滚动比一次性拉到底更容易触发 IntersectionObserver。
+        for _ in range(3):
+            page.mouse.wheel(0, 760)
+            page.wait_for_timeout(120)
+        page.keyboard.press("PageDown")
     except Exception:  # noqa: BLE001
         pass
     try:
         return int(page.evaluate(
             """(target) => {
-              const step = Math.max(1000, Math.floor(window.innerHeight * 0.92));
+              const step = Math.max(760, Math.floor(window.innerHeight * 0.74));
+              const links = Array.from(document.querySelectorAll('a[href*="/video/"],a[href*="/note/"]'))
+                .filter(a => !/source=Baiduspider/i.test(a.href || ''));
+              const last = links[links.length - 1];
+              if (last && last.scrollIntoView) {
+                last.scrollIntoView({block:'center', inline:'nearest'});
+              }
+              const scrollAncestors = [];
+              if (last) {
+                let el = last.parentElement;
+                while (el && el !== document.body && el !== document.documentElement) {
+                  const style = getComputedStyle(el);
+                  const canScroll = el.scrollHeight > el.clientHeight + 50;
+                  if (canScroll || /(auto|scroll)/.test(style.overflowY || '')) scrollAncestors.push(el);
+                  el = el.parentElement;
+                }
+              }
               const candidates = [
+                ...scrollAncestors,
                 document.scrollingElement,
                 document.documentElement,
                 document.body,
-                ...Array.from(document.querySelectorAll('main, section, [class*="scroll"], [class*="Scroll"], [class*="list"], [class*="List"], [data-e2e]'))
+                ...Array.from(document.querySelectorAll('main, section, [class*="scroll"], [class*="Scroll"], [class*="route-scroll"], [class*="list"], [class*="List"], [class*="waterfall"], [class*="Waterfall"], [data-e2e]'))
               ].filter(Boolean);
               const seen = new Set();
               for (const el of candidates) {
@@ -1093,12 +1296,20 @@ def _scroll_profile_page(page: Any, target: int) -> int:
                 seen.add(el);
                 const canScroll = el.scrollHeight > el.clientHeight + 80;
                 if (canScroll) {
-                  el.scrollTop = Math.min(el.scrollHeight, el.scrollTop + step);
+                  for (let i = 0; i < 3; i += 1) {
+                    const nextTop = Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + step);
+                    el.scrollTop = nextTop;
+                    el.dispatchEvent(new Event('scroll', {bubbles:true}));
+                    el.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles:true, cancelable:true}));
+                  }
                   el.dispatchEvent(new Event('scroll', {bubbles:true}));
+                  el.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles:true, cancelable:true}));
                 }
               }
-              window.scrollBy(0, step);
+              window.scrollBy(0, step * 2);
               window.dispatchEvent(new Event('scroll'));
+              window.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles:true, cancelable:true}));
+              if (last && last.scrollIntoView) last.scrollIntoView({block:'end', inline:'nearest'});
               const cards = Array.from(document.querySelectorAll('a[href*="/video/"],a[href*="/note/"]'))
                 .filter(a => {
                   const href = a.href || '';
@@ -1643,7 +1854,7 @@ def _render_search_work_accounts(keyword: str, limit: int = 8) -> list[dict[str,
                 viewport={"width": 1440, "height": 900},
                 locale="zh-CN",
             )
-            jar = browser_cookies.cached_jar()
+            jar = _short_video_cookie_jar()
             if jar:
                 ctx.add_cookies([
                     {"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
@@ -1694,7 +1905,7 @@ def _render_search_accounts(keyword: str, limit: int = 8) -> list[dict[str, Any]
                 viewport={"width": 1440, "height": 900},
                 locale="zh-CN",
             )
-            jar = browser_cookies.cached_jar()
+            jar = _short_video_cookie_jar()
             if jar:
                 ctx.add_cookies([
                     {"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
