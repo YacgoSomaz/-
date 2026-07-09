@@ -106,16 +106,33 @@ def load_config() -> AIConfig:
 
 def public_config() -> dict[str, object]:
     cfg = load_config()
+    extra = _read_raw_config()
     return {
         "base_url": cfg.base_url,
         "model": cfg.model,
         "has_api_key": bool(cfg.api_key),
         "ready": cfg.ready,
         "timeout_sec": cfg.timeout_sec,
+        "vision_base_url": str(extra.get("vision_base_url") or "https://ark.cn-beijing.volces.com/api/v3").strip(),
+        "vision_model": str(extra.get("vision_model") or "ep-m-20260518173100-t8kjz").strip(),
+        "has_vision_api_key": bool(str(extra.get("vision_api_key") or "").strip()),
+        "vision_timeout_sec": int(extra.get("vision_timeout_sec") or 120),
     }
 
 
+def _read_raw_config() -> dict[str, object]:
+    path = config.AI_CONFIG_PATH
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def save_config(payload: dict[str, object]) -> dict[str, object]:
+    old_raw = _read_raw_config()
     old = load_config()
     base_url = str(payload.get("base_url") or old.base_url or DEFAULT_BASE_URL).strip()
     model = str(payload.get("model") or old.model or DEFAULT_MODEL).strip()
@@ -128,6 +145,21 @@ def save_config(payload: dict[str, object]) -> dict[str, object]:
         api_key = old.api_key
     else:
         api_key = str(raw_key).strip()
+    vision_base_url = str(
+        payload.get("vision_base_url")
+        or old_raw.get("vision_base_url")
+        or "https://ark.cn-beijing.volces.com/api/v3"
+    ).strip()
+    vision_model = str(payload.get("vision_model") or old_raw.get("vision_model") or "ep-m-20260518173100-t8kjz").strip()
+    vision_timeout_sec = int(payload.get("vision_timeout_sec") or old_raw.get("vision_timeout_sec") or 120)
+    clear_vision_key = bool(payload.get("clear_vision_api_key"))
+    raw_vision_key = payload.get("vision_api_key")
+    if clear_vision_key:
+        vision_api_key = ""
+    elif raw_vision_key is None or str(raw_vision_key).strip() == "":
+        vision_api_key = str(old_raw.get("vision_api_key") or "").strip()
+    else:
+        vision_api_key = str(raw_vision_key).strip()
     cfg = AIConfig(base_url=base_url, api_key=api_key, model=model, timeout_sec=timeout_sec)
     config.AI_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     config.AI_CONFIG_PATH.write_text(
@@ -137,6 +169,10 @@ def save_config(payload: dict[str, object]) -> dict[str, object]:
                 "api_key": cfg.api_key,
                 "model": cfg.model,
                 "timeout_sec": cfg.timeout_sec,
+                "vision_base_url": vision_base_url,
+                "vision_api_key": vision_api_key,
+                "vision_model": vision_model,
+                "vision_timeout_sec": vision_timeout_sec,
             },
             ensure_ascii=False,
             indent=2,

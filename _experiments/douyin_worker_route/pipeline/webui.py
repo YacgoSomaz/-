@@ -27,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_report, anchor_profiles, browser_cookies, config, diagnostics, performance_analysis
+from . import ai_report, anchor_profiles, browser_cookies, config, diagnostics, performance_analysis, short_video, short_video_ai
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import MAX_ACTIVE_ROOMS, RoomManager
@@ -87,6 +87,7 @@ def _performance_ai_loop() -> None:
 
 
 threading.Thread(target=_performance_ai_loop, name="performance-ai-loop", daemon=True).start()
+threading.Thread(target=short_video.prewarm_browser, name="short-video-browser-prewarm", daemon=True).start()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -720,6 +721,229 @@ def api_anchor_resolve(input_text: str = Body(..., embed=True)) -> JSONResponse:
         })
     except AnchorResolveError as exc:
         return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/resolve-profile")
+def api_short_video_resolve_profile(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """解析短视频中心的抖音主页链接，并读取最近作品卡片。"""
+    try:
+        input_text = str(payload.get("input_text") or "")
+        recent_count = int(payload.get("recent_count") or 5)
+        result = short_video.resolve_profile(input_text, recent_count=recent_count)
+        return JSONResponse({
+            "ok": True,
+            "profile": result["profile"],
+            "videos": result["videos"],
+            "warning": result.get("warning", ""),
+            "message": "账号主页已识别，已读取最近作品。",
+        })
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/resolve-profile/stream")
+def api_short_video_resolve_profile_stream(payload: dict[str, object] = Body(...)) -> StreamingResponse:
+    """流式解析短视频主页；作品抓到一条就推一条。"""
+
+    def _gen():
+        try:
+            input_text = str(payload.get("input_text") or "")
+            recent_count = int(payload.get("recent_count") or 5)
+            for event in short_video.iter_resolve_profile_events(input_text, recent_count=recent_count):
+                yield json.dumps({"ok": True, **event}, ensure_ascii=False) + "\n"
+        except short_video.ShortVideoError as exc:
+            yield json.dumps({"ok": False, "type": "error", "message": str(exc)}, ensure_ascii=False) + "\n"
+        except Exception as exc:  # noqa: BLE001
+            yield json.dumps({"ok": False, "type": "error", "message": f"解析失败：{type(exc).__name__}"}, ensure_ascii=False) + "\n"
+
+    return StreamingResponse(_gen(), media_type="application/x-ndjson; charset=utf-8")
+
+
+@app.get("/api/short-video/jobs")
+def api_short_video_jobs(limit: int = Query(default=50, ge=1, le=200)) -> JSONResponse:
+    return JSONResponse({"ok": True, "jobs": short_video.list_jobs(limit=limit)})
+
+
+@app.post("/api/short-video/jobs")
+def api_short_video_create_job(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    try:
+        videos = payload.get("videos") if isinstance(payload.get("videos"), list) else []
+        job = short_video.create_job(
+            profile_url=str(payload.get("profile_url") or ""),
+            sec_user_id=str(payload.get("sec_user_id") or ""),
+            recent_count=int(payload.get("recent_count") or 5),
+            videos=videos,  # type: ignore[arg-type]
+        )
+        return JSONResponse({"ok": True, "job": job})
+    except (short_video.ShortVideoError, ValueError) as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/assets")
+def api_short_video_download_assets(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """下载所选短视频作品的封面与 mp3。"""
+    profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
+    videos = payload.get("videos") if isinstance(payload.get("videos"), list) else []
+    limit = int(payload.get("limit") or len(videos) or 10)
+    results = short_video.download_video_assets_batch(profile, videos, limit=limit)  # type: ignore[arg-type]
+    ok_count = sum(1 for item in results if item.get("ok"))
+    return JSONResponse({"ok": True, "results": results, "count": len(results), "ok_count": ok_count})
+
+
+@app.post("/api/short-video/analyze")
+def api_short_video_analyze(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """后台自动获取封面/音频并进行短视频 AI 拆解。"""
+    profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
+    videos = payload.get("videos") if isinstance(payload.get("videos"), list) else []
+    limit = int(payload.get("limit") or len(videos) or 10)
+    try:
+        result = short_video_ai.analyze_selected_videos(profile, videos, limit=limit)  # type: ignore[arg-type]
+        return JSONResponse(result)
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"ok": False, "error": f"短视频 AI 拆解失败：{type(exc).__name__}: {exc}"}, status_code=500)
+
+
+@app.post("/api/short-video/score")
+def api_short_video_score(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """对单条短视频或脚本进行作品潜力评分和相对爆款预测。"""
+    work = payload.get("work") if isinstance(payload.get("work"), dict) else {}
+    history = payload.get("account_history") if isinstance(payload.get("account_history"), list) else []
+    template = str(payload.get("template") or "auto")
+    try:
+        score = short_video.score_short_video_work(work, account_history=history, template=template)  # type: ignore[arg-type]
+        prediction = short_video.predict_short_video_performance(
+            work,
+            account_history=history,  # type: ignore[arg-type]
+            template=template,
+            score_result=score,
+        )
+        return JSONResponse({"ok": True, "score": score, "prediction": prediction})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/predict-script")
+def api_short_video_predict_script(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """对用户粘贴的新脚本进行发布前潜力预测。"""
+    script = str(payload.get("script") or "").strip()
+    if not script:
+        return JSONResponse({"ok": False, "error": "请输入要预测的短视频脚本。"}, status_code=400)
+    work = {
+        "title": str(payload.get("title") or "待发布脚本"),
+        "transcript": script,
+        "cover_description": str(payload.get("cover_description") or ""),
+    }
+    history = payload.get("account_history") if isinstance(payload.get("account_history"), list) else []
+    template = str(payload.get("template") or "auto")
+    try:
+        score = short_video.score_short_video_work(work, account_history=history, template=template)  # type: ignore[arg-type]
+        prediction = short_video.predict_short_video_performance(
+            work,
+            account_history=history,  # type: ignore[arg-type]
+            template=template,
+            score_result=score,
+        )
+        return JSONResponse({"ok": True, "score": score, "prediction": prediction})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/learn-from-benchmark")
+def api_short_video_learn_from_benchmark(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """从当前账号或对标账号作品中总结可复用内容套路。"""
+    profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
+    videos = payload.get("videos") if isinstance(payload.get("videos"), list) else []
+    template = str(payload.get("template") or "auto")
+    try:
+        result = short_video.learn_from_benchmark_account(profile, videos, template=template)  # type: ignore[arg-type]
+        return JSONResponse({"ok": True, "result": result})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/retro")
+def api_short_video_retro(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """发布后复盘预测准确性。"""
+    prediction = payload.get("prediction") if isinstance(payload.get("prediction"), dict) else {}
+    actual_metrics = payload.get("actual_metrics") if isinstance(payload.get("actual_metrics"), dict) else {}
+    work = payload.get("work") if isinstance(payload.get("work"), dict) else {}
+    try:
+        result = short_video.retro_short_video_prediction(
+            prediction=prediction,  # type: ignore[arg-type]
+            actual_metrics=actual_metrics,  # type: ignore[arg-type]
+            work=work,  # type: ignore[arg-type]
+        )
+        return JSONResponse({"ok": True, "result": result})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/positioning")
+def api_short_video_positioning(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """基于已解析作品做账号定位初判，并产出对标账号搜索方向。"""
+    profile = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
+    videos = payload.get("videos") if isinstance(payload.get("videos"), list) else []
+    return JSONResponse({
+        "ok": True,
+        "analysis": short_video.analyze_positioning(profile, videos),  # type: ignore[arg-type]
+    })
+
+
+@app.get("/api/short-video/benchmarks")
+def api_short_video_benchmarks(limit: int = Query(default=200, ge=1, le=500)) -> JSONResponse:
+    return JSONResponse({"ok": True, "benchmarks": short_video.list_benchmarks(limit=limit)})
+
+
+@app.post("/api/short-video/benchmarks")
+def api_short_video_create_benchmark(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    try:
+        row = short_video.create_benchmark(
+            source_profile=payload.get("source_profile") if isinstance(payload.get("source_profile"), dict) else {},
+            positioning=payload.get("positioning") if isinstance(payload.get("positioning"), dict) else {},
+            candidate=payload.get("candidate") if isinstance(payload.get("candidate"), dict) else {},
+            profile_url=str(payload.get("profile_url") or ""),
+            account_name=str(payload.get("account_name") or ""),
+            note=str(payload.get("note") or ""),
+        )
+        return JSONResponse({"ok": True, "benchmark": row})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/benchmark-recommendations")
+def api_short_video_recommend_benchmark_accounts(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    """一键完成账号定位后的对标账号推荐，隐藏“搜索线索”中间步骤。"""
+    try:
+        row = short_video.recommend_benchmark_accounts(
+            source_profile=payload.get("source_profile") if isinstance(payload.get("source_profile"), dict) else {},
+            positioning=payload.get("positioning") if isinstance(payload.get("positioning"), dict) else {},
+            limit=int(payload.get("limit") or 8),
+        )
+        return JSONResponse({"ok": True, "benchmark": row})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=400)
+
+
+@app.post("/api/short-video/benchmarks/{benchmark_id}/search")
+def api_short_video_refresh_benchmark_search(benchmark_id: str) -> JSONResponse:
+    try:
+        row = short_video.refresh_benchmark_search(benchmark_id)
+        return JSONResponse({"ok": True, "benchmark": row})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
+
+
+@app.post("/api/short-video/benchmarks/{benchmark_id}/accounts")
+def api_short_video_search_benchmark_accounts(benchmark_id: str, payload: dict[str, object] = Body(default={})) -> JSONResponse:
+    try:
+        row = short_video.search_benchmark_accounts(
+            benchmark_id,
+            keyword=str(payload.get("keyword") or ""),
+            limit=int(payload.get("limit") or 8),
+        )
+        return JSONResponse({"ok": True, "benchmark": row})
+    except short_video.ShortVideoError as exc:
+        return JSONResponse({"ok": False, "error": str(exc)}, status_code=404)
 
 
 @app.on_event("shutdown")

@@ -6,6 +6,7 @@ openpyxl
 playwright
 sherpa-onnx
 imageio-ffmpeg
+yt-dlp
 numpy
 PyExecJS
 betterproto

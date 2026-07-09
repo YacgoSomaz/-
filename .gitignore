@@ -70,8 +70,14 @@ _experiments/douyin_worker_route/browser_cookies.json
 _experiments/douyin_worker_route/_diag.log
 _experiments/douyin_worker_route/_tmp_*.png
 _experiments/douyin_worker_route/anchor_profiles.json
+_experiments/douyin_worker_route/short_video_profiles.json
+_experiments/douyin_worker_route/short_video_jobs.json
+_experiments/douyin_worker_route/short_video_benchmarks.json
+_experiments/douyin_worker_route/short_video_assets/
 _experiments/douyin_worker_route/avatar_cache/
+_experiments/douyin_worker_route/logs/
 _experiments/douyin_worker_route/_screenshots/
+_experiments/douyin_worker_route/_short_*.png
 _experiments/douyin_worker_route/config.yaml
 _experiments/douyin_worker_route/config.yml
 _experiments/douyin_worker_route/.env

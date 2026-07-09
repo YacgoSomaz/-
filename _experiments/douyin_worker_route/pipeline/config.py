@@ -110,6 +110,10 @@ ROOMS_JSON = DATA_DIR / "rooms.json"
 PENDING_JSON = DATA_DIR / "pending_anchors.json"  # 待开播主播清单（只有 sec_user_id，等开播探测直播号）
 ANCHOR_PROFILE_CACHE = DATA_DIR / "anchor_profiles.json"
 AVATAR_CACHE_DIR = DATA_DIR / "avatar_cache"
+SHORT_VIDEO_JOBS_JSON = DATA_DIR / "short_video_jobs.json"
+SHORT_VIDEO_PROFILE_CACHE_JSON = DATA_DIR / "short_video_profiles.json"
+SHORT_VIDEO_BENCHMARKS_JSON = DATA_DIR / "short_video_benchmarks.json"
+SHORT_VIDEO_ASSET_DIR = DATA_DIR / "short_video_assets"
 LOG_DIR = DATA_DIR / "logs"
 
 # ---------- 待开播主播开播探测（profile_watch）----------
@@ -171,6 +175,7 @@ def ensure_dirs() -> None:
     AI_REPORT_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
     AVATAR_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    SHORT_VIDEO_ASSET_DIR.mkdir(parents=True, exist_ok=True)
     SPEAKER_ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
 
 
