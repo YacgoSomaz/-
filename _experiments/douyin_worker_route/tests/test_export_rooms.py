@@ -2,8 +2,11 @@ import json
 import sqlite3
 import tempfile
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+
+from openpyxl import load_workbook
 
 from pipeline import export
 
@@ -118,6 +121,56 @@ class MonitoredRoomIdsTests(unittest.TestCase):
         self.assertEqual(summaries[0]["stats"], 1)
         self.assertEqual(summaries[0]["audio_files"], 2)
         self.assertEqual(summaries[0]["audio_bytes"], 30)
+
+    def test_summary_xlsx_includes_license_watermark_when_policy_enabled(self) -> None:
+        bundle = export.RoomBundle(
+            rid="123",
+            nickname="测试主播",
+            transcripts=[],
+            timeline=[],
+            chats=[],
+            stats=[],
+            event_counts={},
+        )
+
+        class Status:
+            ok = True
+            mode = "licensed"
+            payload = {"license_id": "lic-001", "activation_id": "act-001"}
+
+        with (
+            patch.object(export, "load_chats_ts", return_value=[]),
+            patch.object(export.license_manager, "current_policy", return_value={"export_watermark": True}),
+            patch.object(export.license_manager, "current_status", return_value=Status()),
+            patch.object(export.license_manager, "current_device_hash", return_value="abcdef1234567890"),
+            patch.object(export.config, "LICENSE_APP_VERSION", "1.2.3"),
+        ):
+            wb = load_workbook(BytesIO(export.summary_xlsx_bytes([bundle])))
+
+        self.assertIn("授权水印", wb.sheetnames)
+        rows = {row[0].value: row[1].value for row in wb["授权水印"].iter_rows(min_row=2, max_col=2)}
+        self.assertEqual(rows["授权ID"], "lic-001")
+        self.assertEqual(rows["设备指纹"], "abcdef123456")
+        self.assertEqual(rows["授权状态"], "licensed")
+
+    def test_summary_xlsx_skips_license_watermark_when_policy_disabled(self) -> None:
+        bundle = export.RoomBundle(
+            rid="123",
+            nickname="测试主播",
+            transcripts=[],
+            timeline=[],
+            chats=[],
+            stats=[],
+            event_counts={},
+        )
+
+        with (
+            patch.object(export, "load_chats_ts", return_value=[]),
+            patch.object(export.license_manager, "current_policy", return_value={"export_watermark": False}),
+        ):
+            wb = load_workbook(BytesIO(export.summary_xlsx_bytes([bundle])))
+
+        self.assertNotIn("授权水印", wb.sheetnames)
 
 
 if __name__ == "__main__":

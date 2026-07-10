@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from . import anchor_profiles, config
+from . import anchor_profiles, config, license_manager
 
 
 ROOMS_JSON = config.ROOMS_JSON
@@ -1077,6 +1077,35 @@ def _style_sheet(ws, widths: list[int], wrap_col: int | None = None) -> None:
             row[0].alignment = Alignment(wrap_text=True, vertical="top")
 
 
+def _export_watermark_rows(scope: str, room_ids: list[str]) -> list[list[str]]:
+    status = license_manager.current_status()
+    payload = status.payload if isinstance(status.payload, dict) else {}
+    license_id = str(payload.get("license_id") or payload.get("activation_id") or status.mode or "unknown")
+    return [
+        ["授权ID", license_id],
+        ["授权状态", status.mode],
+        ["设备指纹", license_manager.current_device_hash()[:12]],
+        ["软件版本", config.LICENSE_APP_VERSION],
+        ["导出范围", scope],
+        ["房间数量", str(len(room_ids))],
+        ["房间号", ", ".join(sorted(str(rid) for rid in room_ids))],
+        ["导出时间", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
+        ["说明", "此文件由直播复盘侠导出，含授权溯源信息，请勿外传。"],
+    ]
+
+
+def _apply_export_watermark(wb, *, scope: str, room_ids: list[str]) -> None:
+    """Add traceable export metadata when the signed policy requires watermarking."""
+    if license_manager.current_policy().get("export_watermark") is False:
+        return
+    title = _safe_sheet_title("授权水印", set(wb.sheetnames))
+    ws = wb.create_sheet(title, 0)
+    ws.append(["项目", "内容"])
+    for row in _export_watermark_rows(scope, room_ids):
+        ws.append(row)
+    _style_sheet(ws, [18, 90], wrap_col=2)
+
+
 def _safe_sheet_title(base: str, used: set[str]) -> str:
     """Excel sheet 名限制 31 字符且不能含特殊符号；重名时追加序号。"""
     title = re.sub(r"[\[\]\:\*\?\/\\]", "_", base).strip() or "未命名"
@@ -1151,6 +1180,7 @@ def build_workbook(rid: str):
         ws_stat.append(r)
     _style_sheet(ws_stat, [20, 12, 12])
 
+    _apply_export_watermark(wb, scope="单房间导出", room_ids=[rid])
     return wb
 
 
@@ -1224,6 +1254,7 @@ def build_summary_workbook(bundles: list[RoomBundle]):
             ws_stat.append([b.rid, b.nickname, _fmt_dt(ts), cur, pv])
     _style_sheet(ws_stat, [14, 16, 20, 12, 12])
 
+    _apply_export_watermark(wb, scope="汇总导出", room_ids=[b.rid for b in bundles])
     return wb
 
 
