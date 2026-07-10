@@ -66,7 +66,15 @@ Type: files; Name: "{app}\app\run_worker.py"
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\app"
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\_internal"
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\models"
+Type: filesandordirs; Name: "{localappdata}\LiveWatch\asr_bench"
 Type: files; Name: "{localappdata}\LiveWatch\LiveWatchLauncher.exe"
+Type: files; Name: "{localappdata}\LiveWatch\install.bat"
+Type: files; Name: "{localappdata}\LiveWatch\install_to_desktop.ps1"
+Type: files; Name: "{localappdata}\LiveWatch\uninstall_livewatch.ps1"
+Type: files; Name: "{localappdata}\LiveWatch\uninstall_shortcut.bat"
+Type: files; Name: "{localappdata}\LiveWatch\安装到桌面.bat"
+Type: files; Name: "{localappdata}\LiveWatch\卸载快捷方式.bat"
+Type: files; Name: "{localappdata}\LiveWatch\README_使用说明.md"
 
 [Code]
 function DataDir(): String;

@@ -20,4 +20,7 @@ def test_release_build_generates_integrity_manifest_before_scanning():
     assert "integrity_manifest.write_and_verify" in script
     assert "完整性清单" in script
     assert "_verify_integrity_manifest(base)" in launcher
+    assert "_runtime_security_findings(base, app_dir)" in launcher
+    assert "app/pipeline*.pyd" in launcher
+    assert "检测到调试器附加" in launcher
     assert "完整性校验失败" in launcher

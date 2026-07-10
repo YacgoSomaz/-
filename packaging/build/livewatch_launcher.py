@@ -221,6 +221,51 @@ def _verify_integrity_manifest(base: Path) -> list[str]:
     return findings
 
 
+def _is_debugger_attached() -> bool:
+    if sys.gettrace() is not None:
+        return True
+    if os.name != "nt":
+        return False
+    try:
+        if bool(ctypes.windll.kernel32.IsDebuggerPresent()):
+            return True
+        attached = ctypes.wintypes.BOOL()
+        ok = ctypes.windll.kernel32.CheckRemoteDebuggerPresent(
+            ctypes.windll.kernel32.GetCurrentProcess(),
+            ctypes.byref(attached),
+        )
+        return bool(ok and attached.value)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _runtime_security_findings(base: Path, app_dir: Path) -> list[str]:
+    """Commercial runtime hardening checks.
+
+    These checks are not meant to be unbreakable DRM. They cheaply block the
+    most common repackaging mistakes: shipping source folders, running a
+    modified install tree, or attaching a debugger to inspect the activation
+    flow. They run only in frozen desktop builds so development stays pleasant.
+    """
+    if not _is_frozen():
+        return []
+    findings: list[str] = []
+    compiled = list(app_dir.glob("pipeline*.pyd"))
+    if not compiled:
+        findings.append("缺少商业编译模块：app/pipeline*.pyd")
+    forbidden_dirs = ("pipeline", "vendor", "third_party", "tests", "__pycache__")
+    for name in forbidden_dirs:
+        if (app_dir / name).exists():
+            findings.append(f"安装目录包含不应发布的源码目录：app/{name}")
+    leaked_sources = sorted(app_dir.rglob("*.py"))
+    if leaked_sources:
+        sample = leaked_sources[0].relative_to(base).as_posix()
+        findings.append(f"安装目录包含 Python 源码文件：{sample}")
+    if _is_debugger_attached():
+        findings.append("检测到调试器附加，已停止启动")
+    return findings
+
+
 def _tray_image() -> Image.Image:
     """生成简洁的 LiveWatch 托盘图标，避免额外二进制资源依赖。"""
     image = Image.new("RGBA", (64, 64), (14, 17, 23, 255))
@@ -408,6 +453,7 @@ def main() -> int:
     sys.path.insert(0, str(app_dir))
 
     findings = _verify_integrity_manifest(base)
+    findings.extend(_runtime_security_findings(base, app_dir))
     if findings:
         message = "程序文件完整性校验失败，可能被篡改或安装不完整，请重新安装官方安装包。"
         print(message)
