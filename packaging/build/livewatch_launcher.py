@@ -35,6 +35,8 @@ import fastapi.middleware.cors  # noqa: F401
 import fastapi.staticfiles  # noqa: F401
 import betterproto  # noqa: F401
 import cryptography  # noqa: F401
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey  # noqa: F401
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # noqa: F401
 import execjs  # noqa: F401
 import imageio_ffmpeg  # noqa: F401
 import jieba  # noqa: F401

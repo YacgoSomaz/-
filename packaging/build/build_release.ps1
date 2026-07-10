@@ -204,6 +204,8 @@ python -m PyInstaller --noconfirm --clean --onedir --windowed `
     --collect-all reportlab `
     --collect-all webview `
     --collect-all pystray `
+    --hidden-import cryptography.hazmat.primitives.asymmetric.ed25519 `
+    --hidden-import cryptography.hazmat.primitives.ciphers.aead `
     $Launcher
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller 失败 exit=$LASTEXITCODE" }
 
