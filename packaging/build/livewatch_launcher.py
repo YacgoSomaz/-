@@ -22,6 +22,7 @@ import os
 import ctypes
 import hashlib
 import json
+import shutil
 import socket
 import sys
 import threading
@@ -74,9 +75,13 @@ def _base_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def _is_frozen() -> bool:
+    return bool(getattr(sys, "frozen", False))
+
+
 def _data_dir() -> Path:
     """用户数据根。优先环境变量覆盖，否则 %LOCALAPPDATA%\\LiveWatch\\data。"""
-    override = os.environ.get("LIVEWATCH_DATA_DIR")
+    override = None if _is_frozen() else os.environ.get("LIVEWATCH_DATA_DIR")
     if override:
         return Path(override).expanduser()
     local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
@@ -102,10 +107,61 @@ def _find_app_dir(base: Path) -> Path:
 
 
 def _resource_dir(base: Path) -> Path:
-    override = os.environ.get("LIVEWATCH_RESOURCE_DIR")
+    override = None if _is_frozen() else os.environ.get("LIVEWATCH_RESOURCE_DIR")
     if override:
         return Path(override).expanduser()
     return base / "models"
+
+
+def _cleanup_legacy_local_install(base: Path, data_dir: Path) -> None:
+    """Remove obsolete per-user program files while preserving user data.
+
+    Older test packages installed source files under %LOCALAPPDATA%\\LiveWatch.
+    Commercial builds live under Program Files and should not leave those source
+    folders around. This cleanup is deliberately narrow: it only touches known
+    legacy program paths and never removes the data directory.
+    """
+    if not _is_frozen():
+        return
+    local = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    root = (Path(local) / "LiveWatch").resolve()
+    current_base = base.resolve()
+    if root == current_base or root in current_base.parents:
+        return
+
+    data_resolved = data_dir.resolve()
+    targets = [
+        root / "app",
+        root / "_internal",
+        root / "models",
+        root / "asr_bench",
+        root / "LiveWatchLauncher.exe",
+        root / "install.bat",
+        root / "install_to_desktop.ps1",
+        root / "uninstall_livewatch.ps1",
+        root / "uninstall_shortcut.bat",
+        root / "安装到桌面.bat",
+        root / "卸载快捷方式.bat",
+        root / "README_使用说明.md",
+    ]
+    for target in targets:
+        try:
+            resolved = target.resolve()
+        except FileNotFoundError:
+            continue
+        if resolved == data_resolved or data_resolved in resolved.parents:
+            continue
+        if resolved.parent != root and root not in resolved.parents:
+            continue
+        try:
+            if resolved.is_dir():
+                shutil.rmtree(resolved)
+                print(f"  已清理旧版程序目录: {resolved}")
+            elif resolved.exists():
+                resolved.unlink()
+                print(f"  已清理旧版程序文件: {resolved}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"  旧版残留清理失败，可忽略或手动删除: {resolved} ({exc})")
 
 
 def _port_open(port: int) -> bool:
@@ -330,6 +386,7 @@ def main() -> int:
     log_dir = data_dir / "logs"
     for sub in ("", "audio", "exports", "logs"):
         (data_dir / sub).mkdir(parents=True, exist_ok=True)
+    _cleanup_legacy_local_install(base, data_dir)
 
     # 控制台日志落盘
     log_handle = None
