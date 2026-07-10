@@ -1,5 +1,6 @@
 param(
   [string]$InstallDir = "$env:LOCALAPPDATA\Programs\LiveWatch",
+  [string]$ArchivePath = "",
   [switch]$NoShortcut,
   [switch]$NoLaunch,
   [switch]$KeepArchive,
@@ -43,16 +44,87 @@ function Verify-Archive([string]$Archive) {
   }
 }
 
+function Download-FileWithProgress([string]$Url, [string]$Destination, [int64]$ExpectedLength) {
+  $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
+  if ($curl) {
+    Write-Step "使用系统下载器下载，窗口会显示实时进度..."
+    & $curl.Source --fail --location --retry 3 --connect-timeout 20 --progress-bar --output $Destination $Url
+    if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $Destination)) {
+      return
+    }
+    Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+    Write-Step "系统下载器失败，切换到备用下载方式..."
+  }
+
+  $request = [System.Net.HttpWebRequest]::Create($Url)
+  $request.UserAgent = "LiveWatchInstaller/$Version"
+  $request.AllowAutoRedirect = $true
+  $request.Timeout = 30000
+  $request.ReadWriteTimeout = 120000
+
+  $response = $request.GetResponse()
+  try {
+    $total = [int64]$response.ContentLength
+    if ($total -le 0) {
+      $total = $ExpectedLength
+    }
+
+    $inputStream = $response.GetResponseStream()
+    $outputStream = [System.IO.File]::Open($Destination, [System.IO.FileMode]::Create, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+    try {
+      $buffer = New-Object byte[] (1024 * 1024)
+      $downloaded = [int64]0
+      $lastReport = Get-Date
+      $started = Get-Date
+
+      while ($true) {
+        $read = $inputStream.Read($buffer, 0, $buffer.Length)
+        if ($read -le 0) {
+          break
+        }
+        $outputStream.Write($buffer, 0, $read)
+        $downloaded += $read
+
+        $now = Get-Date
+        if (($now - $lastReport).TotalMilliseconds -ge 700 -or $downloaded -eq $total) {
+          $percent = 0
+          if ($total -gt 0) {
+            $percent = [Math]::Min(100, [Math]::Round(($downloaded * 100.0) / $total, 1))
+          }
+          $elapsed = [Math]::Max(0.1, ($now - $started).TotalSeconds)
+          $speed = ($downloaded / 1MB) / $elapsed
+          Write-Progress -Activity "正在下载直播复盘侠" -Status ("{0:N1} MB / {1:N1} MB，{2:N1} MB/s" -f ($downloaded / 1MB), ($total / 1MB), $speed) -PercentComplete $percent
+          Write-Host ("  下载进度 {0}%  {1:N1}/{2:N1} MB  {3:N1} MB/s" -f $percent, ($downloaded / 1MB), ($total / 1MB), $speed)
+          $lastReport = $now
+        }
+      }
+    }
+    finally {
+      if ($outputStream) { $outputStream.Dispose() }
+      if ($inputStream) { $inputStream.Dispose() }
+      Write-Progress -Activity "正在下载直播复盘侠" -Completed
+    }
+  }
+  finally {
+    if ($response) { $response.Dispose() }
+  }
+}
+
 $InstallDir = Assert-SafeInstallDir $InstallDir
 $tempRoot = Join-Path $env:TEMP ("LiveWatchPortableInstall_" + [Guid]::NewGuid().ToString("N"))
-$archive = Join-Path $tempRoot "LiveWatchPortable_$Version.zip"
+$usingLocalArchive = -not [string]::IsNullOrWhiteSpace($ArchivePath)
+$archive = if ($usingLocalArchive) { [System.IO.Path]::GetFullPath($ArchivePath) } else { Join-Path $tempRoot "LiveWatchPortable_$Version.zip" }
 $extractRoot = Join-Path $tempRoot "extract"
 
 try {
   New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
 
-  Write-Step "下载安装文件..."
-  Invoke-WebRequest -Uri $DownloadUrl -OutFile $archive -UseBasicParsing
+  if ($usingLocalArchive) {
+    Write-Step "使用本地安装文件：$archive"
+  } else {
+    Write-Step "下载安装文件..."
+    Download-FileWithProgress -Url $DownloadUrl -Destination $archive -ExpectedLength $ExpectedBytes
+  }
   Unblock-File -LiteralPath $archive -ErrorAction SilentlyContinue
 
   Write-Step "校验文件完整性..."
@@ -86,7 +158,10 @@ try {
   }
 
   Write-Step "安装到 $InstallDir ..."
-  New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($InstallDir)) | Out-Null
+  $parentDir = Split-Path -Path $InstallDir -Parent
+  if ($parentDir -and -not (Test-Path -LiteralPath $parentDir)) {
+    New-Item -ItemType Directory -Force -Path $parentDir | Out-Null
+  }
   Move-Item -LiteralPath $sourceDir -Destination $InstallDir
 
   if (-not $NoShortcut) {
@@ -107,8 +182,10 @@ try {
   }
 }
 finally {
-  if ($KeepArchive) {
+  if ($KeepArchive -and -not $usingLocalArchive) {
     Write-Step "保留下载文件：$archive"
+  } elseif (-not $usingLocalArchive) {
+    Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
   } else {
     Remove-Item -LiteralPath $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
   }

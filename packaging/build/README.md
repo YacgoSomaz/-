@@ -77,7 +77,8 @@ https://license.runmo.art/downloads/
 
 优先发放 `InstallLiveWatchPortable.ps1`：它下载便携 ZIP，检查文件大小与 SHA256，
 校验通过才会解压到本机程序目录并创建桌面快捷方式。这个路径不需要直接运行下载后的未签名 EXE，
-能减少 Windows / Edge 的安全下载确认。
+能减少 Windows / Edge 的安全下载确认。脚本会优先调用系统自带 `curl.exe` 显示实时下载进度，
+再回退到 PowerShell 流式下载；开发排障时可用 `-ArchivePath <本地zip>` 跳过重复下载。
 
 `InstallLiveWatch.ps1` 是备用在线校验安装脚本：下载完整 EXE 安装包后，会同时检查文件大小与 SHA256，
 校验通过才会启动 Inno Setup。两个脚本都不包含卡密、后台令牌、AI Key、私钥或任何用户数据。
