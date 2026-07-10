@@ -44,6 +44,7 @@ DEFAULT_POLICY = {
     "max_active_rooms": 10,
     "export_watermark": True,
     "force_upgrade_below": "",
+    "disabled_features": [],
 }
 _PROTECTED_LICENSE_STORAGE = "livewatch-license-cache-v2"
 _PROTECTED_LICENSE_PURPOSE = b"LiveWatch local license cache v2"
@@ -294,7 +295,22 @@ def normalize_policy(policy: Any) -> dict[str, Any]:
         result["max_active_rooms"] = DEFAULT_POLICY["max_active_rooms"]
     result["export_watermark"] = bool(raw.get("export_watermark", result["export_watermark"]))
     result["force_upgrade_below"] = str(raw.get("force_upgrade_below", "") or "").strip()[:64]
+    disabled_raw = raw.get("disabled_features", [])
+    if not isinstance(disabled_raw, list):
+        disabled_raw = []
+    result["disabled_features"] = sorted(
+        {
+            str(feature).strip()
+            for feature in disabled_raw
+            if str(feature).strip() in COMMERCIAL_FEATURES
+        }
+    )
     return result
+
+
+def _effective_features_for_policy(features: set[str], policy: dict[str, Any]) -> set[str]:
+    disabled = set(policy.get("disabled_features") or [])
+    return (set(features) - disabled) | FREE_FEATURES
 
 
 def verify_license(
@@ -372,7 +388,16 @@ def current_status(*, now: int | None = None) -> LicenseStatus:
             status.expires_at,
             status.grace_until,
         )
-    return status
+    effective_features = _effective_features_for_policy(status.features, policy)
+    return LicenseStatus(
+        status.ok,
+        status.mode,
+        status.reason,
+        effective_features,
+        status.payload,
+        status.expires_at,
+        status.grace_until,
+    )
 
 
 def has_feature(feature: str) -> bool:
@@ -384,6 +409,8 @@ def require_feature(feature: str) -> None:
     status = current_status()
     if feature in status.features:
         return
+    if status.ok and feature in set(normalize_policy(status.payload.get("policy")).get("disabled_features") or []):
+        raise LicenseFeatureError("当前功能已被管理员停用")
     raise LicenseFeatureError(status.reason)
 
 

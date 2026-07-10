@@ -77,6 +77,85 @@ def test_signed_license_policy_is_available_after_verification():
     assert license_manager.normalize_policy(status.payload.get("policy"))["export_watermark"] is False
 
 
+def test_normalize_policy_sanitizes_disabled_features():
+    policy = license_manager.normalize_policy(
+        {
+            "disabled_features": ["ai_replay", "basic", "bad_feature", "ai_replay", 123],
+        }
+    )
+
+    assert policy["disabled_features"] == ["ai_replay"]
+
+
+def test_signed_policy_can_disable_features_in_current_status(tmp_path, monkeypatch):
+    private_key, public_key = _keypair()
+    device_hash = "device_hash_1"
+    license_path = tmp_path / "license.json"
+    clock_path = tmp_path / "clock.json"
+    monkeypatch.setattr(license_manager.config, "LICENSE_ENFORCE", True)
+    monkeypatch.setattr(license_manager.config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager.config, "LICENSE_PATH", license_path)
+    monkeypatch.setattr(license_manager.config, "LICENSE_CLOCK_PATH", clock_path, raising=False)
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    license_manager.save_license_doc(
+        _signed_doc(
+            private_key,
+            {
+                "product_code": "live_replay_xia",
+                "device_hash": device_hash,
+                "features": ["export", "ai_replay", "short_video_ai"],
+                "policy": {"disabled_features": ["ai_replay", "bad_feature", "basic"]},
+                "expires_at": 9_999_999_999,
+                "grace_until": 10_000_000_000,
+            },
+        ),
+        path=license_path,
+    )
+
+    status = license_manager.current_status(now=5_000)
+    public = license_manager.public_status()
+
+    assert status.ok is True
+    assert "basic" in status.features
+    assert "export" in status.features
+    assert "short_video_ai" in status.features
+    assert "ai_replay" not in status.features
+    assert public["policy"]["disabled_features"] == ["ai_replay"]
+
+
+def test_require_feature_rejects_policy_disabled_feature(tmp_path, monkeypatch):
+    private_key, public_key = _keypair()
+    device_hash = "device_hash_1"
+    license_path = tmp_path / "license.json"
+    clock_path = tmp_path / "clock.json"
+    monkeypatch.setattr(license_manager.config, "LICENSE_ENFORCE", True)
+    monkeypatch.setattr(license_manager.config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager.config, "LICENSE_PATH", license_path)
+    monkeypatch.setattr(license_manager.config, "LICENSE_CLOCK_PATH", clock_path, raising=False)
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    license_manager.save_license_doc(
+        _signed_doc(
+            private_key,
+            {
+                "product_code": "live_replay_xia",
+                "device_hash": device_hash,
+                "features": ["short_video_ai"],
+                "policy": {"disabled_features": ["short_video_ai"]},
+                "expires_at": 9_999_999_999,
+                "grace_until": 10_000_000_000,
+            },
+        ),
+        path=license_path,
+    )
+
+    try:
+        license_manager.require_feature("short_video_ai")
+    except license_manager.LicenseFeatureError as exc:
+        assert "当前功能已被管理员停用" in str(exc)
+    else:
+        raise AssertionError("policy-disabled feature should be rejected")
+
+
 def test_tampered_payload_is_rejected():
     private_key, public_key = _keypair()
     doc = _signed_doc(
