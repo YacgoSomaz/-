@@ -26,29 +26,32 @@
   <main class="wrap">
     <section class="card">
       <h1>直播复盘侠下载安装</h1>
-      <p>推荐使用“校验安装”方式：系统会先下载完整安装包，校验 SHA256 一致后再安装，避免半包或损坏文件。</p>
+      <p>推荐使用“便携校验安装”方式：系统会先下载 ZIP，校验 SHA256 一致后解压安装并创建快捷方式。这个方式不需要直接运行下载下来的 EXE，能减少未签名安装包带来的安全拦截。</p>
 
       <div class="meta">
         <div class="box"><strong>1.0.2</strong><span>当前版本</span></div>
-        <div class="box"><strong>314 MB</strong><span>安装包大小</span></div>
+        <div class="box"><strong>374 MB</strong><span>便携包大小</span></div>
         <div class="box"><strong>已校验</strong><span>服务器文件完整</span></div>
       </div>
 
       <div class="actions">
-        <a class="button" href="/downloads/LiveWatchSetup_1.0.2.exe">直接下载安装包</a>
-        <a class="button secondary" href="/downloads/InstallLiveWatch.ps1">下载校验安装脚本</a>
+        <a class="button" href="/downloads/InstallLiveWatchPortable.ps1">下载便携安装脚本</a>
+        <a class="button secondary" href="/downloads/LiveWatchPortable_1.0.2.zip">下载便携 ZIP</a>
+        <a class="button secondary" href="/downloads/LiveWatchSetup_1.0.2.exe">备用 EXE 安装包</a>
       </div>
 
-      <h2>推荐：一行命令校验安装</h2>
-      <p>复制下面命令到 PowerShell 运行。它会自动下载、校验并启动安装。</p>
-      <pre>powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr https://license.runmo.art/downloads/InstallLiveWatch.ps1 -OutFile $env:TEMP\InstallLiveWatch.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\InstallLiveWatch.ps1"</pre>
+      <h2>推荐：一行命令便携安装</h2>
+      <p>复制下面命令到 PowerShell 运行。它会自动下载、校验、解压、创建桌面快捷方式并启动软件。</p>
+      <pre>powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr https://license.runmo.art/downloads/InstallLiveWatchPortable.ps1 -OutFile $env:TEMP\InstallLiveWatchPortable.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\InstallLiveWatchPortable.ps1"</pre>
 
       <div class="warn">
-        Windows 对未签名的新软件可能会提示安全确认。当前安装包已经做完整性校验；若要彻底减少 SmartScreen 提示，需要后续购买并接入受信任代码签名证书。
+        如果继续使用 EXE 安装包，Windows 对未签名的新软件仍可能提示安全确认。当前文件已经做完整性校验；若要彻底减少 SmartScreen 提示，需要后续购买并接入受信任代码签名证书。
       </div>
 
       <h2>校验信息</h2>
-      <p>SHA256：</p>
+      <p>便携 ZIP SHA256：</p>
+      <pre>34D0AFC96CDB4AC0B0F51F6E01DBF6E9E96FD9C22606C11F3FF6BED051740BE6</pre>
+      <p>备用 EXE SHA256：</p>
       <pre>53D6E00CF285E1DE31E14FD57E4155B16B9D23A1482D14974DCA8A6503DF1F72</pre>
     </section>
   </main>

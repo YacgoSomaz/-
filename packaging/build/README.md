@@ -75,8 +75,12 @@ pwsh -File packaging\build\smoke_test.ps1
 https://license.runmo.art/downloads/
 ```
 
-`InstallLiveWatch.ps1` 是在线校验安装脚本：下载完整安装包后，会同时检查文件大小与 SHA256，
-校验通过才会启动 Inno Setup。它不包含卡密、后台令牌、AI Key、私钥或任何用户数据。
+优先发放 `InstallLiveWatchPortable.ps1`：它下载便携 ZIP，检查文件大小与 SHA256，
+校验通过才会解压到本机程序目录并创建桌面快捷方式。这个路径不需要直接运行下载后的未签名 EXE，
+能减少 Windows / Edge 的安全下载确认。
+
+`InstallLiveWatch.ps1` 是备用在线校验安装脚本：下载完整 EXE 安装包后，会同时检查文件大小与 SHA256，
+校验通过才会启动 Inno Setup。两个脚本都不包含卡密、后台令牌、AI Key、私钥或任何用户数据。
 
 当前发放版本：
 
@@ -85,6 +89,10 @@ Version: 1.0.2
 URL:     https://license.runmo.art/downloads/LiveWatchSetup_1.0.2.exe
 SHA256:  53D6E00CF285E1DE31E14FD57E4155B16B9D23A1482D14974DCA8A6503DF1F72
 Bytes:   329330062
+
+Portable URL:    https://license.runmo.art/downloads/LiveWatchPortable_1.0.2.zip
+Portable SHA256: 34D0AFC96CDB4AC0B0F51F6E01DBF6E9E96FD9C22606C11F3FF6BED051740BE6
+Portable Bytes:  391625121
 ```
 
 未签名安装包在 Windows / Edge 上可能触发 SmartScreen 或安全下载确认。构建链能保证完整性、
