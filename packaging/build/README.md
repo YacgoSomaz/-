@@ -9,6 +9,7 @@
 |------|------|
 | `livewatch_launcher.py` | PyInstaller 桌面客户端入口。注入数据/资源路径，启动 uvicorn 后端，并用 WebView2 独立窗口与系统托盘承载控制台。 |
 | `build_release.ps1` | **一键可重复构建**。开发包拷源码；商业包会先用 Nuitka 编译整个业务包，再内置 node+模型、PyInstaller 运行时、安全扫描与 ISCC 安装程序。 |
+| `build_commercial_release.ps1` | **一键商业加固构建入口**。自动固定 `-Commercial`，从环境变量或授权服务器取公钥，再调用 `build_release.ps1`；不保存后台 token。 |
 | `check_release.ps1` | 构建产物安全扫描。发现 Cookie / 数据库 / 音频 / 日志 / 开发房间号 → 立即 `exit 1` 让构建失败。 |
 | `livewatch.iss` | Inno Setup 脚本。装到安装目录；覆盖升级保数据；卸载默认保留数据 + 明确「完全删除」选项。 |
 | `smoke_test.ps1` | 全新目录安装冒烟测试：启动、模型路径、数据目录、覆盖升级保数据。 |
@@ -42,11 +43,20 @@ pwsh -File packaging\build\build_release.ps1 -Commercial `
   -LicensePublicKey "Ed25519_base64url_公钥" `
   -Version 1.1.0
 
+# 推荐商业发包入口：固定商业加固流水线。
+# 方式 A：直接给授权公钥（最适合离线构建机）。
+$env:LIVEWATCH_LICENSE_PUBLIC_KEY = "Ed25519_base64url_公钥"
+pwsh -File packaging\build\build_commercial_release.ps1 -Version 1.1.0
+
+# 方式 B：临时用管理后台令牌拉取公钥；令牌不会写进安装包。
+$env:LIVEWATCH_LICENSE_ADMIN_TOKEN = "管理后台令牌"
+pwsh -File packaging\build\build_commercial_release.ps1 `
+  -LicenseServerUrl "https://license.runmo.art" `
+  -Version 1.1.0
+
 # 可选：给启动器与安装程序加 Windows Authenticode 签名。
 # 证书安装到当前 Windows 用户的证书存储后，填入证书指纹即可。
-pwsh -File packaging\build\build_release.ps1 -Commercial `
-  -LicenseServerUrl "https://license.example.com" `
-  -LicensePublicKey "Ed25519_base64url_公钥" `
+pwsh -File packaging\build\build_commercial_release.ps1 `
   -CodeSignThumbprint "证书SHA1指纹" `
   -Version 1.1.0
 
@@ -68,6 +78,8 @@ pwsh -File packaging\build\smoke_test.ps1
 ## 可重复性
 
 - 每次构建先 `Remove-Item` 清空 `staging\`，再全自动重建——**没有任何手工复制步骤**。
+- 每次商业发包建议只跑 `build_commercial_release.ps1`。它会自动进入商业模式，避免漏掉授权、
+  Nuitka 编译、完整性签名或安全扫描。授权后台 token 只从环境变量读取，不写入仓库和安装包。
 - 开发构建用**白名单**拷贝；商业构建把 `pipeline` 编译为单一 `.pyd`，并由扫描器拒绝任何业务 `.py` 源码。旧 `vendor\`、`run_worker.py`
   已不再允许进入产物），天然排除 `audio\`、`*.db`、
   `browser_cookies.json`、`rooms.json`、`exports\`、日志、样本、`__pycache__`、`_scratch*`。

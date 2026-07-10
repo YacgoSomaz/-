@@ -22,6 +22,8 @@ param(
     [switch]$Commercial,                    # 注入商业授权公钥/服务端地址，并强制客户端校验授权
     [string]$LicenseServerUrl = "",        # 例如 https://license.example.com
     [string]$LicensePublicKey = "",         # base64url Ed25519 公钥（不是私钥）
+    [string]$IntegrityPrivateKey = "",      # 可选：base64url Ed25519 私钥；留空则本次构建临时生成
+    [string]$IntegrityPublicKey = "",       # 可选：base64url Ed25519 公钥；留空则随私钥推导/生成
     [string]$CodeSignThumbprint = "",       # 可选：Windows 证书存储中的代码签名证书指纹
     [string]$SignTool = ""                   # 可选：signtool.exe 路径；留空自动探测
 )
@@ -48,6 +50,8 @@ $TmpDist   = Join-Path $RepoRoot "staging\_pyi_dist"
 $TmpWork   = Join-Path $RepoRoot "staging\_pyi_work"
 $TmpNuitkaSource = Join-Path $RepoRoot "staging\_nuitka_source"
 $TmpNuitkaOutput = Join-Path $RepoRoot "staging\_nuitka_output"
+$TmpLauncherDir = Join-Path $RepoRoot "staging\_launcher_source"
+$TmpLauncher = Join-Path $TmpLauncherDir "livewatch_launcher.py"
 $ReleaseOut= Join-Path $RepoRoot "release"
 
 function Write-Step($msg) { Write-Host "`n==== $msg ====" -ForegroundColor Cyan }
@@ -124,12 +128,37 @@ function Sign-ReleaseBinary {
     }
 }
 
+function Initialize-IntegritySigning {
+    if ($IntegrityPrivateKey -and $IntegrityPublicKey) {
+        return @{ Private = $IntegrityPrivateKey; Public = $IntegrityPublicKey }
+    }
+    if ($env:LIVEWATCH_INTEGRITY_PRIVATE_KEY -and $env:LIVEWATCH_INTEGRITY_PUBLIC_KEY) {
+        return @{
+            Private = $env:LIVEWATCH_INTEGRITY_PRIVATE_KEY
+            Public = $env:LIVEWATCH_INTEGRITY_PUBLIC_KEY
+        }
+    }
+
+    $oldPythonPath = $env:PYTHONPATH
+    $env:PYTHONPATH = $Route
+    try {
+        $json = & python -c "from pipeline.integrity_manifest import generate_keypair; import json; private, public = generate_keypair(); print(json.dumps({'private': private, 'public': public}))"
+        if ($LASTEXITCODE -ne 0) { throw "完整性签名密钥生成失败" }
+        $pair = $json | ConvertFrom-Json
+        return @{ Private = [string]$pair.private; Public = [string]$pair.public }
+    } finally {
+        $env:PYTHONPATH = $oldPythonPath
+    }
+}
+
 # ---------- 1. 空白 staging ----------
 Write-Step "重建空白 staging"
-foreach ($d in @($Staging, $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput)) {
+foreach ($d in @($Staging, $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput, $TmpLauncherDir)) {
     if (Test-Path $d) { Remove-Item -Recurse -Force $d }
 }
 New-Item -ItemType Directory -Force -Path $Staging | Out-Null
+$IntegrityKeys = Initialize-IntegritySigning
+Write-Host "完整性签名：已为本次构建准备 Ed25519 公钥（私钥不写入安装包）。" -ForegroundColor Green
 $AppDir = Join-Path $Staging "app"
 New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
 
@@ -193,6 +222,10 @@ Invoke-Robocopy $SpkModel (Join-Path $ModelsDir "speaker") @("/E")
 
 # ---------- 4. PyInstaller 打包桌面客户端 ----------
 Write-Step "PyInstaller 打包桌面客户端"
+New-Item -ItemType Directory -Force -Path $TmpLauncherDir | Out-Null
+$LauncherCode = [System.IO.File]::ReadAllText($Launcher, [System.Text.Encoding]::UTF8)
+$LauncherCode = $LauncherCode.Replace("__LIVEWATCH_INTEGRITY_PUBLIC_KEY__", $IntegrityKeys.Public)
+[System.IO.File]::WriteAllText($TmpLauncher, $LauncherCode, [System.Text.UTF8Encoding]::new($false))
 python -m PyInstaller --noconfirm --clean --onedir --windowed `
     --name LiveWatchLauncher `
     --icon $IconFile `
@@ -206,7 +239,7 @@ python -m PyInstaller --noconfirm --clean --onedir --windowed `
     --collect-all pystray `
     --hidden-import cryptography.hazmat.primitives.asymmetric.ed25519 `
     --hidden-import cryptography.hazmat.primitives.ciphers.aead `
-    $Launcher
+    $TmpLauncher
 if ($LASTEXITCODE -ne 0) { throw "PyInstaller 失败 exit=$LASTEXITCODE" }
 
 # 把 onedir 产物（exe + _internal）搬到 staging 根
@@ -220,6 +253,9 @@ Write-Step "拷贝文档"
 if (Test-Path (Join-Path $Assets "README_使用说明.md")) {
     Copy-Item (Join-Path $Assets "README_使用说明.md") (Join-Path $Staging "README_使用说明.md") -Force
 }
+if (Test-Path (Join-Path $Assets "COMMERCIAL_NOTICE.txt")) {
+    Copy-Item (Join-Path $Assets "COMMERCIAL_NOTICE.txt") (Join-Path $Staging "COMMERCIAL_NOTICE.txt") -Force
+}
 $ThirdPartyNotices = Join-Path $Route "THIRD_PARTY_NOTICES.md"
 if (Test-Path $ThirdPartyNotices) {
     Copy-Item $ThirdPartyNotices (Join-Path $Staging "THIRD_PARTY_NOTICES.md") -Force
@@ -228,11 +264,14 @@ if (Test-Path $ThirdPartyNotices) {
 # ---------- 5.5 完整性清单 ----------
 Write-Step "生成完整性清单"
 $env:PYTHONPATH = $Route
+$env:LIVEWATCH_INTEGRITY_PRIVATE_KEY = $IntegrityKeys.Private
+$env:LIVEWATCH_INTEGRITY_PUBLIC_KEY = $IntegrityKeys.Public
 & python -c "from pathlib import Path; from pipeline import integrity_manifest; integrity_manifest.write_and_verify(Path(r'$Staging'))"
 if ($LASTEXITCODE -ne 0) { throw "完整性清单生成失败，构建中止。" }
+$env:LIVEWATCH_INTEGRITY_PRIVATE_KEY = $null
 
 # 清理 PyInstaller 临时
-Remove-Item -Recurse -Force $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput, $TmpLauncherDir -ErrorAction SilentlyContinue
 
 # ---------- 6. 安全扫描 ----------
 Write-Step "构建产物安全扫描"

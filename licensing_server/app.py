@@ -24,6 +24,7 @@ class ActivationRequest(BaseModel):
     card_key: str = Field(min_length=4, max_length=128)
     device_hash: str = Field(min_length=1, max_length=128)
     app_version: str = Field(default="", max_length=128)
+    product_code: str = Field(default="", max_length=64, pattern=r"^[A-Za-z0-9_.-]*$")
 
 
 class RefreshRequest(BaseModel):
@@ -31,10 +32,12 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=16, max_length=256)
     device_hash: str = Field(min_length=1, max_length=128)
     app_version: str = Field(default="", max_length=128)
+    product_code: str = Field(default="", max_length=64, pattern=r"^[A-Za-z0-9_.-]*$")
 
 
 class CreateCardRequest(BaseModel):
     features: list[str] = Field(min_length=1, max_length=20)
+    product_code: str = Field(default="live_replay_xia", min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     max_devices: int = Field(default=1, ge=1, le=20)
     expires_at: int = Field(default=0, ge=0)
     max_active_rooms: int = Field(default=10, ge=1, le=50)
@@ -49,7 +52,7 @@ class ReasonRequest(BaseModel):
 
 def _public_error(exc: LicenseError) -> HTTPException:
     text = str(exc)
-    status = 403 if any(word in text for word in ("冻结", "停用", "到期", "不属于")) else 400
+    status = 403 if any(word in text for word in ("冻结", "停用", "到期", "不属于", "不匹配")) else 400
     return HTTPException(status_code=status, detail=text)
 
 
@@ -102,6 +105,7 @@ def create_app(
             return service.activate(
                 card_key=payload.card_key,
                 device_hash=payload.device_hash,
+                product_code=payload.product_code,
                 app_version=payload.app_version,
             )
         except LicenseError as exc:
@@ -114,6 +118,7 @@ def create_app(
                 activation_id=payload.activation_id,
                 refresh_token=payload.refresh_token,
                 device_hash=payload.device_hash,
+                product_code=payload.product_code,
                 app_version=payload.app_version,
             )
         except LicenseError as exc:
@@ -128,6 +133,7 @@ def create_app(
         try:
             card_key = service.create_card_key(
                 features=set(payload.features),
+                product_code=payload.product_code,
                 max_devices=payload.max_devices,
                 expires_at=payload.expires_at,
                 policy={

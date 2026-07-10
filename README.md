@@ -105,15 +105,21 @@ docs/security/license-server-deployment.md
 ## Windows 安装包构建
 
 构建脚本位于 `packaging/build/`。商业构建会把 `pipeline` 编译为二进制模块，
-安装包中不携带业务 `.py` 源码，只内置授权公钥和授权服务地址。
+安装包中不携带业务 `.py` 源码，只内置授权公钥和授权服务地址。日常发包建议使用
+`build_commercial_release.ps1`，它会自动固定商业加固参数，避免漏掉编译、授权和完整性校验步骤。
 
 ```powershell
 python -m pip install -r packaging\build\requirements-build.txt
 
-pwsh -NoProfile -File packaging\build\build_release.ps1 `
-  -Commercial `
+# 方式 A：构建机提前放入授权公钥。
+$env:LIVEWATCH_LICENSE_PUBLIC_KEY = "<Ed25519 公钥>"
+pwsh -NoProfile -File packaging\build\build_commercial_release.ps1 `
+  -Version "1.0.0"
+
+# 方式 B：用管理后台令牌临时拉取公钥；令牌不会写进安装包。
+$env:LIVEWATCH_LICENSE_ADMIN_TOKEN = "<管理后台令牌>"
+pwsh -NoProfile -File packaging\build\build_commercial_release.ps1 `
   -LicenseServerUrl "https://license.runmo.art" `
-  -LicensePublicKey "<Ed25519 公钥>" `
   -Version "1.0.0"
 ```
 
@@ -126,10 +132,7 @@ release\LiveWatchSetup_1.0.0.exe
 可选代码签名：
 
 ```powershell
-pwsh -NoProfile -File packaging\build\build_release.ps1 `
-  -Commercial `
-  -LicenseServerUrl "https://license.runmo.art" `
-  -LicensePublicKey "<Ed25519 公钥>" `
+pwsh -NoProfile -File packaging\build\build_commercial_release.ps1 `
   -CodeSignThumbprint "<证书SHA1指纹>" `
   -Version "1.0.0"
 ```
@@ -183,4 +186,3 @@ git diff --stat
 3. 给 AI 获客系统加入主页新作品监控，再把新视频评论转成线索。
 4. 继续降低 AI 报告耗时，并保留清晰的进度可视化。
 5. 购买代码签名证书，给商业安装包签名，减少 Windows SmartScreen 提示。
-

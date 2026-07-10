@@ -35,6 +35,8 @@ def test_activation_api_and_freeze_protect_refresh(tmp_path: Path) -> None:
     console = client.get("/admin")
     assert console.status_code == 200
     assert "授权管理台" in console.text
+    assert 'value="wanshan_media"' in console.text
+    assert 'value="wanshan"' not in console.text
 
     cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"})
     assert cards.status_code == 200
@@ -99,6 +101,41 @@ def test_admin_can_issue_card_with_cloud_policy(tmp_path: Path) -> None:
     assert cards[0]["policy"]["max_active_rooms"] == 4
     assert cards[0]["policy"]["export_watermark"] is False
     assert cards[0]["policy"]["force_upgrade_below"] == "1.2.0"
+
+
+def test_admin_can_issue_wanshan_card_and_activation_preserves_product_code(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    client = TestClient(create_app(service, admin_token="admin-test-token"))
+
+    issued = client.post(
+        "/admin/card-keys",
+        headers={"Authorization": "Bearer admin-test-token"},
+        json={"product_code": "wanshan_media", "features": ["basic"]},
+    )
+    assert issued.status_code == 200
+    card_key = issued.json()["card_key"]
+
+    cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"}).json()["cards"]
+    assert cards[0]["product_code"] == "wanshan_media"
+
+    activation = client.post(
+        "/v1/activate",
+        json={"card_key": card_key, "device_hash": "wanshan-device", "product_code": "wanshan_media"},
+    )
+    assert activation.status_code == 200
+
+
+def test_activation_rejects_a_card_for_the_wrong_product(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    client = TestClient(create_app(service, admin_token="admin-test-token"))
+    card_key = service.create_card_key(features={"basic"}, product_code="wanshan_media")
+
+    response = client.post(
+        "/v1/activate",
+        json={"card_key": card_key, "device_hash": "wrong-product-device", "product_code": "live_replay_xia"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "授权产品不匹配"
 
 
 def test_admin_public_key_requires_admin_and_returns_build_key(tmp_path: Path) -> None:

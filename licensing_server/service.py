@@ -33,6 +33,11 @@ VALID_FEATURES = {
     "lead_radar",
 }
 
+VALID_PRODUCT_CODES = {
+    "live_replay_xia",
+    "wanshan_media",
+}
+
 DEFAULT_POLICY = {
     "max_active_rooms": 10,
     "export_watermark": True,
@@ -203,6 +208,7 @@ class LicenseService:
         self,
         *,
         features: set[str],
+        product_code: str | None = None,
         max_devices: int = 1,
         expires_at: int = 0,
         policy: dict[str, Any] | None = None,
@@ -211,6 +217,9 @@ class LicenseService:
     ) -> str:
         if max_devices < 1 or max_devices > 20:
             raise LicenseError("设备数必须在 1 到 20 之间")
+        selected_product = str(product_code or self.settings.product_code).strip()
+        if selected_product not in VALID_PRODUCT_CODES:
+            raise LicenseError("产品代码无效")
         allowed_features = sorted(set(features) & VALID_FEATURES)
         if not allowed_features:
             raise LicenseError("至少选择一个有效功能")
@@ -230,7 +239,7 @@ class LicenseService:
                             card_id,
                             self._hash_secret(card_key),
                             card_key[:8],
-                            self.settings.product_code,
+                            selected_product,
                             json.dumps(allowed_features, ensure_ascii=False),
                             max_devices,
                             max(0, int(expires_at)),
@@ -286,12 +295,22 @@ class LicenseService:
             "signature": _b64url_encode(self._signing_key.sign(payload_bytes)),
         }
 
-    def activate(self, *, card_key: str, device_hash: str, app_version: str = "", now: int | None = None) -> dict[str, Any]:
+    def activate(
+        self,
+        *,
+        card_key: str,
+        device_hash: str,
+        product_code: str = "",
+        app_version: str = "",
+        now: int | None = None,
+    ) -> dict[str, Any]:
         now_ts = int(now if now is not None else time.time())
         device = self._clean_device_hash(device_hash)
         version = self._clean_app_version(app_version)
         with self._connect() as conn:
             card = self._find_card(conn, card_key)
+            if product_code and product_code.strip() != card["product_code"]:
+                raise LicenseError("授权产品不匹配")
             self._validate_card_time(card, now_ts)
             activation = conn.execute(
                 "SELECT * FROM activations WHERE card_id = ? AND device_hash = ?", (card["id"], device)
@@ -335,6 +354,7 @@ class LicenseService:
         activation_id: str,
         refresh_token: str,
         device_hash: str,
+        product_code: str = "",
         app_version: str = "",
         now: int | None = None,
     ) -> dict[str, Any]:
@@ -358,6 +378,8 @@ class LicenseService:
                 raise LicenseError("授权刷新凭据无效")
             if row["device_hash"] != device:
                 raise LicenseError("授权不属于当前设备")
+            if product_code and product_code.strip() != row["product_code"]:
+                raise LicenseError("授权产品不匹配")
             if row["status"] == "frozen":
                 raise LicenseError("当前设备授权已冻结")
             if row["status"] != "active" or row["card_status"] != "active":

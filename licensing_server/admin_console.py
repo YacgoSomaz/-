@@ -17,3 +17,13 @@ async function changeState(id,action){const reason=prompt(action==='freeze'?'冻
 $('connect').onclick=()=>{adminToken=$('token').value.trim();if(!adminToken)return status('请输入管理员令牌。',true);load()};$('refresh').onclick=load;$('issue').onclick=async()=>{if(!adminToken)return status('请先连接管理台。',true);const features=[...document.querySelectorAll('#features input:checked')].map(x=>x.value);if(!features.length)return status('至少选择一个授权功能。',true);try{const r=await api('/admin/card-keys',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({features,max_devices:Number($('maxDevices').value),max_active_rooms:Number($('maxActiveRooms').value),export_watermark:$('exportWatermark').checked,force_upgrade_below:$('forceUpgradeBelow').value,note:$('note').value})});$('issuedKey').textContent=r.card_key;$('issued').style.display='block';status('卡密已生成，请立即复制并保存。');load()}catch(e){status(e.message,true)}};$('copyKey').onclick=async()=>{try{await navigator.clipboard.writeText($('issuedKey').textContent);status('卡密已复制。')}catch(e){status('复制失败，请手动复制。',true)}};
 $('copyPublicKey').onclick=async()=>{if(!adminToken)return status('请先连接管理台。',true);try{const r=await api('/admin/public-key');await navigator.clipboard.writeText(r.public_key);status('商业构建公钥已复制，可用于安装包构建。')}catch(e){status(e.message||'复制公钥失败',true)}};
 </script></body></html>"""
+
+# Keep the existing console layout and add product selection without replacing the page.
+ADMIN_HTML = ADMIN_HTML.replace(
+    '<h2>创建卡密</h2>',
+    '<h2>创建卡密</h2><div class="field"><label>产品</label><select id="productCode"><option value="live_replay_xia">直播复盘侠</option><option value="wanshan_media">万山自媒体</option></select></div>',
+)
+ADMIN_HTML = ADMIN_HTML.replace(
+    'JSON.stringify({features,max_devices:',
+    'JSON.stringify({product_code:$(\'productCode\').value,features,max_devices:',
+)

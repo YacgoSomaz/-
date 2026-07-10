@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import os
+import base64
 import ctypes
 import hashlib
 import json
@@ -35,7 +36,8 @@ import fastapi.middleware.cors  # noqa: F401
 import fastapi.staticfiles  # noqa: F401
 import betterproto  # noqa: F401
 import cryptography  # noqa: F401
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey  # noqa: F401
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM  # noqa: F401
 import execjs  # noqa: F401
 import imageio_ffmpeg  # noqa: F401
@@ -61,6 +63,7 @@ from PIL import Image, ImageDraw
 APP_NAME = "直播复盘侠"
 DEFAULT_PORT = 8848
 MANIFEST_NAME = "integrity_manifest.json"
+INTEGRITY_PUBLIC_KEY = "__LIVEWATCH_INTEGRITY_PUBLIC_KEY__"
 
 
 def _show_error(message: str) -> None:
@@ -198,6 +201,21 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _b64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+
+
+def _canonical_manifest_payload(manifest: dict) -> bytes:
+    unsigned = {k: v for k, v in manifest.items() if k != "signature"}
+    return json.dumps(
+        unsigned,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+
 def _verify_integrity_manifest(base: Path) -> list[str]:
     manifest_path = base / MANIFEST_NAME
     if not manifest_path.exists():
@@ -208,8 +226,28 @@ def _verify_integrity_manifest(base: Path) -> list[str]:
         return [f"完整性清单读取失败：{exc}"]
 
     findings: list[str] = []
+    public_key = INTEGRITY_PUBLIC_KEY.strip()
+    if not public_key or public_key.startswith("__LIVEWATCH_"):
+        findings.append("缺少完整性清单签名公钥")
+    else:
+        signature = manifest.get("signature")
+        if not isinstance(signature, str) or not signature:
+            findings.append("完整性清单缺少签名")
+        elif manifest.get("signature_algorithm") != "Ed25519":
+            findings.append("完整性清单签名算法不受支持")
+        else:
+            try:
+                Ed25519PublicKey.from_public_bytes(_b64url_decode(public_key)).verify(
+                    _b64url_decode(signature),
+                    _canonical_manifest_payload(manifest),
+                )
+            except (ValueError, InvalidSignature) as exc:
+                findings.append(f"完整性清单签名无效：{exc.__class__.__name__}")
+
+    covered: set[str] = set()
     for item in manifest.get("files", []):
         rel = str(item.get("path", "")).replace("\\", "/")
+        covered.add(rel)
         expected = str(item.get("sha256", ""))
         if not rel or not expected:
             findings.append(f"清单条目无效：{rel or '<empty>'}")
@@ -220,6 +258,26 @@ def _verify_integrity_manifest(base: Path) -> list[str]:
             continue
         if _sha256_file(target) != expected:
             findings.append(f"文件被修改：{rel}")
+    skipped_dirs = {".git", "__pycache__", "audio", "exports", "logs", "models", "video"}
+    skipped_files = {
+        MANIFEST_NAME,
+        "license.json",
+        "license_clock.json",
+        "browser_cookies.json",
+        "short_video_cookies.json",
+        "rooms.json",
+        "transcripts.db",
+        "multi_events.db",
+    }
+    for path in base.rglob("*"):
+        if not path.is_file():
+            continue
+        rel_path = path.relative_to(base)
+        if set(rel_path.parts) & skipped_dirs or path.name in skipped_files:
+            continue
+        rel = rel_path.as_posix()
+        if rel not in covered:
+            findings.append(f"发现未授权文件：{rel}")
     return findings
 
 
