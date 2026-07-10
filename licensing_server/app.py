@@ -37,6 +37,9 @@ class CreateCardRequest(BaseModel):
     features: list[str] = Field(min_length=1, max_length=20)
     max_devices: int = Field(default=1, ge=1, le=20)
     expires_at: int = Field(default=0, ge=0)
+    max_active_rooms: int = Field(default=10, ge=1, le=50)
+    export_watermark: bool = True
+    force_upgrade_below: str = Field(default="", max_length=64)
     note: str = Field(default="", max_length=500)
 
 
@@ -127,6 +130,11 @@ def create_app(
                 features=set(payload.features),
                 max_devices=payload.max_devices,
                 expires_at=payload.expires_at,
+                policy={
+                    "max_active_rooms": payload.max_active_rooms,
+                    "export_watermark": payload.export_watermark,
+                    "force_upgrade_below": payload.force_upgrade_below,
+                },
                 note=payload.note,
             )
         except LicenseError as exc:
@@ -136,6 +144,10 @@ def create_app(
     @app.get("/admin/cards", dependencies=[Depends(require_admin)])
     def list_cards(limit: int = 200) -> dict[str, object]:
         return {"cards": service.list_cards(limit=limit)}
+
+    @app.get("/admin/public-key", dependencies=[Depends(require_admin)])
+    def public_key() -> dict[str, str]:
+        return {"public_key": service.public_key_b64url()}
 
     @app.get("/admin/activations", dependencies=[Depends(require_admin)])
     def list_activations(limit: int = 200) -> dict[str, object]:

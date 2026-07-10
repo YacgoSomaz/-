@@ -17,6 +17,8 @@ def feature_for_request(method: str, path: str) -> str | None:
         return None
     if target.startswith("/api/ai/"):
         return "ai_replay"
+    if target.startswith("/api/performance/"):
+        return "ai_replay"
     if target.startswith("/api/export"):
         return "export"
     if target.startswith("/api/short-video/cookie/"):
@@ -27,6 +29,12 @@ def feature_for_request(method: str, path: str) -> str | None:
         return None
     if target.startswith("/api/comment-leads/"):
         return "lead_radar"
+    if target == "/api/cookie/remint":
+        return "live_monitor"
+    if target == "/api/video-quality":
+        return "live_monitor" if verb in {"PUT", "POST", "PATCH", "DELETE"} else None
+    if target in {"/api/data/clear-all"} or target.startswith("/api/data/"):
+        return "live_monitor" if verb in {"POST", "PUT", "PATCH", "DELETE"} else None
     if target.startswith("/api/rooms") or target.startswith("/api/anchors") or target.startswith("/api/pending"):
         return "live_monitor" if verb in {"POST", "PUT", "PATCH", "DELETE"} else None
     if target in {"/api/start_all", "/api/stop_all"}:

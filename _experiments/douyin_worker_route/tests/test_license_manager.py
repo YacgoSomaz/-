@@ -49,6 +49,34 @@ def test_valid_signed_license_enables_features():
     assert {"basic", "export", "ai_replay"} <= status.features
 
 
+def test_signed_license_policy_is_available_after_verification():
+    private_key, public_key = _keypair()
+    device_hash = "device_hash_1"
+    doc = _signed_doc(
+        private_key,
+        {
+            "product_code": "live_replay_xia",
+            "device_hash": device_hash,
+            "features": ["live_monitor"],
+            "policy": {"max_active_rooms": 4, "export_watermark": False},
+            "expires_at": 2000,
+            "grace_until": 3000,
+        },
+    )
+
+    status = license_manager.verify_license(
+        doc,
+        public_key=public_key,
+        now=1000,
+        expected_device_hash=device_hash,
+        product_code="live_replay_xia",
+    )
+
+    assert status.ok is True
+    assert license_manager.normalize_policy(status.payload.get("policy"))["max_active_rooms"] == 4
+    assert license_manager.normalize_policy(status.payload.get("policy"))["export_watermark"] is False
+
+
 def test_tampered_payload_is_rejected():
     private_key, public_key = _keypair()
     doc = _signed_doc(
@@ -75,6 +103,34 @@ def test_tampered_payload_is_rejected():
     assert status.ok is False
     assert status.mode == "invalid"
     assert status.features == {"basic"}
+
+
+def test_tampered_policy_is_rejected():
+    private_key, public_key = _keypair()
+    doc = _signed_doc(
+        private_key,
+        {
+            "product_code": "live_replay_xia",
+            "device_hash": "device_hash_1",
+            "features": ["live_monitor"],
+            "policy": {"max_active_rooms": 3},
+            "expires_at": 2000,
+        },
+    )
+    payload = json.loads(base64.urlsafe_b64decode(doc["payload"] + "==").decode("utf-8"))
+    payload["policy"] = {"max_active_rooms": 50}
+    doc["payload"] = _b64(json.dumps(payload, separators=(",", ":")).encode("utf-8"))
+
+    status = license_manager.verify_license(
+        doc,
+        public_key=public_key,
+        now=1000,
+        expected_device_hash="device_hash_1",
+        product_code="live_replay_xia",
+    )
+
+    assert status.ok is False
+    assert status.mode == "invalid"
 
 
 def test_device_mismatch_is_rejected():
@@ -202,3 +258,35 @@ def test_commercial_status_rejects_large_local_clock_rollback(tmp_path, monkeypa
 
     assert status.ok is False
     assert status.mode == "clock_error"
+
+
+def test_commercial_status_can_force_upgrade_by_signed_policy(tmp_path, monkeypatch):
+    private_key, public_key = _keypair()
+    device_hash = "device_hash_1"
+    license_path = tmp_path / "license.json"
+    clock_path = tmp_path / "clock.json"
+    monkeypatch.setattr(license_manager.config, "LICENSE_ENFORCE", True)
+    monkeypatch.setattr(license_manager.config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager.config, "LICENSE_PATH", license_path)
+    monkeypatch.setattr(license_manager.config, "LICENSE_CLOCK_PATH", clock_path, raising=False)
+    monkeypatch.setattr(license_manager.config, "LICENSE_APP_VERSION", "1.0.0")
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    license_manager.save_license_doc(
+        _signed_doc(
+            private_key,
+            {
+                "product_code": "live_replay_xia",
+                "device_hash": device_hash,
+                "features": ["live_monitor"],
+                "policy": {"force_upgrade_below": "1.1.0"},
+                "expires_at": 9_999,
+                "grace_until": 10_000,
+            },
+        ),
+        path=license_path,
+    )
+
+    status = license_manager.current_status(now=5_000)
+
+    assert status.ok is False
+    assert status.mode == "upgrade_required"

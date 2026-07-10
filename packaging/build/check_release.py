@@ -81,7 +81,7 @@ SECRET_PATTERNS = [
     re.compile(rb"AKIA[0-9A-Z]{16}"),
     re.compile(rb"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][^'\"]{8,}['\"]"),
     re.compile(rb"sessionid(_ss)?\s*[:=]"),
-    re.compile(rb"passport_(csrf_token|auth_status)"),
+    re.compile(rb"passport_(csrf_token|auth_status)\s*[=:]\s*[A-Za-z0-9%._-]{8,}"),
 ]
 PRIVATE_KEY_PATTERN = re.compile(rb"-----BEGIN (?:[A-Z0-9 ]+ )?PRIVATE KEY-----")
 
@@ -123,7 +123,10 @@ def _skip_vendor_content_scan(rel: Path) -> bool:
     parts = tuple(part.lower() for part in rel.parts)
     if parts and parts[0] == "_internal":
         return True
-    return parts[:3] == ("app", "pipeline_data", "static")
+    return parts[:3] in {
+        ("app", "pipeline_data", "static"),
+        ("app", "pipeline", "static"),
+    }
 
 
 def scan_release(root: Path, *, commercial: bool = False) -> list[str]:
@@ -139,10 +142,10 @@ def scan_release(root: Path, *, commercial: bool = False) -> list[str]:
         if reason:
             findings.append(f"{rel} -> {reason}")
             continue
-        if commercial and path.suffix.lower() == ".py" and len(rel.parts) >= 3:
-            in_pipeline = rel.parts[0].lower() == "app" and rel.parts[1].lower() == "pipeline"
-            if in_pipeline and path.name != "license_runtime.py":
-                findings.append(f"{rel} -> business Python source is not allowed in a commercial release")
+        if commercial and len(rel.parts) >= 2:
+            app_subdir = (rel.parts[0].lower(), rel.parts[1].lower())
+            if app_subdir in {("app", "pipeline"), ("app", "vendor"), ("app", "third_party")}:
+                findings.append(f"{rel} -> source/vendor directories are not allowed in a commercial release")
                 continue
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue

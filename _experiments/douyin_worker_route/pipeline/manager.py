@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import anchor_profiles, browser_cookies, config, profile_watch
+from . import anchor_profiles, browser_cookies, config, license_manager, profile_watch
 from .audio_capture import record_room_muxer
 from .danmu_backend import create_fetcher, is_managed_status_backend
 from .douyin_sidecar_client import SidecarStatus
@@ -56,6 +56,11 @@ RECORDING_STALE_SEC = 150
 WATCHDOG_POLL_SEC = 30           # 看门狗巡检间隔
 WATCHDOG_STALE_SEC = 150         # 超过此秒没新段即判卡死，触发重连（与显示矫正阈值一致）
 WATCHDOG_RESTART_COOLDOWN_SEC = 150  # 同一房间两次强制重连的最小间隔，防重连风暴
+
+
+def active_room_limit() -> int:
+    """Return the signed cloud policy limit, falling back to the safe default."""
+    return license_manager.policy_int("max_active_rooms", MAX_ACTIVE_ROOMS, minimum=1, maximum=50)
 
 
 @dataclass
@@ -824,8 +829,9 @@ class RoomManager:
                 return False
             # 同时活跃连接封顶，避免一次性铺开太多 WSS/取流入口触发风控
             active_count = sum(1 for r in self._rooms.values() if r.active)
-            if active_count >= MAX_ACTIVE_ROOMS:
-                st.status = f"已达并发上限({MAX_ACTIVE_ROOMS})，未启动"
+            limit = active_room_limit()
+            if active_count >= limit:
+                st.status = f"已达授权并发上限({limit})，未启动"
                 return False
             st.active = True
             st.status = "启动中"

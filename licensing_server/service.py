@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 
 VALID_FEATURES = {
@@ -30,6 +31,12 @@ VALID_FEATURES = {
     "ai_replay",
     "short_video_ai",
     "lead_radar",
+}
+
+DEFAULT_POLICY = {
+    "max_active_rooms": 10,
+    "export_watermark": True,
+    "force_upgrade_below": "",
 }
 
 
@@ -73,6 +80,10 @@ class LicenseService:
             raise ValueError("LICENSE_SIGNING_PRIVATE_KEY 不是 Ed25519 原始私钥") from exc
         self._init_db()
 
+    def public_key_b64url(self) -> str:
+        public_raw = self._signing_key.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
+        return _b64url_encode(public_raw)
+
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.settings.db_path)
         conn.row_factory = sqlite3.Row
@@ -92,6 +103,7 @@ class LicenseService:
                     max_devices INTEGER NOT NULL,
                     status TEXT NOT NULL,
                     expires_at INTEGER NOT NULL DEFAULT 0,
+                    policy_json TEXT NOT NULL DEFAULT '{}',
                     note TEXT NOT NULL DEFAULT '',
                     created_at INTEGER NOT NULL
                 );
@@ -118,6 +130,9 @@ class LicenseService:
                     ON activations(card_id, status);
                 """
             )
+            columns = {row["name"] for row in conn.execute("PRAGMA table_info(card_keys)").fetchall()}
+            if "policy_json" not in columns:
+                conn.execute("ALTER TABLE card_keys ADD COLUMN policy_json TEXT NOT NULL DEFAULT '{}'")
 
     def _hash_secret(self, value: str) -> str:
         return hmac.new(
@@ -161,12 +176,36 @@ class LicenseService:
         groups = ["".join(secrets.choice(alphabet) for _ in range(5)) for _ in range(4)]
         return "LRX-" + "-".join(groups)
 
+    @staticmethod
+    def normalize_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
+        raw = policy if isinstance(policy, dict) else {}
+        result = dict(DEFAULT_POLICY)
+        try:
+            result["max_active_rooms"] = max(
+                1,
+                min(int(raw.get("max_active_rooms", result["max_active_rooms"])), 50),
+            )
+        except (TypeError, ValueError):
+            result["max_active_rooms"] = DEFAULT_POLICY["max_active_rooms"]
+        result["export_watermark"] = bool(raw.get("export_watermark", result["export_watermark"]))
+        result["force_upgrade_below"] = str(raw.get("force_upgrade_below", "") or "").strip()[:64]
+        return result
+
+    @classmethod
+    def _policy_from_json(cls, value: str | None) -> dict[str, Any]:
+        try:
+            loaded = json.loads(value or "{}")
+        except json.JSONDecodeError:
+            loaded = {}
+        return cls.normalize_policy(loaded)
+
     def create_card_key(
         self,
         *,
         features: set[str],
         max_devices: int = 1,
         expires_at: int = 0,
+        policy: dict[str, Any] | None = None,
         note: str = "",
         now: int | None = None,
     ) -> str:
@@ -175,6 +214,7 @@ class LicenseService:
         allowed_features = sorted(set(features) & VALID_FEATURES)
         if not allowed_features:
             raise LicenseError("至少选择一个有效功能")
+        safe_policy = self.normalize_policy(policy)
         created_at = int(now if now is not None else time.time())
         for _ in range(8):
             card_key = self._new_card_key()
@@ -183,8 +223,8 @@ class LicenseService:
                 with self._connect() as conn:
                     conn.execute(
                         """
-                        INSERT INTO card_keys(id, key_hash, key_prefix, product_code, features_json, max_devices, status, expires_at, note, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+                        INSERT INTO card_keys(id, key_hash, key_prefix, product_code, features_json, max_devices, status, expires_at, policy_json, note, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
                         """,
                         (
                             card_id,
@@ -194,6 +234,7 @@ class LicenseService:
                             json.dumps(allowed_features, ensure_ascii=False),
                             max_devices,
                             max(0, int(expires_at)),
+                            json.dumps(safe_policy, ensure_ascii=False, sort_keys=True),
                             str(note or "")[:500],
                             created_at,
                         ),
@@ -233,6 +274,7 @@ class LicenseService:
             "product_code": card["product_code"],
             "device_hash": activation["device_hash"],
             "features": json.loads(card["features_json"]),
+            "policy": self._policy_from_json(card["policy_json"]),
             "issued_at": now,
             "expires_at": expires_at,
             "grace_until": grace_until,
@@ -305,7 +347,8 @@ class LicenseService:
             row = conn.execute(
                 """
                 SELECT activations.*, card_keys.product_code, card_keys.features_json, card_keys.max_devices,
-                       card_keys.status AS card_status, card_keys.expires_at AS card_expires_at
+                       card_keys.status AS card_status, card_keys.expires_at AS card_expires_at,
+                       card_keys.policy_json AS policy_json
                 FROM activations JOIN card_keys ON card_keys.id = activations.card_id
                 WHERE activations.id = ?
                 """,
@@ -323,6 +366,7 @@ class LicenseService:
                 "product_code": row["product_code"],
                 "features_json": row["features_json"],
                 "expires_at": row["card_expires_at"],
+                "policy_json": row["policy_json"],
             }
             self._validate_card_time(card, now_ts)
             conn.execute("UPDATE activations SET last_seen_at = ?, app_version = ? WHERE id = ?", (now_ts, version, activation_id))
@@ -370,6 +414,7 @@ class LicenseService:
                 """
                 SELECT card_keys.id, card_keys.key_prefix, card_keys.product_code, card_keys.features_json,
                        card_keys.max_devices, card_keys.status, card_keys.expires_at, card_keys.note,
+                       card_keys.policy_json,
                        card_keys.created_at,
                        SUM(CASE WHEN activations.status = 'active' THEN 1 ELSE 0 END) AS active_devices
                 FROM card_keys LEFT JOIN activations ON activations.card_id = card_keys.id
@@ -382,5 +427,6 @@ class LicenseService:
         for row in rows:
             item = dict(row)
             item["features"] = json.loads(item.pop("features_json"))
+            item["policy"] = self._policy_from_json(item.pop("policy_json"))
             result.append(item)
         return result

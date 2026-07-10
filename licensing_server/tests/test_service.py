@@ -50,6 +50,49 @@ def test_activation_returns_a_license_verified_by_the_desktop_client(tmp_path: P
     assert activated["refresh_token"]
 
 
+def test_activation_license_contains_signed_cloud_policy(tmp_path: Path) -> None:
+    settings, public_key = _settings(tmp_path)
+    service = LicenseService(settings)
+    card_key = service.create_card_key(
+        features={"basic", "live_monitor"},
+        max_devices=1,
+        policy={"max_active_rooms": 3, "export_watermark": False, "force_upgrade_below": "1.2.0"},
+    )
+
+    activated = service.activate(card_key=card_key, device_hash="device-a", app_version="1.2.1", now=1_700_000_000)
+
+    status = verify_license(
+        activated["license"],
+        public_key=public_key,
+        expected_device_hash="device-a",
+        now=1_700_000_001,
+    )
+    assert status.ok is True
+    assert status.payload["policy"]["max_active_rooms"] == 3
+    assert status.payload["policy"]["export_watermark"] is False
+    assert status.payload["policy"]["force_upgrade_below"] == "1.2.0"
+
+
+def test_malformed_stored_policy_falls_back_to_safe_defaults(tmp_path: Path) -> None:
+    settings, public_key = _settings(tmp_path)
+    service = LicenseService(settings)
+    card_key = service.create_card_key(features={"basic", "live_monitor"}, max_devices=1)
+    with service._connect() as conn:
+        conn.execute("UPDATE card_keys SET policy_json = ? WHERE key_prefix = ?", ("not-json", card_key[:8]))
+
+    activated = service.activate(card_key=card_key, device_hash="device-a", app_version="1.0.0", now=1_700_000_000)
+
+    status = verify_license(
+        activated["license"],
+        public_key=public_key,
+        expected_device_hash="device-a",
+        now=1_700_000_001,
+    )
+    assert status.ok is True
+    assert status.payload["policy"]["max_active_rooms"] == 10
+    assert status.payload["policy"]["export_watermark"] is True
+
+
 def test_second_device_is_rejected_when_card_device_limit_is_reached(tmp_path: Path) -> None:
     settings, _ = _settings(tmp_path)
     service = LicenseService(settings)
@@ -79,4 +122,3 @@ def test_frozen_activation_cannot_refresh_but_unbound_device_can_be_replaced(tmp
     service.unbind_activation(activated["activation_id"], reason="device replaced")
     replacement = service.activate(card_key=card_key, device_hash="device-b", app_version="1.0.1", now=1_700_000_200)
     assert replacement["activation_id"] != activated["activation_id"]
-

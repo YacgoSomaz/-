@@ -78,6 +78,41 @@ def test_activation_api_and_freeze_protect_refresh(tmp_path: Path) -> None:
     assert refreshed.json()["detail"] == "当前设备授权已冻结"
 
 
+def test_admin_can_issue_card_with_cloud_policy(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    client = TestClient(create_app(service, admin_token="admin-test-token"))
+
+    issued = client.post(
+        "/admin/card-keys",
+        headers={"Authorization": "Bearer admin-test-token"},
+        json={
+            "features": ["basic", "live_monitor"],
+            "max_devices": 1,
+            "max_active_rooms": 4,
+            "export_watermark": False,
+            "force_upgrade_below": "1.2.0",
+        },
+    )
+    assert issued.status_code == 200
+
+    cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"}).json()["cards"]
+    assert cards[0]["policy"]["max_active_rooms"] == 4
+    assert cards[0]["policy"]["export_watermark"] is False
+    assert cards[0]["policy"]["force_upgrade_below"] == "1.2.0"
+
+
+def test_admin_public_key_requires_admin_and_returns_build_key(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    client = TestClient(create_app(service, admin_token="admin-test-token"))
+
+    unauthorized = client.get("/admin/public-key")
+    assert unauthorized.status_code == 401
+
+    response = client.get("/admin/public-key", headers={"Authorization": "Bearer admin-test-token"})
+    assert response.status_code == 200
+    assert response.json() == {"public_key": service.public_key_b64url()}
+
+
 def test_public_activation_endpoint_is_rate_limited(tmp_path: Path) -> None:
     service = _service(tmp_path)
     client = TestClient(

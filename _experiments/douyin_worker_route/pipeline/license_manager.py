@@ -37,6 +37,11 @@ COMMERCIAL_FEATURES = {
     "lead_radar",
 }
 ALL_FEATURES = FREE_FEATURES | COMMERCIAL_FEATURES
+DEFAULT_POLICY = {
+    "max_active_rooms": 10,
+    "export_watermark": True,
+    "force_upgrade_below": "",
+}
 
 
 @dataclass(frozen=True)
@@ -122,6 +127,41 @@ def _public_key_from_config(public_key: str | None = None) -> Ed25519PublicKey:
     return Ed25519PublicKey.from_public_bytes(_b64url_decode(raw))
 
 
+def _version_parts(value: str) -> list[int]:
+    parts: list[int] = []
+    for chunk in str(value or "").strip().split("."):
+        digits = "".join(ch for ch in chunk if ch.isdigit())
+        if digits:
+            parts.append(int(digits))
+    return parts or [0]
+
+
+def _version_lt(left: str, right: str) -> bool:
+    if not str(right or "").strip():
+        return False
+    a = _version_parts(left)
+    b = _version_parts(right)
+    length = max(len(a), len(b))
+    a.extend([0] * (length - len(a)))
+    b.extend([0] * (length - len(b)))
+    return a < b
+
+
+def normalize_policy(policy: Any) -> dict[str, Any]:
+    raw = policy if isinstance(policy, dict) else {}
+    result = dict(DEFAULT_POLICY)
+    try:
+        result["max_active_rooms"] = max(
+            1,
+            min(int(raw.get("max_active_rooms", result["max_active_rooms"])), 50),
+        )
+    except (TypeError, ValueError):
+        result["max_active_rooms"] = DEFAULT_POLICY["max_active_rooms"]
+    result["export_watermark"] = bool(raw.get("export_watermark", result["export_watermark"]))
+    result["force_upgrade_below"] = str(raw.get("force_upgrade_below", "") or "").strip()[:64]
+    return result
+
+
 def verify_license(
     license_doc: dict[str, Any],
     *,
@@ -175,6 +215,17 @@ def current_status(*, now: int | None = None) -> LicenseStatus:
     status = verify_license(doc, now=now)
     if not status.ok:
         return status
+    policy = normalize_policy(status.payload.get("policy"))
+    if _version_lt(config.LICENSE_APP_VERSION, str(policy.get("force_upgrade_below") or "")):
+        return LicenseStatus(
+            False,
+            "upgrade_required",
+            f"当前版本 {config.LICENSE_APP_VERSION} 已停用，请升级到 {policy['force_upgrade_below']} 或更高版本",
+            FREE_FEATURES,
+            status.payload,
+            status.expires_at,
+            status.grace_until,
+        )
     clock = license_clock.check_and_record(now=now)
     if not clock.ok:
         return LicenseStatus(
@@ -201,6 +252,19 @@ def require_feature(feature: str) -> None:
     raise LicenseFeatureError(status.reason)
 
 
+def current_policy() -> dict[str, Any]:
+    status = current_status()
+    return normalize_policy(status.payload.get("policy"))
+
+
+def policy_int(name: str, default: int, *, minimum: int = 1, maximum: int = 10_000) -> int:
+    value = current_policy().get(name, default)
+    try:
+        return max(minimum, min(int(value), maximum))
+    except (TypeError, ValueError):
+        return default
+
+
 def public_status() -> dict[str, Any]:
     status = current_status()
     return {
@@ -208,6 +272,7 @@ def public_status() -> dict[str, Any]:
         "mode": status.mode,
         "reason": status.reason,
         "features": sorted(status.features),
+        "policy": normalize_policy(status.payload.get("policy")) if status.ok else dict(DEFAULT_POLICY),
         "enforced": config.LICENSE_ENFORCE,
         "expires_at": status.expires_at,
         "grace_until": status.grace_until,

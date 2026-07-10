@@ -31,7 +31,7 @@ from fastapi.staticfiles import StaticFiles
 from . import ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, license_client, license_manager, license_policy, license_refresh, performance_analysis, short_video, short_video_ai
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
-from .manager import MAX_ACTIVE_ROOMS, RoomManager
+from .manager import RoomManager, active_room_limit
 from .package_assets import package_asset_dir
 from .web_security import LOCAL_UI_ORIGIN_REGEX
 
@@ -124,7 +124,7 @@ def api_status() -> JSONResponse:
         "rooms": _mgr.status(),
         "pending": _mgr.pending_status(),
         "risk_control": _mgr.risk_control_status(),
-        "limits": {"max_active_rooms": MAX_ACTIVE_ROOMS},
+        "limits": {"max_active_rooms": active_room_limit()},
     })
 
 
