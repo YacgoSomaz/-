@@ -19,6 +19,9 @@
 from __future__ import annotations
 
 import os
+import ctypes
+import hashlib
+import json
 import socket
 import sys
 import threading
@@ -54,6 +57,14 @@ from PIL import Image, ImageDraw
 
 APP_NAME = "直播复盘侠"
 DEFAULT_PORT = 8848
+MANIFEST_NAME = "integrity_manifest.json"
+
+
+def _show_error(message: str) -> None:
+    try:
+        ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, 0x10)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _base_dir() -> Path:
@@ -119,6 +130,39 @@ def _wait_for_port(port: int, timeout_sec: float = 30) -> bool:
             return True
         time.sleep(0.25)
     return False
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _verify_integrity_manifest(base: Path) -> list[str]:
+    manifest_path = base / MANIFEST_NAME
+    if not manifest_path.exists():
+        return [f"缺少完整性清单：{MANIFEST_NAME}"]
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # noqa: BLE001
+        return [f"完整性清单读取失败：{exc}"]
+
+    findings: list[str] = []
+    for item in manifest.get("files", []):
+        rel = str(item.get("path", "")).replace("\\", "/")
+        expected = str(item.get("sha256", ""))
+        if not rel or not expected:
+            findings.append(f"清单条目无效：{rel or '<empty>'}")
+            continue
+        target = base / rel
+        if not target.exists():
+            findings.append(f"缺少文件：{rel}")
+            continue
+        if _sha256_file(target) != expected:
+            findings.append(f"文件被修改：{rel}")
+    return findings
 
 
 def _tray_image() -> Image.Image:
@@ -305,6 +349,15 @@ def main() -> int:
 
     os.chdir(app_dir)
     sys.path.insert(0, str(app_dir))
+
+    findings = _verify_integrity_manifest(base)
+    if findings:
+        message = "程序文件完整性校验失败，可能被篡改或安装不完整，请重新安装官方安装包。"
+        print(message)
+        for item in findings[:10]:
+            print(f"  - {item}")
+        _show_error(message)
+        raise SystemExit(message)
 
     requested_port = int(os.environ.get("LIVEWATCH_PORT", DEFAULT_PORT))
     port = _available_port(requested_port)

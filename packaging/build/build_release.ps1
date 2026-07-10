@@ -223,6 +223,12 @@ if (Test-Path $ThirdPartyNotices) {
     Copy-Item $ThirdPartyNotices (Join-Path $Staging "THIRD_PARTY_NOTICES.md") -Force
 }
 
+# ---------- 5.5 完整性清单 ----------
+Write-Step "生成完整性清单"
+$env:PYTHONPATH = $Route
+& python -c "from pathlib import Path; from pipeline import integrity_manifest; integrity_manifest.write_and_verify(Path(r'$Staging'))"
+if ($LASTEXITCODE -ne 0) { throw "完整性清单生成失败，构建中止。" }
+
 # 清理 PyInstaller 临时
 Remove-Item -Recurse -Force $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput -ErrorAction SilentlyContinue
 
