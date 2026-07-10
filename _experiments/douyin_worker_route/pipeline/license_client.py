@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
+import json
+import time
+import uuid
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlsplit
 
 import requests
 
@@ -24,9 +30,42 @@ def _server_url(value: str | None = None) -> str:
     return url
 
 
-def _request_json(post: Post, url: str, payload: dict[str, str]) -> dict[str, Any]:
+def _request_signature_headers(url: str, payload: dict[str, str], *, signing_secret: str) -> dict[str, str]:
+    timestamp = str(int(time.time()))
+    nonce = str(uuid.uuid4())
+    device_hash = str(payload.get("device_hash") or license_manager.current_device_hash())
+    app_version = str(payload.get("app_version") or config.LICENSE_APP_VERSION)
+    canonical_body = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    parsed = urlsplit(url)
+    signing_base = "\n".join(
+        [
+            "POST",
+            parsed.path or "/",
+            timestamp,
+            nonce,
+            device_hash,
+            app_version,
+            hashlib.sha256(canonical_body.encode("utf-8")).hexdigest(),
+        ]
+    )
+    signature = hmac.new(
+        str(signing_secret or "").encode("utf-8"),
+        signing_base.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return {
+        "X-LiveWatch-Timestamp": timestamp,
+        "X-LiveWatch-Nonce": nonce,
+        "X-LiveWatch-Device": device_hash,
+        "X-LiveWatch-App-Version": app_version,
+        "X-LiveWatch-Signature": signature,
+    }
+
+
+def _request_json(post: Post, url: str, payload: dict[str, str], *, signing_secret: str) -> dict[str, Any]:
+    headers = _request_signature_headers(url, payload, signing_secret=signing_secret)
     try:
-        response = post(url, json=payload, timeout=config.LICENSE_REQUEST_TIMEOUT_SEC)
+        response = post(url, json=payload, headers=headers, timeout=config.LICENSE_REQUEST_TIMEOUT_SEC)
     except requests.RequestException as exc:
         raise LicenseClientError("无法连接授权服务器，请检查网络后重试") from exc
     try:
@@ -81,6 +120,7 @@ def activate_card_key(card_key: str, *, server_url: str | None = None, post: Pos
             "device_hash": license_manager.current_device_hash(),
             "app_version": config.LICENSE_APP_VERSION,
         },
+        signing_secret=value,
     )
     return _persist_server_reply(reply, server_url=base_url)
 
@@ -97,5 +137,6 @@ def refresh_license(*, post: Post = requests.post) -> dict[str, Any]:
             "device_hash": license_manager.current_device_hash(),
             "app_version": config.LICENSE_APP_VERSION,
         },
+        signing_secret=str(package.get("refresh_token") or ""),
     )
     return _persist_server_reply(reply, server_url=base_url, previous=package)

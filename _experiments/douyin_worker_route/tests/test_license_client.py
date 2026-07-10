@@ -72,6 +72,38 @@ def test_activate_card_key_persists_verified_server_package(tmp_path, monkeypatc
     assert license_client._load_package()["refresh_token"] == "x" * 40
 
 
+def test_activate_card_key_sends_hmac_replay_protection_headers(tmp_path, monkeypatch) -> None:
+    device_hash = "device-a"
+    server_reply, public_key = _signed_package(device_hash)
+    monkeypatch.setattr(config, "LICENSE_PATH", tmp_path / "license.json")
+    monkeypatch.setattr(config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(config, "LICENSE_APP_VERSION", "1.2.3")
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    monkeypatch.setattr(license_client.time, "time", lambda: 1_700_000_000)
+    monkeypatch.setattr(license_client.uuid, "uuid4", lambda: "nonce-1")
+    captured: dict[str, object] = {}
+
+    def post(url: str, **kwargs):
+        captured["url"] = url
+        captured["json"] = kwargs["json"]
+        captured["headers"] = kwargs["headers"]
+        return _Response(server_reply)
+
+    license_client.activate_card_key(
+        "LRX-ABCDE-ABCDE-ABCDE-ABCDE",
+        server_url="https://license.example.com",
+        post=post,
+    )
+
+    headers = captured["headers"]
+    assert headers["X-LiveWatch-Timestamp"] == "1700000000"
+    assert headers["X-LiveWatch-Nonce"] == "nonce-1"
+    assert headers["X-LiveWatch-Device"] == device_hash
+    assert headers["X-LiveWatch-App-Version"] == "1.2.3"
+    assert headers["X-LiveWatch-Signature"]
+    assert "LRX-ABCDE" not in json.dumps(headers)
+
+
 def test_refresh_license_reads_protected_package_without_leaking_token(tmp_path, monkeypatch) -> None:
     device_hash = "device-a"
     server_reply, public_key = _signed_package(device_hash)
@@ -98,6 +130,37 @@ def test_refresh_license_reads_protected_package_without_leaking_token(tmp_path,
     saved = config.LICENSE_PATH.read_text(encoding="utf-8")
     assert "activation-1" not in saved
     assert "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" not in saved
+
+
+def test_refresh_license_signs_request_with_refresh_token(tmp_path, monkeypatch) -> None:
+    device_hash = "device-a"
+    server_reply, public_key = _signed_package(device_hash)
+    monkeypatch.setattr(config, "LICENSE_PATH", tmp_path / "license.json")
+    monkeypatch.setattr(config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    license_client.activate_card_key(
+        "LRX-ABCDE-ABCDE-ABCDE-ABCDE",
+        server_url="https://license.example.com",
+        post=lambda *_args, **_kwargs: _Response(server_reply),
+    )
+    monkeypatch.setattr(license_client.time, "time", lambda: 1_700_000_100)
+    monkeypatch.setattr(license_client.uuid, "uuid4", lambda: "nonce-2")
+    captured: dict[str, object] = {}
+
+    def post(url: str, **kwargs):
+        captured["url"] = url
+        captured["json"] = kwargs["json"]
+        captured["headers"] = kwargs["headers"]
+        return _Response(server_reply)
+
+    license_client.refresh_license(post=post)
+
+    headers = captured["headers"]
+    assert headers["X-LiveWatch-Timestamp"] == "1700000100"
+    assert headers["X-LiveWatch-Nonce"] == "nonce-2"
+    assert headers["X-LiveWatch-Device"] == device_hash
+    assert headers["X-LiveWatch-Signature"]
+    assert "xxxxxxxx" not in json.dumps(headers)
 
 
 def test_legacy_plain_license_is_migrated_to_protected_cache(tmp_path, monkeypatch) -> None:
