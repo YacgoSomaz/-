@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any, Callable
 
@@ -63,11 +62,7 @@ def _persist_server_reply(reply: dict[str, Any], *, server_url: str, previous: d
 
 
 def _load_package(path: Path | None = None) -> dict[str, Any]:
-    target = path or config.LICENSE_PATH
-    try:
-        package = json.loads(target.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
-        raise LicenseClientError("本机没有可刷新的授权") from exc
+    package = license_manager._load_license(path or config.LICENSE_PATH)
     if not isinstance(package, dict):
         raise LicenseClientError("本机授权文件无效")
     return package

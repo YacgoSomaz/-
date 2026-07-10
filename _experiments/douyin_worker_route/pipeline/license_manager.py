@@ -7,6 +7,8 @@ server. Private signing keys must never be bundled with the installer.
 from __future__ import annotations
 
 import base64
+import ctypes
+import ctypes.wintypes
 import hashlib
 import json
 import os
@@ -24,6 +26,7 @@ except ImportError:  # pragma: no cover - non-Windows platforms
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from . import config, license_clock
 
@@ -42,6 +45,8 @@ DEFAULT_POLICY = {
     "export_watermark": True,
     "force_upgrade_below": "",
 }
+_PROTECTED_LICENSE_STORAGE = "livewatch-license-cache-v2"
+_PROTECTED_LICENSE_PURPOSE = b"LiveWatch local license cache v2"
 
 
 @dataclass(frozen=True)
@@ -63,6 +68,10 @@ def _b64url_decode(value: str) -> bytes:
     value = value.strip()
     padding = "=" * (-len(value) % 4)
     return base64.urlsafe_b64decode((value + padding).encode("ascii"))
+
+
+def _b64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")
 
 
 def _machine_guid_windows() -> str:
@@ -109,13 +118,139 @@ def current_device_hash(*, salt: str | None = None, parts: list[str] | None = No
     return hashlib.sha256(f"{product_salt}\n{normalized}".encode("utf-8")).hexdigest()
 
 
+class _DATA_BLOB(ctypes.Structure):
+    _fields_ = [
+        ("cbData", ctypes.wintypes.DWORD),
+        ("pbData", ctypes.POINTER(ctypes.c_char)),
+    ]
+
+
+def _blob_from_bytes(data: bytes) -> _DATA_BLOB:
+    buffer = ctypes.create_string_buffer(data)
+    blob = _DATA_BLOB(len(data), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_char)))
+    blob._buffer = buffer  # type: ignore[attr-defined]
+    return blob
+
+
+def _bytes_from_blob(blob: _DATA_BLOB) -> bytes:
+    try:
+        return ctypes.string_at(blob.pbData, blob.cbData)
+    finally:
+        ctypes.windll.kernel32.LocalFree(blob.pbData)
+
+
+def _dpapi_crypt(data: bytes, *, protect: bool) -> bytes | None:
+    if platform.system().lower() != "windows":
+        return None
+    try:
+        crypt32 = ctypes.windll.crypt32
+    except AttributeError:  # pragma: no cover - non-Windows safety
+        return None
+    in_blob = _blob_from_bytes(data)
+    entropy_blob = _blob_from_bytes(_PROTECTED_LICENSE_PURPOSE)
+    out_blob = _DATA_BLOB()
+    if protect:
+        ok = crypt32.CryptProtectData(
+            ctypes.byref(in_blob),
+            "LiveWatch license cache",
+            ctypes.byref(entropy_blob),
+            None,
+            None,
+            0,
+            ctypes.byref(out_blob),
+        )
+    else:
+        ok = crypt32.CryptUnprotectData(
+            ctypes.byref(in_blob),
+            None,
+            ctypes.byref(entropy_blob),
+            None,
+            None,
+            0,
+            ctypes.byref(out_blob),
+        )
+    if not ok:
+        return None
+    return _bytes_from_blob(out_blob)
+
+
+def _local_aes_key() -> bytes:
+    return hashlib.sha256(
+        (
+            "livewatch-license-cache-v2\n"
+            f"{config.LICENSE_PRODUCT_CODE}\n"
+            f"{config.LICENSE_PRODUCT_SALT}\n"
+            f"{current_device_hash()}"
+        ).encode("utf-8")
+    ).digest()
+
+
+def _protect_license_bytes(raw: bytes) -> dict[str, str]:
+    dpapi = _dpapi_crypt(raw, protect=True)
+    if dpapi is not None:
+        return {"scheme": "win32-dpapi", "payload": _b64url_encode(dpapi)}
+    nonce = os.urandom(12)
+    encrypted = AESGCM(_local_aes_key()).encrypt(nonce, raw, _PROTECTED_LICENSE_PURPOSE)
+    return {"scheme": "local-aesgcm", "nonce": _b64url_encode(nonce), "payload": _b64url_encode(encrypted)}
+
+
+def _unprotect_license_bytes(container: dict[str, Any]) -> bytes | None:
+    scheme = str(container.get("scheme") or "")
+    try:
+        payload = _b64url_decode(str(container.get("payload") or ""))
+        if scheme == "win32-dpapi":
+            return _dpapi_crypt(payload, protect=False)
+        if scheme == "local-aesgcm":
+            nonce = _b64url_decode(str(container.get("nonce") or ""))
+            return AESGCM(_local_aes_key()).decrypt(nonce, payload, _PROTECTED_LICENSE_PURPOSE)
+    except Exception:
+        return None
+    return None
+
+
+def _is_protected_license_container(data: dict[str, Any]) -> bool:
+    return data.get("storage") == _PROTECTED_LICENSE_STORAGE and data.get("protected") is True
+
+
+def _wrap_license_doc(doc: dict[str, Any]) -> dict[str, Any]:
+    raw = json.dumps(doc, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    protected = _protect_license_bytes(raw)
+    return {
+        "storage": _PROTECTED_LICENSE_STORAGE,
+        "protected": True,
+        "version": 2,
+        **protected,
+    }
+
+
+def _unwrap_license_doc(data: dict[str, Any]) -> dict[str, Any] | None:
+    if not _is_protected_license_container(data):
+        return data
+    raw = _unprotect_license_bytes(data)
+    if raw is None:
+        return None
+    try:
+        doc = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
 def _load_license(path: Path | None = None) -> dict[str, Any] | None:
     target = path or config.LICENSE_PATH
     try:
         data = json.loads(target.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return None
-    return data if isinstance(data, dict) else None
+    if not isinstance(data, dict):
+        return None
+    doc = _unwrap_license_doc(data)
+    if doc and not _is_protected_license_container(data):
+        try:
+            save_license_doc(doc, path=target)
+        except OSError:
+            pass
+    return doc
 
 
 def _public_key_from_config(public_key: str | None = None) -> Ed25519PublicKey:
@@ -283,7 +418,7 @@ def save_license_doc(doc: dict[str, Any], path: Path | None = None) -> None:
     target = path or config.LICENSE_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(target.suffix + ".tmp")
-    tmp.write_text(json.dumps(doc, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp.write_text(json.dumps(_wrap_license_doc(doc), ensure_ascii=False, indent=2), encoding="utf-8")
     os.replace(tmp, target)
 
 

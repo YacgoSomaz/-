@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
@@ -64,8 +65,63 @@ def test_activate_card_key_persists_verified_server_package(tmp_path, monkeypatc
     assert result["ok"] is True
     assert config.LICENSE_PATH.exists()
     saved = config.LICENSE_PATH.read_text(encoding="utf-8")
-    assert "activation-1" in saved
-    assert "https://license.example.com" in saved
+    assert "activation-1" not in saved
+    assert "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" not in saved
+    assert "https://license.example.com" not in saved
+    assert license_client._load_package()["activation_id"] == "activation-1"
+    assert license_client._load_package()["refresh_token"] == "x" * 40
+
+
+def test_refresh_license_reads_protected_package_without_leaking_token(tmp_path, monkeypatch) -> None:
+    device_hash = "device-a"
+    server_reply, public_key = _signed_package(device_hash)
+    monkeypatch.setattr(config, "LICENSE_PATH", tmp_path / "license.json")
+    monkeypatch.setattr(config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    license_client.activate_card_key(
+        "LRX-ABCDE-ABCDE-ABCDE-ABCDE",
+        server_url="https://license.example.com",
+        post=lambda *_args, **_kwargs: _Response(server_reply),
+    )
+
+    posted: list[dict[str, str]] = []
+
+    def post(_url: str, **kwargs):
+        posted.append(kwargs["json"])
+        return _Response(server_reply)
+
+    refreshed = license_client.refresh_license(post=post)
+
+    assert refreshed["ok"] is True
+    assert posted[0]["activation_id"] == "activation-1"
+    assert posted[0]["refresh_token"] == "x" * 40
+    saved = config.LICENSE_PATH.read_text(encoding="utf-8")
+    assert "activation-1" not in saved
+    assert "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" not in saved
+
+
+def test_legacy_plain_license_is_migrated_to_protected_cache(tmp_path, monkeypatch) -> None:
+    device_hash = "device-a"
+    server_reply, public_key = _signed_package(device_hash)
+    monkeypatch.setattr(config, "LICENSE_PATH", tmp_path / "license.json")
+    monkeypatch.setattr(config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    legacy = dict(server_reply["license"])
+    legacy.update(
+        {
+            "activation_id": "activation-1",
+            "refresh_token": "x" * 40,
+            "server_url": "https://license.example.com",
+        }
+    )
+    config.LICENSE_PATH.write_text(json.dumps(legacy), encoding="utf-8")
+
+    package = license_client._load_package()
+
+    assert package["activation_id"] == "activation-1"
+    saved = config.LICENSE_PATH.read_text(encoding="utf-8")
+    assert "activation-1" not in saved
+    assert "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" not in saved
 
 
 def test_missing_commercial_feature_is_denied_when_enforcement_is_enabled(tmp_path, monkeypatch) -> None:
@@ -78,4 +134,3 @@ def test_missing_commercial_feature_is_denied_when_enforcement_is_enabled(tmp_pa
         assert "未激活" in str(exc)
     else:
         raise AssertionError("未激活时必须阻止商业功能")
-
