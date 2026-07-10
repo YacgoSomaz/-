@@ -129,6 +129,31 @@ pwsh -NoProfile -File packaging\build\build_commercial_release.ps1 `
 release\LiveWatchSetup_1.0.0.exe
 ```
 
+## 对外发放安装包
+
+不要让用户从 GitHub ZIP、源码仓库或 LFS 指针文件里拿安装包。商业发放请使用官方下载页：
+
+```text
+https://license.runmo.art/downloads/
+```
+
+下载页提供两种方式：
+
+- 直接下载 `LiveWatchSetup_<版本>.exe`
+- 推荐使用在线校验安装命令：先下载安装包，校验 SHA256 与官方值一致，再启动安装
+
+当前 `1.0.2` 安装包信息：
+
+```text
+URL:    https://license.runmo.art/downloads/LiveWatchSetup_1.0.2.exe
+SHA256: 53D6E00CF285E1DE31E14FD57E4155B16B9D23A1482D14974DCA8A6503DF1F72
+大小:   329330062 bytes
+```
+
+注意：Windows / Edge 对未签名的新 EXE 可能出现 SmartScreen 或安全下载确认。这不是安装包缺文件，
+而是缺少受信任代码签名证书导致的信誉提示。当前构建链已经支持 `-CodeSignThumbprint`，
+后续购买代码签名证书后，在商业构建命令中加入该参数即可给启动器和安装包签名。
+
 可选代码签名：
 
 ```powershell

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>直播复盘侠下载安装</title>
+  <style>
+    body { margin: 0; font-family: "Microsoft YaHei", Arial, sans-serif; background: #f3f7ff; color: #102033; }
+    .wrap { max-width: 880px; margin: 56px auto; padding: 0 20px; }
+    .card { background: #fff; border: 1px solid #dbe7ff; border-radius: 16px; box-shadow: 0 18px 45px rgba(55, 95, 180, .12); padding: 32px; }
+    h1 { margin: 0 0 8px; font-size: 30px; }
+    p { line-height: 1.8; color: #52627a; }
+    .meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; }
+    .box { border: 1px solid #e2eaff; border-radius: 12px; padding: 14px; background: #f8fbff; }
+    .box strong { display: block; color: #2f5bff; font-size: 18px; margin-bottom: 4px; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin: 24px 0; }
+    a.button { display: inline-block; text-decoration: none; background: linear-gradient(135deg, #2eb8ff, #4f57ff); color: white; padding: 13px 20px; border-radius: 10px; font-weight: 700; }
+    a.secondary { background: #eef4ff; color: #3151d3; }
+    code, pre { font-family: Consolas, monospace; }
+    pre { background: #10192b; color: #d9e7ff; padding: 16px; border-radius: 12px; overflow-x: auto; }
+    .warn { border-left: 4px solid #ffb020; padding: 10px 14px; background: #fff7e6; border-radius: 8px; color: #674400; }
+    @media (max-width: 720px) { .meta { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>直播复盘侠下载安装</h1>
+      <p>推荐使用“校验安装”方式：系统会先下载完整安装包，校验 SHA256 一致后再安装，避免半包或损坏文件。</p>
+
+      <div class="meta">
+        <div class="box"><strong>1.0.2</strong><span>当前版本</span></div>
+        <div class="box"><strong>314 MB</strong><span>安装包大小</span></div>
+        <div class="box"><strong>已校验</strong><span>服务器文件完整</span></div>
+      </div>
+
+      <div class="actions">
+        <a class="button" href="/downloads/LiveWatchSetup_1.0.2.exe">直接下载安装包</a>
+        <a class="button secondary" href="/downloads/InstallLiveWatch.ps1">下载校验安装脚本</a>
+      </div>
+
+      <h2>推荐：一行命令校验安装</h2>
+      <p>复制下面命令到 PowerShell 运行。它会自动下载、校验并启动安装。</p>
+      <pre>powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr https://license.runmo.art/downloads/InstallLiveWatch.ps1 -OutFile $env:TEMP\InstallLiveWatch.ps1; powershell -NoProfile -ExecutionPolicy Bypass -File $env:TEMP\InstallLiveWatch.ps1"</pre>
+
+      <div class="warn">
+        Windows 对未签名的新软件可能会提示安全确认。当前安装包已经做完整性校验；若要彻底减少 SmartScreen 提示，需要后续购买并接入受信任代码签名证书。
+      </div>
+
+      <h2>校验信息</h2>
+      <p>SHA256：</p>
+      <pre>53D6E00CF285E1DE31E14FD57E4155B16B9D23A1482D14974DCA8A6503DF1F72</pre>
+    </section>
+  </main>
+</body>
+</html>
