@@ -51,6 +51,9 @@ def _should_skip(path: Path, root: Path) -> bool:
     parts = set(rel.parts)
     if parts & _SKIP_DIRS:
         return True
+    lower_name = path.name.lower()
+    if lower_name.startswith("unins") and lower_name.rsplit(".", 1)[-1] in {"dat", "exe", "msg"}:
+        return True
     if path.name in _SKIP_FILES:
         return True
     return False

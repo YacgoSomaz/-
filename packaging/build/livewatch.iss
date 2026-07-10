@@ -60,8 +60,10 @@ Filename: "{app}\LiveWatchLauncher.exe"; Description: "立即启动直播复盘�
 ; 清理早期本地安装包遗留的程序源码与运行资源。用户数据统一保留在
 ; {localappdata}\LiveWatch\data，不在这里删除。
 Type: filesandordirs; Name: "{app}\app\pipeline"
+Type: filesandordirs; Name: "{app}\app\pipeline_data"
 Type: filesandordirs; Name: "{app}\app\vendor"
 Type: filesandordirs; Name: "{app}\app\third_party"
+Type: files; Name: "{app}\app\pipeline*.pyd"
 Type: files; Name: "{app}\app\run_worker.py"
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\app"
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\_internal"

@@ -273,6 +273,9 @@ def _verify_integrity_manifest(base: Path) -> list[str]:
         if not path.is_file():
             continue
         rel_path = path.relative_to(base)
+        lower_name = path.name.lower()
+        if lower_name.startswith("unins") and lower_name.rsplit(".", 1)[-1] in {"dat", "exe", "msg"}:
+            continue
         if set(rel_path.parts) & skipped_dirs or path.name in skipped_files:
             continue
         rel = rel_path.as_posix()
