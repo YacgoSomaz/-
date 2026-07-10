@@ -28,10 +28,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, performance_analysis, short_video, short_video_ai
+from . import ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, license_client, license_manager, license_policy, license_refresh, performance_analysis, short_video, short_video_ai
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import MAX_ACTIVE_ROOMS, RoomManager
+from .package_assets import package_asset_dir
+from .web_security import LOCAL_UI_ORIGIN_REGEX
 
 app = FastAPI(title="直播复盘侠")
 
@@ -64,7 +66,7 @@ async def _basic_auth(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=LOCAL_UI_ORIGIN_REGEX,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -75,8 +77,9 @@ def _run_blocking(fn, *args, **kwargs):
     """Run browser-heavy sync work in a clean worker thread."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(fn, *args, **kwargs).result()
-_FRONTEND = Path(__file__).with_name("frontend.html")
-_STATIC = Path(__file__).with_name("static")
+_PACKAGE_ASSETS = package_asset_dir(__file__)
+_FRONTEND = _PACKAGE_ASSETS / "frontend.html"
+_STATIC = _PACKAGE_ASSETS / "static"
 app.mount("/static", StaticFiles(directory=_STATIC), name="static")
 
 
@@ -95,6 +98,19 @@ def _performance_ai_loop() -> None:
 
 threading.Thread(target=_performance_ai_loop, name="performance-ai-loop", daemon=True).start()
 threading.Thread(target=short_video.prewarm_browser, name="short-video-browser-prewarm", daemon=True).start()
+
+
+def _license_refresh_loop() -> None:
+    """Refresh signed entitlement periodically without disturbing local work."""
+    while True:
+        try:
+            license_refresh.refresh_once()
+        except Exception:
+            pass
+        time.sleep(config.LICENSE_REFRESH_INTERVAL_SEC)
+
+
+threading.Thread(target=_license_refresh_loop, name="license-refresh-loop", daemon=True).start()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -178,6 +194,20 @@ def api_add_anchor(anchor: dict[str, object] = Body(...)) -> JSONResponse:
         },
     )
     return JSONResponse({"ok": True, "changed": changed, "rid": rid})
+
+
+@app.middleware("http")
+async def _license_gate(request: Request, call_next):
+    feature = license_policy.feature_for_request(request.method, request.url.path)
+    if feature:
+        try:
+            license_manager.require_feature(feature)
+        except license_manager.LicenseFeatureError as exc:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": f"此功能需要有效商业授权：{exc}"},
+            )
+    return await call_next(request)
 
 
 @app.get("/api/avatars/{rid}")
@@ -291,6 +321,58 @@ def api_export() -> JSONResponse:
     """跑一次导出：每房间 xlsx + md + summary.csv 落到 exports/。"""
     bundles = export_mod.export_all()
     return JSONResponse({"rooms": len(bundles), "dir": str(export_mod.config.EXPORT_DIR)})
+
+
+@app.get("/api/license/status")
+def api_license_status() -> JSONResponse:
+    """Return local license status without exposing full device fingerprint."""
+    status = license_manager.public_status()
+    status["device_hash_prefix"] = license_manager.current_device_hash()[:12]
+    return JSONResponse({"ok": True, "license": status})
+
+
+@app.get("/api/license/device")
+def api_license_device() -> JSONResponse:
+    return JSONResponse({"ok": True, "device_hash_prefix": license_manager.current_device_hash()[:12]})
+
+
+@app.post("/api/license/install")
+def api_license_install(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    license_doc = payload.get("license")
+    if isinstance(license_doc, str):
+        try:
+            license_doc = json.loads(license_doc)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail="授权内容不是合法 JSON") from exc
+    if not isinstance(license_doc, dict):
+        raise HTTPException(status_code=400, detail="请提交授权包")
+    status = license_manager.install_license_doc(license_doc)
+    if not status.ok:
+        raise HTTPException(status_code=400, detail=status.reason)
+    public = license_manager.public_status()
+    public["device_hash_prefix"] = license_manager.current_device_hash()[:12]
+    return JSONResponse({"ok": True, "license": public})
+
+
+@app.post("/api/license/activate")
+def api_license_activate(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    card_key = str(payload.get("card_key") or "").strip()
+    try:
+        status = license_client.activate_card_key(card_key)
+    except license_client.LicenseClientError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    status["device_hash_prefix"] = license_manager.current_device_hash()[:12]
+    return JSONResponse({"ok": True, "license": status})
+
+
+@app.post("/api/license/refresh")
+def api_license_refresh() -> JSONResponse:
+    try:
+        status = license_client.refresh_license()
+    except license_client.LicenseClientError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    status["device_hash_prefix"] = license_manager.current_device_hash()[:12]
+    return JSONResponse({"ok": True, "license": status})
 
 
 @app.get("/api/ai/config")

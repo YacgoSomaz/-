@@ -13,6 +13,8 @@ import os
 import re
 from pathlib import Path
 
+from . import license_runtime
+
 # 录音文件名 seqNNNNN.mp3 的序号解析（segment muxer 用 -segment_start_number 连续编号）
 _SEQ_RE = re.compile(r"(?:seq)?0*(\d+)$", re.I)
 
@@ -121,6 +123,28 @@ COMMENT_LEADS_STATE_JSON = DATA_DIR / "comment_leads_seen.json"
 COMMENT_LEADS_EXPORT_DIR = EXPORT_DIR / "comment_leads"
 COMMENT_LEADS_PROFILE_DIR = DATA_DIR / "comment_leads_browser_profile"
 LOG_DIR = DATA_DIR / "logs"
+
+# ---------- 商业授权（开发态默认不强制，商业包通过编译期 license_runtime 开启） ----------
+LICENSE_PATH = DATA_DIR / "license.json"
+LICENSE_CLOCK_PATH = DATA_DIR / "license_clock.json"
+LICENSE_PRODUCT_CODE = os.environ.get("LIVEWATCH_PRODUCT_CODE", "live_replay_xia")
+LICENSE_PRODUCT_SALT = os.environ.get("LIVEWATCH_PRODUCT_SALT", "live_replay_xia_device_v1")
+if license_runtime.LICENSE_ENFORCE:
+    # 商业包的授权开关、公钥、服务地址来自编译期注入，不接受本机环境变量覆盖。
+    LICENSE_ENFORCE = True
+    LICENSE_PUBLIC_KEY = license_runtime.LICENSE_PUBLIC_KEY.strip()
+    LICENSE_SERVER_URL = license_runtime.LICENSE_SERVER_URL.strip().rstrip("/")
+else:
+    LICENSE_ENFORCE = os.environ.get("LIVEWATCH_LICENSE_ENFORCE", "").strip().lower() in {"1", "true", "yes", "on"}
+    LICENSE_PUBLIC_KEY = os.environ.get("LIVEWATCH_LICENSE_PUBLIC_KEY", license_runtime.LICENSE_PUBLIC_KEY).strip()
+    LICENSE_SERVER_URL = os.environ.get("LIVEWATCH_LICENSE_SERVER_URL", license_runtime.LICENSE_SERVER_URL).strip().rstrip("/")
+LICENSE_REQUEST_TIMEOUT_SEC = max(3.0, float(os.environ.get("LIVEWATCH_LICENSE_REQUEST_TIMEOUT_SEC", "12")))
+LICENSE_APP_VERSION = os.environ.get("LIVEWATCH_APP_VERSION", "1.0.0").strip() or "1.0.0"
+LICENSE_REFRESH_INTERVAL_SEC = max(900, int(os.environ.get("LIVEWATCH_LICENSE_REFRESH_INTERVAL_SEC", "21600")))
+LICENSE_CLOCK_ROLLBACK_TOLERANCE_SEC = max(
+    60,
+    int(os.environ.get("LIVEWATCH_LICENSE_CLOCK_ROLLBACK_TOLERANCE_SEC", "300")),
+)
 
 # ---------- 待开播主播开播探测（profile_watch）----------
 # 未开播主播只有主页链接、拿不到直播号(web_rid)。后台用匿名 headless 浏览器定期渲染其主页，

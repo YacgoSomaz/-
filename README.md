@@ -1,261 +1,186 @@
-# live_watch
+# 直播复盘侠
 
-抖音直播监听与话术采集研究工作区。当前目标是验证多技术路线在多直播间监听、弹幕入库、音频录制/转写、高并发风控压力下的可行性。
+直播复盘侠是一套本地安装运行的直播与短视频运营分析工具。当前主线位于
+`_experiments/douyin_worker_route`，已经从早期研究脚本演进为 Windows 桌面安装包、
+本地数据落库、商业卡密授权、AI 复盘、短视频拆解和评论线索采集的一体化产品原型。
 
-> 仅供个人学习、研究和内部验证使用。请遵守平台规则、相关法律法规和他人隐私权益。
+> 合规提醒：本项目只处理用户自行配置、授权登录态下可见的公开内容。不要绕过登录、
+> 验证码、平台风控或批量自动私信。真实 cookie、卡密、AI Key、录音、数据库和导出文件
+> 均不得提交到仓库。
 
-## 当前状态
+## 当前核心能力
 
-这个仓库目前不是生产部署包，而是一个研究/验证工作区。它保留了多条路线，方便回家后继续对照测试。
+- 直播监听：添加主播或直播间，监听弹幕、进场、点赞、关注、粉丝团等事件。
+- 音频录制：按直播流录制音频，保留原始分段，支持断流台账与后续溯源。
+- 语音转写：本地 SenseVoice 语音识别，支持话术入库、导出和 AI 复盘。
+- 声纹标注：对转写片段标注发言人 A/B/C，导出时可带发言人。
+- 数据导出：按主播、汇总表、录音时间轴、弹幕事件和话术生成 Excel。
+- AI 直播复盘：基于话术、弹幕、互动数据生成运营复盘、追问和报告下载。
+- 效能分析：按直播场次展示评分、热度、互动、内容质量和风险提示。
+- 短视频中心：解析抖音账号作品，选择作品进入 AI 工作台，生成作品潜力分、拆解报告、爆款预测和对标学习。
+- AI 获客系统：配置公开视频或主页作品，采集评论线索，清洗后给客服跟进。
+- 商业授权：本地安装包通过卡密激活，支持设备绑定、冻结、解绑和授权刷新。
+- 安装包：Inno Setup + PyInstaller + 可选 Nuitka 商业编译，默认安装到 `C:\Program Files\LiveWatch`。
 
-重要结论：
-
-- 默认启动 `python server.py` 时，只会启动 dycast 批量控制台后端，不会自动运行 worker 路线。
-- `_experiments/douyin_worker_route` 是 Claude 尝试的另一条后端 worker 技术路线，只有手动运行它里面的 `run_worker.py` 或 `run_multi.py` 才会参与。
-- 当前代码可以本地启动和继续验证，但不能保证一部署就能稳定绕过抖音风控。
-- 如果只是想跑现有控制台，请先忽略 `_experiments/douyin_worker_route` 目录。
-
-仓库里保留了两条主要路线，方便并行测试：
-
-1. `_experiments/dycast`
-   - 当前主线工作目录。
-   - 前端是 Vue/Vite 批量托管控制台。
-   - 后端 `server.py` 提供 WebSocket 中继、SQLite 入库、导出服务、音频采集管理。
-
-2. `_experiments/dycast_original_route_161517`
-   - 从 2026-06-03 16:15 备份解压出来的原路线副本。
-   - 已改成独立端口，方便和主线同时跑。
-   - 用于高并发对照测试。
-
-3. `_experiments/douyin_worker_route`
-   - Claude 正在尝试的后端 worker 路线，已经从 `dycast` 主线目录分离出来。
-   - vendor 了 `DouyinLiveWebFetcher` 作为技术验证基础。
-   - 目标是减少浏览器/Vite 代理在关键链路里的参与。
-
-根目录的 `stream_url.py`、`recorder.py`、`transcriber.py` 是音频链路基础模块：取流、ffmpeg 切片录制、Whisper 转写。
-
-## 端口规划
-
-主线实例：
+## 目录结构
 
 ```text
-前端控制台: http://127.0.0.1:5173/
-WS 中继:    ws://localhost:8765
-导出服务:   http://localhost:8766/
-音频并发:   5
+.
+├── _experiments/douyin_worker_route/     # 当前主线产品代码
+│   ├── pipeline/                         # FastAPI 后端、前端 HTML、业务模块
+│   ├── tests/                            # 主线测试
+│   ├── third_party/cheat_on_content/     # MIT 短视频评分方法论参考
+│   └── THIRD_PARTY_NOTICES.md            # 第三方声明
+├── licensing_server/                     # 卡密授权服务器
+├── packaging/build/                      # Windows 安装包构建链
+├── docs/security/                        # 授权服务器部署说明
+├── docs/superpowers/plans/               # 近期重要开发计划
+├── DEVELOPMENT_LOG.md                    # 项目开发日志
+└── PROJECT_HANDOFF.md                    # 给下一位开发者/AI 的接手报告
 ```
 
-原路线副本：
+早期根目录脚本和旧实验目录仍保留作历史参考，但新开发优先围绕
+`_experiments/douyin_worker_route` 进行。
 
-```text
-前端控制台: http://127.0.0.1:5174/
-WS 中继:    ws://localhost:8775
-导出服务:   http://localhost:8776/
-音频并发:   10
-```
-
-## 快速启动
-
-### 主线 dycast
+## 本地开发启动
 
 ```powershell
-cd C:\Users\q2414\Desktop\live_watch\_experiments\dycast
-pnpm install
-python server.py
+cd C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route
+python -m pipeline.webui --host 127.0.0.1 --port 8848
 ```
 
-另开一个终端：
-
-```powershell
-cd C:\Users\q2414\Desktop\live_watch\_experiments\dycast
-pnpm dev --host 127.0.0.1
-```
-
-打开：
+浏览器打开：
 
 ```text
-http://127.0.0.1:5173/
+http://127.0.0.1:8848
 ```
 
-### 原路线副本
+常用环境变量：
 
 ```powershell
-cd C:\Users\q2414\Desktop\live_watch\_experiments\dycast_original_route_161517
-pnpm install
-python server.py
+# AI 配置建议在系统设置页面填写，避免写入源码
+$env:LIVEWATCH_DANMU_BACKEND="audio_only"
+$env:LIVEWATCH_LICENSE_ENFORCE="0"       # 开发态默认不强制，商业包编译期强制
+$env:LIVEWATCH_DATA_DIR="D:\LiveWatchData" # 可选：指定本地数据目录
 ```
 
-另开一个终端：
+## 授权服务器
+
+授权服务代码在 `licensing_server/`。线上服务当前通过 systemd 运行在：
+
+```text
+https://license.runmo.art/
+```
+
+管理后台入口：
+
+```text
+https://license.runmo.art/admin
+```
+
+根路径 `/` 已重定向到 `/admin`。管理后台需要输入服务器环境变量
+`LICENSE_ADMIN_TOKEN`，令牌只在当前浏览器页面内存中使用，不保存到网页或仓库。
+
+本地启动授权服务示例：
 
 ```powershell
-cd C:\Users\q2414\Desktop\live_watch\_experiments\dycast_original_route_161517
-pnpm dev --host 127.0.0.1 --port 5174
+cd C:\Users\q2414\Desktop\live_watch
+python -m venv .venv-license
+.\.venv-license\Scripts\Activate.ps1
+pip install -r licensing_server\requirements.txt
+
+$env:LICENSE_DB_PATH=".\license_data\licenses.db"
+$env:LICENSE_SIGNING_PRIVATE_KEY="<Ed25519 私钥>"
+$env:LICENSE_TOKEN_HASH_SECRET="<随机长密钥>"
+$env:LICENSE_ADMIN_TOKEN="<管理员令牌，至少16位>"
+uvicorn --factory licensing_server.app:create_app_from_env --host 127.0.0.1 --port 60001
 ```
 
-打开：
+完整部署见：
 
 ```text
-http://127.0.0.1:5174/
+docs/security/license-server-deployment.md
 ```
 
-## CSV 导入格式
+## Windows 安装包构建
 
-控制台支持导入 CSV，推荐字段：
-
-```csv
-room_num,name,group,priority
-10280167603,主播A,测试组,1
-430322042715,主播B,测试组,2
-```
-
-也可以用直播间链接：
-
-```csv
-live_url,name,group,priority
-https://live.douyin.com/10280167603,主播A,测试组,1
-```
-
-## 导出
-
-主线实例：
-
-```text
-http://localhost:8766/
-```
-
-原路线副本：
-
-```text
-http://localhost:8776/
-```
-
-导出服务支持弹幕 CSV、弹幕 Excel、话术 CSV，以及清理本地测试数据。
-
-## 测试命令
-
-主线：
+构建脚本位于 `packaging/build/`。商业构建会把 `pipeline` 编译为二进制模块，
+安装包中不携带业务 `.py` 源码，只内置授权公钥和授权服务地址。
 
 ```powershell
-cd C:\Users\q2414\Desktop\live_watch\_experiments\dycast
-pnpm run build
-python _test_audio_manager.py
+python -m pip install -r packaging\build\requirements-build.txt
+
+pwsh -NoProfile -File packaging\build\build_release.ps1 `
+  -Commercial `
+  -LicenseServerUrl "https://license.runmo.art" `
+  -LicensePublicKey "<Ed25519 公钥>" `
+  -Version "1.0.0"
 ```
 
-原路线副本：
-
-```powershell
-cd C:\Users\q2414\Desktop\live_watch\_experiments\dycast_original_route_161517
-pnpm run build
-python _test_audio_manager.py
-```
-
-## 音频与转写
-
-当前音频链路：
+产物：
 
 ```text
-直播间开播并连接弹幕
-  -> 获取直播流地址
-  -> ffmpeg 录制音频切片
-  -> Whisper 转文字
-  -> transcripts 入库
+release\LiveWatchSetup_1.0.0.exe
 ```
 
-可用环境变量：
+可选代码签名：
 
 ```powershell
-$env:AUDIO_ENABLED="1"
-$env:AUDIO_MAX_ROOMS="5"
-$env:AUDIO_MODEL="base"
-$env:AUDIO_SEGMENT_SEC="30"
-python server.py
+pwsh -NoProfile -File packaging\build\build_release.ps1 `
+  -Commercial `
+  -LicenseServerUrl "https://license.runmo.art" `
+  -LicensePublicKey "<Ed25519 公钥>" `
+  -CodeSignThumbprint "<证书SHA1指纹>" `
+  -Version "1.0.0"
 ```
 
-高并发测试时可以先关闭转写，只验证弹幕和连接稳定性：
+## 测试
+
+推荐在仓库根目录执行：
 
 ```powershell
-$env:AUDIO_ENABLED="0"
-python server.py
+$env:PYTHONPATH="C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route"
+python -m pytest _experiments\douyin_worker_route\tests licensing_server\tests -q
 ```
 
-## 后端 worker 路线
-
-`_experiments/douyin_worker_route` 是新路线验证目录，目标是减少浏览器/Vite 代理在关键链路里的参与。
-
-这个目录不会被 `server.py` 自动加载，也不会占用主线端口。它和主线是否“打架”，取决于是否手动同时运行 worker 脚本并监听同一批直播间。
-
-重点文件：
-
-```text
-run_worker.py                       单房间 worker 验证
-run_multi.py                        多房间 worker 验证
-probe_audio.py                      无浏览器取流探测
-make_mp3.py                         无浏览器取流并导出 mp3 验证
-record_multi_audio.py               多房间并发录音验证
-vendor/DouyinLiveWebFetcher/        第三方参考实现
-```
-
-注意：worker vendor 来自第三方开源项目，后续如果继续使用，需要单独核查许可证、维护成本和平台规则风险。
-
-## 是否一部署就能用
-
-不能这样承诺。当前仓库能保证的是：
-
-- 代码、配置和两条测试路线已经保存到 GitHub。
-- 主线 dycast 在本机验证过 `pnpm run build` 和 `_test_audio_manager.py`。
-- 原路线副本也在本机验证过构建和音频管理器测试。
-- 端口已经错开，主线和副本可以并行启动。
-
-不能保证的是：
-
-- 抖音风控状态解除。
-- 任意网络环境下一定能拿到直播间页面、弹幕 WebSocket 或音频流。
-- worker 路线已经达到生产可托管状态。
-- 50 个号或 15 个号长期稳定并发。
-
-回家后建议先按“小步验证”跑：
-
-```text
-1 个房间 -> 3 个房间 -> 5 个房间 -> 10 个房间
-```
-
-确认每一步能稳定入库和导出后，再继续加并发。
-
-## 已忽略的数据
-
-`.gitignore` 已排除：
-
-```text
-node_modules/
-dist/
-*.db
-data/
-exports/
-relay_logs/
-运行日志
-真实弹幕样本
-音视频产物
-```
-
-真实弹幕样本、数据库和导出文件不应提交到 GitHub。
-
-## 当前问题记录
-
-- 批量访问 `https://live.douyin.com/<room_num>` 或 `/dylive/<room_num>` 可能触发验证码/风控页。
-- 30 秒切片更像是 CPU/磁盘/转写压力问题，不一定是风控主因。
-- 高并发建议分路线测试：主线 5 个、原路线副本 10 个，避免同一房间重复监听。
-- 更长期的方向是后端 worker 化：房间状态、WebSocket 连接、protobuf 解析、入库都尽量放到后端。
-
-## 回家后建议步骤
+授权服务专项测试：
 
 ```powershell
-git clone https://github.com/YacgoSomaz/-.git
-cd -
+$env:PYTHONPATH="C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route"
+python -m pytest licensing_server\tests -q
 ```
 
-然后优先验证：
+构建产物安全扫描：
 
-1. 主线 `dycast` 能否正常启动。
-2. `_experiments/douyin_worker_route/run_worker.py` 单房间是否可稳定拿弹幕。
-3. 只录音不转写时，风控是否减少。
-4. 5 + 10 双实例并发时，是否比单路线 15 个更稳定。
+```powershell
+pwsh -NoProfile -File packaging\build\check_release.ps1 -Target staging\LiveWatch
+python packaging\build\check_release.py staging\LiveWatch --commercial
+```
+
+## Git 与敏感数据纪律
+
+不要提交以下内容：
+
+- `browser_cookies.json`、`short_video_cookies.json`
+- `ai_config.json`、`.env`、`*.pem`、`*.key`、`*.pfx`
+- `license.json`、`license_clock.json`
+- `*.db`、录音、视频、导出、日志、缓存
+- 模型目录 `_experiments/asr_bench/`、声纹模型目录、大体积 staging/release 产物
+
+提交前建议运行：
+
+```powershell
+git status --short
+git diff --stat
+```
+
+只选择性 `git add` 本次真实要提交的源码和文档。
+
+## 下一步优先级
+
+1. 完善短视频中心的主页作品滚动解析，突破初始 20 条限制。
+2. 优化短视频 AI 工作台历史报告、Markdown 下载、报告卡片展示。
+3. 给 AI 获客系统加入主页新作品监控，再把新视频评论转成线索。
+4. 继续降低 AI 报告耗时，并保留清晰的进度可视化。
+5. 购买代码签名证书，给商业安装包签名，减少 Windows SmartScreen 提示。
+

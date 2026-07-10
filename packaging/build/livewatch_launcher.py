@@ -12,7 +12,7 @@
 目录布局（安装目录 = 本 exe 所在目录）：
   <install>/LiveWatchLauncher.exe
   <install>/_internal/         PyInstaller 运行时（含 Python、各 wheel、imageio_ffmpeg 的 ffmpeg.exe）
-  <install>/app/              程序源码（pipeline；安全构建默认不含 legacy vendor）
+  <install>/app/              编译后的业务模块与公开前端资产（商业包不含 pipeline 源码）
   <install>/app/bin/node.exe  内置 Node
   <install>/models/          SenseVoice + 3D-Speaker 模型
 """
@@ -30,6 +30,7 @@ import fastapi  # noqa: F401
 import fastapi.middleware.cors  # noqa: F401
 import fastapi.staticfiles  # noqa: F401
 import betterproto  # noqa: F401
+import cryptography  # noqa: F401
 import execjs  # noqa: F401
 import imageio_ffmpeg  # noqa: F401
 import jieba  # noqa: F401
@@ -79,10 +80,12 @@ def _find_app_dir(base: Path) -> Path:
         base.parent.parent / "_experiments" / "douyin_worker_route",
     ]
     for candidate in candidates:
-        if (candidate / "pipeline" / "webui.py").exists():
+        has_source_package = (candidate / "pipeline" / "webui.py").exists()
+        has_compiled_package = any(candidate.glob("pipeline*.pyd"))
+        if has_source_package or has_compiled_package:
             return candidate
     raise SystemExit(
-        "没有找到 app/pipeline/webui.py。\n"
+        "没有找到应用运行模块。\n"
         "请确认 LiveWatchLauncher.exe 与 app、models 文件夹在同一个安装目录里。"
     )
 
@@ -197,6 +200,10 @@ class DesktopClient:
         if self.window is not None:
             self.window.show()
             self.window.restore()
+            try:
+                self.window.maximize()
+            except Exception:  # noqa: BLE001
+                pass
             self.window.focus()
 
     def _open_data_dir(self, *_args) -> None:
@@ -221,6 +228,10 @@ class DesktopClient:
     def _on_loaded(self) -> None:
         if self.window is not None:
             self.window.set_title(APP_NAME)
+            try:
+                self.window.maximize()
+            except Exception:  # noqa: BLE001
+                pass
 
     def run(self) -> None:
         self.window = webview.create_window(
@@ -229,6 +240,7 @@ class DesktopClient:
             width=1320,
             height=860,
             min_size=(980, 640),
+            maximized=True,
             background_color="#0e1117",
             text_select=True,
         )
@@ -262,6 +274,9 @@ def main() -> int:
     # 1) 注入环境变量 —— 必须在 import pipeline.* 之前（config 在导入时读取）。
     os.environ["LIVEWATCH_DATA_DIR"] = str(data_dir)
     os.environ["LIVEWATCH_RESOURCE_DIR"] = str(resource_dir)
+    packaged_assets = app_dir / "pipeline_data"
+    if packaged_assets.exists():
+        os.environ["LIVEWATCH_PIPELINE_DATA_DIR"] = str(packaged_assets)
     os.environ.setdefault("LIVEWATCH_DANMU_BACKEND", "audio_only")
     bundled_browsers = base / "browsers"
     if bundled_browsers.exists():

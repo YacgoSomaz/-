@@ -3,7 +3,7 @@
 ;   /DAppVersion=...  /DStagingDir=...  /DOutputDir=...
 ; 设计要点：
 ;   * 程序与模型装到安装目录；用户数据全部在 %LOCALAPPDATA%\LiveWatch\data，安装/卸载都不碰 → 升级天然保数据。
-;   * PrivilegesRequired=lowest：普通用户无需管理员即可装到 %LOCALAPPDATA%\Programs\LiveWatch。
+;   * 默认装到 C:\Program Files\LiveWatch，需要管理员权限；用户数据仍保存在本机用户目录。
 ;   * 卸载默认保留用户数据；并提供「同时删除全部用户数据」的明确选项。
 
 #ifndef AppVersion
@@ -24,13 +24,13 @@ AppPublisher=直播复盘侠（个人版）
 DefaultDirName={autopf}\LiveWatch
 DefaultGroupName=直播复盘侠
 DisableProgramGroupPage=yes
-PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
+PrivilegesRequired=admin
 OutputDir={#OutputDir}
 OutputBaseFilename=LiveWatchSetup_{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=assets\livewatch.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName=直播复盘侠
@@ -49,9 +49,9 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Source: "{#StagingDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{group}\直播复盘侠"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"
+Name: "{group}\直播复盘侠"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"
 Name: "{group}\卸载直播复盘侠"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\直播复盘侠"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{autodesktop}\直播复盘侠"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\LiveWatchLauncher.exe"; Description: "立即启动直播复盘侠"; Flags: nowait postinstall skipifsilent

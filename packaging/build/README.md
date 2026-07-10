@@ -8,7 +8,7 @@
 | 文件 | 作用 |
 |------|------|
 | `livewatch_launcher.py` | PyInstaller 桌面客户端入口。注入数据/资源路径，启动 uvicorn 后端，并用 WebView2 独立窗口与系统托盘承载控制台。 |
-| `build_release.ps1` | **一键可重复构建**。每次从空白 staging 重建：白名单拷源码→内置 node+模型→PyInstaller 打包→安全扫描→ISCC 编译安装程序。 |
+| `build_release.ps1` | **一键可重复构建**。开发包拷源码；商业包会先用 Nuitka 编译整个业务包，再内置 node+模型、PyInstaller 运行时、安全扫描与 ISCC 安装程序。 |
 | `check_release.ps1` | 构建产物安全扫描。发现 Cookie / 数据库 / 音频 / 日志 / 开发房间号 → 立即 `exit 1` 让构建失败。 |
 | `livewatch.iss` | Inno Setup 脚本。装到安装目录；覆盖升级保数据；卸载默认保留数据 + 明确「完全删除」选项。 |
 | `smoke_test.ps1` | 全新目录安装冒烟测试：启动、模型路径、数据目录、覆盖升级保数据。 |
@@ -18,7 +18,7 @@
 
 | 类别 | 位置 | 谁写 |
 |------|------|------|
-| 程序源码 + Node | `<安装目录>\app\` | 安装程序（只读） |
+| 业务模块 + Node | `<安装目录>\app\` | 安装程序（只读） |
 | 模型与验证浏览器 | `<安装目录>\models\`、`<安装目录>\browsers\` | 安装程序（只读） |
 | 运行时（Python/FFmpeg/各依赖） | `<安装目录>\_internal\`、`LiveWatchLauncher.exe` | 安装程序（只读） |
 | 用户数据 | `%LOCALAPPDATA%\LiveWatch\data\`（cookie、rooms.json、`*.db`、`audio\`、`exports\`、`logs\`） | 运行时 |
@@ -29,11 +29,26 @@
 ## 构建命令
 
 ```powershell
-# 前置：Python + PyInstaller、Node（取 node.exe）、Inno Setup 6（提供 ISCC.exe）
+# 前置：Python + PyInstaller、Nuitka、Node（取 node.exe）、Inno Setup 6（提供 ISCC.exe）
+python -m pip install -r packaging\build\requirements-build.txt
 pwsh -File packaging\build\build_release.ps1 -Version 1.0.0
 
 # 只产 staging、不编译安装程序：
 pwsh -File packaging\build\build_release.ps1 -SkipInstaller
+
+# 商业包：仅嵌入公钥和 HTTPS 授权服务地址；业务 pipeline 不携带 .py 源码
+pwsh -File packaging\build\build_release.ps1 -Commercial `
+  -LicenseServerUrl "https://license.example.com" `
+  -LicensePublicKey "Ed25519_base64url_公钥" `
+  -Version 1.1.0
+
+# 可选：给启动器与安装程序加 Windows Authenticode 签名。
+# 证书安装到当前 Windows 用户的证书存储后，填入证书指纹即可。
+pwsh -File packaging\build\build_release.ps1 -Commercial `
+  -LicenseServerUrl "https://license.example.com" `
+  -LicensePublicKey "Ed25519_base64url_公钥" `
+  -CodeSignThumbprint "证书SHA1指纹" `
+  -Version 1.1.0
 
 # 单独跑安全扫描 / 冒烟测试：
 pwsh -File packaging\build\check_release.ps1 -Target staging\LiveWatch
@@ -42,10 +57,18 @@ pwsh -File packaging\build\smoke_test.ps1
 
 产物：`release\LiveWatchSetup_<版本>.exe`
 
+## Windows 代码签名（建议商业发放启用）
+
+`-CodeSignThumbprint` 是可选项：构建脚本会自动查找 `signtool.exe`，给
+`LiveWatchLauncher.exe` 与最终 `LiveWatchSetup*.exe` 签名，并用 Windows
+`Get-AuthenticodeSignature` 验签。它不隐藏业务逻辑，但能证明软件来源、检测被篡改，
+并减少 Windows SmartScreen 对新安装包的拦截概率。需要另行购买受信任的代码签名证书；
+私钥只应保留在证书存储或硬件令牌中，绝不能放进仓库或安装包。
+
 ## 可重复性
 
 - 每次构建先 `Remove-Item` 清空 `staging\`，再全自动重建——**没有任何手工复制步骤**。
-- 源码用**白名单**拷贝（仅 `pipeline\*.py` 和项目自有入口；旧 `vendor\`、`run_worker.py`
+- 开发构建用**白名单**拷贝；商业构建把 `pipeline` 编译为单一 `.pyd`，并由扫描器拒绝任何业务 `.py` 源码。旧 `vendor\`、`run_worker.py`
   已不再允许进入产物），天然排除 `audio\`、`*.db`、
   `browser_cookies.json`、`rooms.json`、`exports\`、日志、样本、`__pycache__`、`_scratch*`。
 - 安全扫描是构建的**强制关卡**，扫到任何敏感物即让整个构建失败；若产物含旧 AGPL vendor

@@ -1,0 +1,3 @@
+# 仅用于发行构建机，不进入最终安装包。
+pyinstaller
+nuitka

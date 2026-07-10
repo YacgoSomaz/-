@@ -1,0 +1,106 @@
+"""Online activation and refresh client for the local desktop application."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Any, Callable
+
+import requests
+
+from . import config, license_manager
+
+
+class LicenseClientError(RuntimeError):
+    """A user-safe error for activation and refresh actions."""
+
+
+Post = Callable[..., Any]
+
+
+def _server_url(value: str | None = None) -> str:
+    url = (value if value is not None else config.LICENSE_SERVER_URL).strip().rstrip("/")
+    if not url.startswith("https://"):
+        raise LicenseClientError("未配置 HTTPS 授权服务器地址")
+    return url
+
+
+def _request_json(post: Post, url: str, payload: dict[str, str]) -> dict[str, Any]:
+    try:
+        response = post(url, json=payload, timeout=config.LICENSE_REQUEST_TIMEOUT_SEC)
+    except requests.RequestException as exc:
+        raise LicenseClientError("无法连接授权服务器，请检查网络后重试") from exc
+    try:
+        data = response.json()
+    except (ValueError, TypeError) as exc:
+        raise LicenseClientError("授权服务器返回格式异常") from exc
+    if not isinstance(data, dict):
+        raise LicenseClientError("授权服务器返回格式异常")
+    if int(getattr(response, "status_code", 200)) >= 400:
+        detail = str(data.get("detail") or "授权操作失败")
+        raise LicenseClientError(detail[:200])
+    return data
+
+
+def _persist_server_reply(reply: dict[str, Any], *, server_url: str, previous: dict[str, Any] | None = None) -> dict[str, Any]:
+    license_doc = reply.get("license")
+    activation_id = str(reply.get("activation_id") or (previous or {}).get("activation_id") or "")
+    refresh_token = str(reply.get("refresh_token") or (previous or {}).get("refresh_token") or "")
+    if not isinstance(license_doc, dict) or not activation_id or not refresh_token:
+        raise LicenseClientError("授权服务器返回内容不完整")
+    package = dict(license_doc)
+    package.update(
+        {
+            "activation_id": activation_id,
+            "refresh_token": refresh_token,
+            "server_url": server_url,
+        }
+    )
+    status = license_manager.install_license_doc(package)
+    if not status.ok:
+        raise LicenseClientError(status.reason)
+    return license_manager.public_status()
+
+
+def _load_package(path: Path | None = None) -> dict[str, Any]:
+    target = path or config.LICENSE_PATH
+    try:
+        package = json.loads(target.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise LicenseClientError("本机没有可刷新的授权") from exc
+    if not isinstance(package, dict):
+        raise LicenseClientError("本机授权文件无效")
+    return package
+
+
+def activate_card_key(card_key: str, *, server_url: str | None = None, post: Post = requests.post) -> dict[str, Any]:
+    value = str(card_key or "").strip().upper()
+    if len(value) < 4 or len(value) > 128:
+        raise LicenseClientError("请输入有效卡密")
+    base_url = _server_url(server_url)
+    reply = _request_json(
+        post,
+        f"{base_url}/v1/activate",
+        {
+            "card_key": value,
+            "device_hash": license_manager.current_device_hash(),
+            "app_version": config.LICENSE_APP_VERSION,
+        },
+    )
+    return _persist_server_reply(reply, server_url=base_url)
+
+
+def refresh_license(*, post: Post = requests.post) -> dict[str, Any]:
+    package = _load_package()
+    base_url = _server_url(str(package.get("server_url") or ""))
+    reply = _request_json(
+        post,
+        f"{base_url}/v1/refresh",
+        {
+            "activation_id": str(package.get("activation_id") or ""),
+            "refresh_token": str(package.get("refresh_token") or ""),
+            "device_hash": license_manager.current_device_hash(),
+            "app_version": config.LICENSE_APP_VERSION,
+        },
+    )
+    return _persist_server_reply(reply, server_url=base_url, previous=package)

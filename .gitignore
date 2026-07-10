@@ -7,6 +7,8 @@ __pycache__/
 *.zip
 data/
 exports/
+license_data/
+licensing_server/.env
 
 # 打包构建产物（每次从空白重建，体积大，绝不入库）
 staging/
@@ -65,6 +67,9 @@ _experiments/douyin_worker_route/video_quality.txt
 _experiments/douyin_worker_route/video/
 # AI provider config (contains API key; local only)
 _experiments/douyin_worker_route/ai_config.json
+# 商业授权文件（设备绑定/卡密结果，本机用户数据，切勿入库）
+_experiments/douyin_worker_route/license.json
+_experiments/douyin_worker_route/license_clock.json
 # 浏览器铸的抖音信任 cookie（本机会话凭证，切勿入库）
 _experiments/douyin_worker_route/browser_cookies.json
 _experiments/douyin_worker_route/short_video_cookies.json

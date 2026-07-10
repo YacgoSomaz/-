@@ -32,8 +32,13 @@ $devRooms = @(
 )
 
 # 禁止的文件名/扩展（任意层级）
-$banName = @("browser_cookies.json","rooms.json","ai_config.json",".env","config.yaml","config.yml")
-$banExt  = @(".db",".mp3",".wav",".log",".bak",".key",".pfx",".p12")
+$banName = @(
+    "browser_cookies.json","short_video_cookies.json","rooms.json","ai_config.json","license.json","license_clock.json",
+    "pending_anchors.json","anchor_profiles.json","short_video_profiles.json","short_video_parse_cache.json",
+    "short_video_jobs.json","short_video_benchmarks.json","comment_leads.json","comment_leads_seen.json",
+    ".env","config.yaml","config.yml"
+)
+$banExt  = @(".db",".sqlite",".sqlite3",".mp3",".mp4",".wav",".flv",".m4a",".aac",".ts",".log",".bak",".key",".pfx",".p12",".har",".pcap",".map")
 $banGlob = @("_scratch*","sample_*","*.db-wal","*.db-shm")
 
 $allFiles = @(Get-ChildItem -Recurse -File -Force $root)
@@ -50,12 +55,20 @@ foreach ($f in $allFiles) {
     $rel  = $f.FullName.Substring($root.Length).TrimStart('\')
 
     if ($banName -contains $name) { Add-V "禁止文件: $rel" ; continue }
-    if ($banExt  -contains $ext)  { Add-V "禁止扩展($ext): $rel" ; continue }
+    # Playwright 自带的 TypeScript 声明不属于用户数据；其他 .ts 仍按视频分片拦截。
+    $isPlaywrightType = $ext -eq ".ts" -and $rel -like "_internal\playwright\driver\package\*"
+    if (($banExt -contains $ext) -and -not $isPlaywrightType)  { Add-V "禁止扩展($ext): $rel" ; continue }
     foreach ($g in $banGlob) { if ($name -like $g) { Add-V "禁止临时件: $rel" ; break } }
 }
 
 # audio/ exports/ 不应有任何遗留文件（这俩是用户数据目录，安装包里绝不能带）
-foreach ($d in @("app\audio","audio","app\exports","exports")) {
+foreach ($d in @(
+    "app\audio","audio","app\video","video","app\exports","exports",
+    "app\avatar_cache","avatar_cache","app\short_video_assets","short_video_assets",
+    "app\comment_leads_browser_profile","comment_leads_browser_profile",
+    "app\license_data","license_data",
+    "app\logs","logs","app\_screenshots","_screenshots"
+)) {
     $p = Join-Path $root $d
     if (Test-Path $p) {
         $n = (Get-ChildItem -Recurse -File -Force $p | Measure-Object).Count
@@ -70,6 +83,7 @@ foreach ($f in $allFiles) {
     if ($textExt -notcontains $f.Extension.ToLower()) { continue }
     if ($f.FullName.ToLower().StartsWith($modelsPrefix)) { continue }  # 模型词表 tokens.txt 跳过
     $rel = $f.FullName.Substring($root.Length).TrimStart('\')
+    if ($rel -like "_internal\*") { continue }  # PyInstaller 第三方运行时由 Python 扫描器做私钥检查
     $content = [System.IO.File]::ReadAllText($f.FullName)
 
     foreach ($rid in $devRooms) {
