@@ -179,6 +179,7 @@ if ($Commercial) {
 LICENSE_ENFORCE = True
 LICENSE_SERVER_URL = "$LicenseServerUrl"
 LICENSE_PUBLIC_KEY = "$LicensePublicKey"
+LICENSE_APP_VERSION = "$Version"
 "@
     [System.IO.File]::WriteAllText($RuntimeFile, $RuntimeCode, [System.Text.UTF8Encoding]::new($false))
 

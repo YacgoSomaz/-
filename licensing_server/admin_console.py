@@ -27,3 +27,27 @@ ADMIN_HTML = ADMIN_HTML.replace(
     'JSON.stringify({features,max_devices:',
     'JSON.stringify({product_code:$(\'productCode\').value,features,max_devices:',
 )
+ADMIN_HTML = ADMIN_HTML.replace(
+    '卡密只会在创建成功时显示一次，请立即交付给客户并妥善保存。',
+    '新版卡密会加密保存在服务器，可在卡密列表查看和复制；旧卡密若未保存，只能显示前缀。',
+)
+ADMIN_HTML = ADMIN_HTML.replace(
+    '只显示卡密前缀，不会回显完整卡密。构建公钥可公开，只用于安装包验签授权，不包含服务器私钥。',
+    '新版卡密支持查看和复制完整卡密；旧卡密若未保存完整值，会显示“仅前缀”。构建公钥可公开，只用于安装包验签授权，不包含服务器私钥。',
+)
+ADMIN_HTML = ADMIN_HTML.replace(
+    '<tr><th>卡密前缀</th><th>功能</th><th>策略</th><th>已绑/上限</th><th>备注</th><th>状态</th></tr>',
+    '<tr><th>完整卡密</th><th>卡密前缀</th><th>功能</th><th>策略</th><th>已绑/上限</th><th>备注</th><th>状态</th></tr>',
+)
+ADMIN_HTML = ADMIN_HTML.replace(
+    '<tr><td colspan="6" class="empty">等待加载</td></tr></tbody></table></div><h3>设备授权记录</h3>',
+    '<tr><td colspan="7" class="empty">等待加载</td></tr></tbody></table></div><h3>设备授权记录</h3>',
+)
+ADMIN_HTML = ADMIN_HTML.replace(
+    "function tags(items){const box=document.createElement('td');(items||[]).forEach(x=>{const t=document.createElement('i');t.className='tag';t.textContent=x;box.appendChild(t)});return box}",
+    "function tags(items){const box=document.createElement('td');(items||[]).forEach(x=>{const t=document.createElement('i');t.className='tag';t.textContent=x;box.appendChild(t)});return box}\nasync function copyText(text,label='内容'){try{await navigator.clipboard.writeText(text);status(label+'已复制。')}catch(e){status('复制失败，请手动复制。',true)}}\nfunction keyCell(c){const td=document.createElement('td');td.className='mono';if(c.card_key){const code=document.createElement('code');code.textContent=c.card_key;td.appendChild(code);const btn=document.createElement('button');btn.className='small ghost';btn.textContent='复制';btn.style.marginLeft='6px';btn.onclick=()=>copyText(c.card_key,'卡密');td.appendChild(btn)}else{td.textContent=(c.key_prefix||'')+'…（仅前缀）'}return td}",
+)
+ADMIN_HTML = ADMIN_HTML.replace(
+    "function renderCards(cards){const body=$('cards');body.textContent='';if(!cards.length){body.innerHTML='<tr><td colspan=\"6\" class=\"empty\">暂无卡密</td></tr>';return}cards.forEach(c=>{const policy=c.policy||{};const tr=document.createElement('tr');tr.append(cell(c.key_prefix+'…','mono'),tags(c.features),cell('监听 '+(policy.max_active_rooms||10)+' 个'+(policy.export_watermark?' / 水印':'')),cell((c.active_devices||0)+' / '+c.max_devices),cell(c.note||'—'),cell(c.status,c.status==='active'?'state-active':'state-frozen'));body.appendChild(tr)})}",
+    "function renderCards(cards){const body=$('cards');body.textContent='';if(!cards.length){body.innerHTML='<tr><td colspan=\"7\" class=\"empty\">暂无卡密</td></tr>';return}cards.forEach(c=>{const policy=c.policy||{};const tr=document.createElement('tr');tr.append(keyCell(c),cell(c.key_prefix+'…','mono'),tags(c.features),cell('监听 '+(policy.max_active_rooms||10)+' 个'+(policy.export_watermark?' / 水印':'')),cell((c.active_devices||0)+' / '+c.max_devices),cell(c.note||'—'),cell(c.status,c.status==='active'?'state-active':'state-frozen'));body.appendChild(tr)})}",
+)

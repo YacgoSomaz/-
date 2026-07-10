@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, license_client, license_manager, license_policy, license_refresh, performance_analysis, short_video, short_video_ai
+from . import ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, license_client, license_manager, license_policy, license_refresh, performance_analysis, short_video, short_video_ai, updater
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import RoomManager, active_room_limit
@@ -373,6 +373,37 @@ def api_license_refresh() -> JSONResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     status["device_hash_prefix"] = license_manager.current_device_hash()[:12]
     return JSONResponse({"ok": True, "license": status})
+
+
+@app.get("/api/update/check")
+def api_update_check() -> JSONResponse:
+    try:
+        manifest = updater.check_update()
+    except updater.UpdateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "update": manifest.public_dict()})
+
+
+@app.post("/api/update/download")
+def api_update_download() -> JSONResponse:
+    try:
+        manifest = updater.check_update()
+        installer = updater.download_update(manifest)
+    except updater.UpdateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    payload = manifest.public_dict()
+    payload["installer"] = str(installer)
+    return JSONResponse({"ok": True, "update": payload})
+
+
+@app.post("/api/update/install")
+def api_update_install(payload: dict[str, object] | None = Body(default=None)) -> JSONResponse:
+    silent = bool((payload or {}).get("silent", True))
+    try:
+        result = updater.download_and_install(silent=silent)
+    except updater.UpdateError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "update": result})
 
 
 @app.get("/api/ai/config")

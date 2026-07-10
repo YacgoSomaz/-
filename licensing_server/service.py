@@ -11,6 +11,7 @@ import base64
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import sqlite3
 import time
@@ -20,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 
@@ -103,6 +105,7 @@ class LicenseService:
                     id TEXT PRIMARY KEY,
                     key_hash TEXT NOT NULL UNIQUE,
                     key_prefix TEXT NOT NULL,
+                    key_ciphertext TEXT NOT NULL DEFAULT '',
                     product_code TEXT NOT NULL,
                     features_json TEXT NOT NULL,
                     max_devices INTEGER NOT NULL,
@@ -138,6 +141,8 @@ class LicenseService:
             columns = {row["name"] for row in conn.execute("PRAGMA table_info(card_keys)").fetchall()}
             if "policy_json" not in columns:
                 conn.execute("ALTER TABLE card_keys ADD COLUMN policy_json TEXT NOT NULL DEFAULT '{}'")
+            if "key_ciphertext" not in columns:
+                conn.execute("ALTER TABLE card_keys ADD COLUMN key_ciphertext TEXT NOT NULL DEFAULT ''")
 
     def _hash_secret(self, value: str) -> str:
         return hmac.new(
@@ -145,6 +150,34 @@ class LicenseService:
             value.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()
+
+    def _card_storage_key(self) -> bytes:
+        return hashlib.sha256(
+            ("card-key-storage-v1:" + self.settings.token_hash_secret).encode("utf-8")
+        ).digest()
+
+    def _encrypt_card_key(self, card_key: str) -> str:
+        nonce = os.urandom(12)
+        encrypted = AESGCM(self._card_storage_key()).encrypt(
+            nonce,
+            card_key.encode("utf-8"),
+            b"livewatch-card-key",
+        )
+        return _b64url_encode(nonce + encrypted)
+
+    def _decrypt_card_key(self, value: str | None) -> str:
+        if not value:
+            return ""
+        try:
+            raw = _b64url_decode(value)
+            nonce, encrypted = raw[:12], raw[12:]
+            return AESGCM(self._card_storage_key()).decrypt(
+                nonce,
+                encrypted,
+                b"livewatch-card-key",
+            ).decode("utf-8")
+        except Exception:
+            return ""
 
     @staticmethod
     def _clean_device_hash(device_hash: str) -> str:
@@ -232,13 +265,14 @@ class LicenseService:
                 with self._connect() as conn:
                     conn.execute(
                         """
-                        INSERT INTO card_keys(id, key_hash, key_prefix, product_code, features_json, max_devices, status, expires_at, policy_json, note, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
+                        INSERT INTO card_keys(id, key_hash, key_prefix, key_ciphertext, product_code, features_json, max_devices, status, expires_at, policy_json, note, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?)
                         """,
                         (
                             card_id,
                             self._hash_secret(card_key),
                             card_key[:8],
+                            self._encrypt_card_key(card_key),
                             selected_product,
                             json.dumps(allowed_features, ensure_ascii=False),
                             max_devices,
@@ -434,7 +468,8 @@ class LicenseService:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT card_keys.id, card_keys.key_prefix, card_keys.product_code, card_keys.features_json,
+                SELECT card_keys.id, card_keys.key_prefix, card_keys.key_ciphertext,
+                       card_keys.product_code, card_keys.features_json,
                        card_keys.max_devices, card_keys.status, card_keys.expires_at, card_keys.note,
                        card_keys.policy_json,
                        card_keys.created_at,
@@ -450,5 +485,6 @@ class LicenseService:
             item = dict(row)
             item["features"] = json.loads(item.pop("features_json"))
             item["policy"] = self._policy_from_json(item.pop("policy_json"))
+            item["card_key"] = self._decrypt_card_key(item.pop("key_ciphertext", ""))
             result.append(item)
         return result

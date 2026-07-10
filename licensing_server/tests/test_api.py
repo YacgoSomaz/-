@@ -6,7 +6,7 @@ from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 
-from licensing_server.app import create_app
+from licensing_server.app import UpdateSettings, create_app
 from licensing_server.rate_limit import IpRateLimiter, RateLimitPolicy
 from licensing_server.service import LicenseService, LicenseSettings
 
@@ -98,6 +98,7 @@ def test_admin_can_issue_card_with_cloud_policy(tmp_path: Path) -> None:
     assert issued.status_code == 200
 
     cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"}).json()["cards"]
+    assert cards[0]["card_key"] == issued.json()["card_key"]
     assert cards[0]["policy"]["max_active_rooms"] == 4
     assert cards[0]["policy"]["export_watermark"] is False
     assert cards[0]["policy"]["force_upgrade_below"] == "1.2.0"
@@ -117,6 +118,7 @@ def test_admin_can_issue_wanshan_card_and_activation_preserves_product_code(tmp_
 
     cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"}).json()["cards"]
     assert cards[0]["product_code"] == "wanshan_media"
+    assert cards[0]["card_key"] == card_key
 
     activation = client.post(
         "/v1/activate",
@@ -148,6 +150,50 @@ def test_admin_public_key_requires_admin_and_returns_build_key(tmp_path: Path) -
     response = client.get("/admin/public-key", headers={"Authorization": "Bearer admin-test-token"})
     assert response.status_code == 200
     assert response.json() == {"public_key": service.public_key_b64url()}
+
+
+def test_update_manifest_returns_public_installer_metadata(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    client = TestClient(
+        create_app(
+            service,
+            admin_token="admin-test-token",
+            update_settings=UpdateSettings(
+                product_code="live_replay_xia",
+                latest_version="1.0.9",
+                min_version="1.0.4",
+                installer_url="https://license.example.com/downloads/LiveWatchSetup_1.0.9.exe",
+                sha256="a" * 64,
+                notes="修复授权验签与自动更新。",
+                mandatory=True,
+            ),
+        )
+    )
+
+    response = client.get("/v1/update?product_code=live_replay_xia&current_version=1.0.0")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["has_update"] is True
+    assert body["latest_version"] == "1.0.9"
+    assert body["installer_url"].startswith("https://")
+    assert body["sha256"] == "a" * 64
+    assert body["mandatory"] is True
+
+    same_version = client.get("/v1/update?product_code=live_replay_xia&current_version=1.0.9")
+    assert same_version.status_code == 200
+    assert same_version.json()["has_update"] is False
+
+
+def test_update_manifest_can_be_empty_or_product_scoped(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    client = TestClient(create_app(service, admin_token="admin-test-token"))
+
+    empty = client.get("/v1/update?product_code=live_replay_xia&current_version=1.0.0")
+    assert empty.status_code == 200
+    assert empty.json()["has_update"] is False
+
+    wrong_product = client.get("/v1/update?product_code=wanshan_media&current_version=1.0.0")
+    assert wrong_product.status_code == 404
 
 
 def test_public_activation_endpoint_is_rate_limited(tmp_path: Path) -> None:

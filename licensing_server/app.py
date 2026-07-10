@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -50,6 +50,32 @@ class ReasonRequest(BaseModel):
     reason: str = Field(default="", max_length=500)
 
 
+class UpdateSettings(BaseModel):
+    product_code: str = Field(default="live_replay_xia", max_length=64)
+    latest_version: str = Field(default="", max_length=64)
+    min_version: str = Field(default="", max_length=64)
+    installer_url: str = Field(default="", max_length=500)
+    sha256: str = Field(default="", max_length=128)
+    notes: str = Field(default="", max_length=2000)
+    mandatory: bool = False
+
+
+def _version_parts(value: str) -> list[int]:
+    parts = [int(x) for x in str(value or "").split(".") if x.isdigit()]
+    return parts or [0]
+
+
+def _version_lt(left: str, right: str) -> bool:
+    if not right:
+        return False
+    a = _version_parts(left)
+    b = _version_parts(right)
+    width = max(len(a), len(b))
+    a.extend([0] * (width - len(a)))
+    b.extend([0] * (width - len(b)))
+    return a < b
+
+
 def _public_error(exc: LicenseError) -> HTTPException:
     text = str(exc)
     status = 403 if any(word in text for word in ("冻结", "停用", "到期", "不属于", "不匹配")) else 400
@@ -60,6 +86,7 @@ def create_app(
     service: LicenseService,
     *,
     admin_token: str,
+    update_settings: UpdateSettings | None = None,
     rate_limiter: IpRateLimiter | None = None,
     trusted_proxies: set[str] | None = None,
 ) -> FastAPI:
@@ -68,6 +95,7 @@ def create_app(
     app = FastAPI(title="直播复盘侠授权服务", version="1.0.0", docs_url=None, redoc_url=None)
     limiter = rate_limiter or IpRateLimiter()
     proxy_ips = trusted_proxies or {"127.0.0.1", "::1"}
+    updates = update_settings or UpdateSettings()
 
     @app.middleware("http")
     async def rate_limit_public_license_requests(request: Request, call_next):
@@ -94,6 +122,36 @@ def create_app(
     @app.get("/v1/health")
     def health() -> dict[str, bool]:
         return {"ok": True}
+
+    @app.get("/v1/update")
+    def update_manifest(
+        product_code: str = Query(default="live_replay_xia", max_length=64, pattern=r"^[A-Za-z0-9_.-]+$"),
+        current_version: str = Query(default="", max_length=64),
+    ) -> dict[str, object]:
+        configured_product = (updates.product_code or service.settings.product_code).strip()
+        if product_code != configured_product:
+            raise HTTPException(status_code=404, detail="暂无该产品更新")
+        if not updates.latest_version or not updates.installer_url or not updates.sha256:
+            return {
+                "ok": True,
+                "has_update": False,
+                "latest_version": "",
+                "current_version": current_version,
+            }
+        has_update = _version_lt(current_version, updates.latest_version)
+        mandatory = updates.mandatory or _version_lt(current_version, updates.min_version)
+        return {
+            "ok": True,
+            "has_update": has_update,
+            "product_code": configured_product,
+            "current_version": current_version,
+            "latest_version": updates.latest_version,
+            "min_version": updates.min_version,
+            "mandatory": mandatory,
+            "installer_url": updates.installer_url,
+            "sha256": updates.sha256.lower(),
+            "notes": updates.notes,
+        }
 
     @app.get("/", include_in_schema=False)
     def root() -> RedirectResponse:
@@ -203,6 +261,15 @@ def create_app_from_env() -> FastAPI:
     return create_app(
         LicenseService(settings),
         admin_token=admin_token,
+        update_settings=UpdateSettings(
+            product_code=os.environ.get("LICENSE_UPDATE_PRODUCT_CODE", settings.product_code).strip() or settings.product_code,
+            latest_version=os.environ.get("LICENSE_UPDATE_LATEST_VERSION", "").strip(),
+            min_version=os.environ.get("LICENSE_UPDATE_MIN_VERSION", "").strip(),
+            installer_url=os.environ.get("LICENSE_UPDATE_INSTALLER_URL", "").strip(),
+            sha256=os.environ.get("LICENSE_UPDATE_INSTALLER_SHA256", "").strip(),
+            notes=os.environ.get("LICENSE_UPDATE_NOTES", "").strip(),
+            mandatory=os.environ.get("LICENSE_UPDATE_MANDATORY", "").strip().lower() in {"1", "true", "yes", "on"},
+        ),
         rate_limiter=IpRateLimiter(policy),
         trusted_proxies=trusted_proxies,
     )
