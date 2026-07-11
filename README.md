@@ -19,7 +19,7 @@
 - 效能分析：按直播场次展示评分、热度、互动、内容质量和风险提示。
 - 短视频中心：解析抖音账号作品，选择作品进入 AI 工作台，生成作品潜力分、拆解报告、爆款预测和对标学习。
 - AI 获客系统：配置公开视频或主页作品，采集评论线索，清洗后给客服跟进。
-- 商业授权：本地安装包通过卡密激活，支持设备绑定、冻结、解绑和授权刷新。
+- 商业授权：本地安装包通过卡密激活，支持设备绑定、冻结、解绑、过期停用和授权刷新。
 - 安装包：Inno Setup + PyInstaller + 可选 Nuitka 商业编译，默认安装到 `C:\Program Files\LiveWatch`。
 
 ## 目录结构
@@ -142,12 +142,13 @@ https://license.runmo.art/downloads/
 - 直接下载 `LiveWatchSetup_<版本>.exe`
 - 推荐使用在线校验安装命令：先下载安装包，校验 SHA256 与官方值一致，再启动安装
 
-当前 `1.0.2` 安装包信息：
+当前 `1.0.9` 安装包信息：
 
 ```text
-URL:    https://license.runmo.art/downloads/LiveWatchSetup_1.0.2.exe
-SHA256: 53D6E00CF285E1DE31E14FD57E4155B16B9D23A1482D14974DCA8A6503DF1F72
-大小:   329330062 bytes
+URL:    https://license.runmo.art/downloads/LiveWatchSetup_1.0.9.exe
+本地:   release\LiveWatchSetup_1.0.9.exe
+SHA256: 11CCBEA90B73C5BFA1601FB9460CD42A62BCA273BD4EBF697EB5CA9CCABDA71C
+大小:   329297137 bytes
 ```
 
 注意：Windows / Edge 对未签名的新 EXE 可能出现 SmartScreen 或安全下载确认。这不是安装包缺文件，
@@ -160,6 +161,31 @@ SHA256: 53D6E00CF285E1DE31E14FD57E4155B16B9D23A1482D14974DCA8A6503DF1F72
 pwsh -NoProfile -File packaging\build\build_commercial_release.ps1 `
   -CodeSignThumbprint "<证书SHA1指纹>" `
   -Version "1.0.0"
+```
+
+## 授权过期、冻结与离线缓存
+
+商业包启动后会读取本地授权缓存，同时定时向授权服务器刷新。当前规则：
+
+- 正常网络下，客户端约每 60 秒刷新一次授权，启动时也会主动刷新。
+- 后台冻结设备、禁用卡密、卡密到期时，服务器返回明确拒绝，客户端会清除本地授权缓存。
+- 网络异常时不会直接清除仍有效的授权缓存，避免短暂断网误伤正在录制的用户。
+- 管理后台创建的“1分钟 / 1周 / 1个月 / 半年 / 1年”卡密按显式过期时间生效；测试用 1 分钟卡不会再被额外顺延 1 天。
+
+相关客户端文件：
+
+```text
+_experiments\douyin_worker_route\pipeline\license_client.py
+_experiments\douyin_worker_route\pipeline\license_manager.py
+_experiments\douyin_worker_route\pipeline\license_refresh.py
+_experiments\douyin_worker_route\pipeline\config.py
+```
+
+相关服务端文件：
+
+```text
+licensing_server\service.py
+licensing_server\tests\test_api.py
 ```
 
 ## 测试

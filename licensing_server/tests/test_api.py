@@ -3,12 +3,13 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
+import pytest
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from fastapi.testclient import TestClient
 
 from licensing_server.app import UpdateSettings, create_app
 from licensing_server.rate_limit import IpRateLimiter, RateLimitPolicy
-from licensing_server.service import LicenseService, LicenseSettings
+from licensing_server.service import LicenseError, LicenseService, LicenseSettings
 
 
 def _service(tmp_path: Path) -> LicenseService:
@@ -37,6 +38,9 @@ def test_activation_api_and_freeze_protect_refresh(tmp_path: Path) -> None:
     assert "授权管理台" in console.text
     assert 'value="wanshan_media"' in console.text
     assert 'value="wanshan"' not in console.text
+    assert 'id="expiresChoice"' in console.text
+    assert 'value="minute"' in console.text
+    assert "expires_at:selectedExpiresAt()" in console.text
 
     cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"})
     assert cards.status_code == 200
@@ -80,6 +84,25 @@ def test_activation_api_and_freeze_protect_refresh(tmp_path: Path) -> None:
     assert refreshed.json()["detail"] == "当前设备授权已冻结"
 
 
+def test_short_lived_card_expires_after_selected_time(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    now = 1_800_000_000
+    card_key = service.create_card_key(features={"basic"}, expires_at=now + 60, now=now)
+
+    activation = service.activate(card_key=card_key, device_hash="device-a", now=now + 30)
+    assert activation["activation_id"]
+    import json
+
+    payload_b64 = activation["license"]["payload"]
+    raw_payload = base64.urlsafe_b64decode(payload_b64 + "=" * (-len(payload_b64) % 4))
+    signed = json.loads(raw_payload.decode("utf-8"))
+    assert signed["expires_at"] == now + 60
+    assert signed["grace_until"] == now + 60
+
+    with pytest.raises(LicenseError, match="卡密已到期"):
+        service.activate(card_key=card_key, device_hash="device-b", now=now + 61)
+
+
 def test_admin_can_issue_card_with_cloud_policy(tmp_path: Path) -> None:
     service = _service(tmp_path)
     client = TestClient(create_app(service, admin_token="admin-test-token"))
@@ -91,6 +114,7 @@ def test_admin_can_issue_card_with_cloud_policy(tmp_path: Path) -> None:
             "features": ["basic", "live_monitor"],
             "max_devices": 1,
             "max_active_rooms": 4,
+            "expires_at": 1_800_000_060,
             "export_watermark": False,
             "force_upgrade_below": "1.2.0",
         },
@@ -99,6 +123,7 @@ def test_admin_can_issue_card_with_cloud_policy(tmp_path: Path) -> None:
 
     cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"}).json()["cards"]
     assert cards[0]["card_key"] == issued.json()["card_key"]
+    assert cards[0]["expires_at"] == 1_800_000_060
     assert cards[0]["policy"]["max_active_rooms"] == 4
     assert cards[0]["policy"]["export_watermark"] is False
     assert cards[0]["policy"]["force_upgrade_below"] == "1.2.0"

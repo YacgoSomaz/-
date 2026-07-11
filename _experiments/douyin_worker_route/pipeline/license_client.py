@@ -20,6 +20,10 @@ class LicenseClientError(RuntimeError):
     """A user-safe error for activation and refresh actions."""
 
 
+class LicenseServerDenial(LicenseClientError):
+    """Raised when the server explicitly rejects an existing entitlement."""
+
+
 Post = Callable[..., Any]
 
 
@@ -76,7 +80,7 @@ def _request_json(post: Post, url: str, payload: dict[str, str], *, signing_secr
         raise LicenseClientError("授权服务器返回格式异常")
     if int(getattr(response, "status_code", 200)) >= 400:
         detail = str(data.get("detail") or "授权操作失败")
-        raise LicenseClientError(detail[:200])
+        raise LicenseServerDenial(detail[:200])
     return data
 
 
@@ -128,15 +132,19 @@ def activate_card_key(card_key: str, *, server_url: str | None = None, post: Pos
 def refresh_license(*, post: Post = requests.post) -> dict[str, Any]:
     package = _load_package()
     base_url = _server_url(str(package.get("server_url") or ""))
-    reply = _request_json(
-        post,
-        f"{base_url}/v1/refresh",
-        {
-            "activation_id": str(package.get("activation_id") or ""),
-            "refresh_token": str(package.get("refresh_token") or ""),
-            "device_hash": license_manager.current_device_hash(),
-            "app_version": config.LICENSE_APP_VERSION,
-        },
-        signing_secret=str(package.get("refresh_token") or ""),
-    )
+    try:
+        reply = _request_json(
+            post,
+            f"{base_url}/v1/refresh",
+            {
+                "activation_id": str(package.get("activation_id") or ""),
+                "refresh_token": str(package.get("refresh_token") or ""),
+                "device_hash": license_manager.current_device_hash(),
+                "app_version": config.LICENSE_APP_VERSION,
+            },
+            signing_secret=str(package.get("refresh_token") or ""),
+        )
+    except LicenseServerDenial:
+        license_manager.clear_license_doc()
+        raise
     return _persist_server_reply(reply, server_url=base_url, previous=package)

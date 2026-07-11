@@ -310,7 +310,11 @@ class LicenseService:
         card_expiry = int(card["expires_at"] or 0)
         regular_expiry = now + self.settings.license_days * 86400
         expires_at = min(regular_expiry, card_expiry) if card_expiry else regular_expiry
-        grace_until = expires_at + self.settings.grace_days * 86400
+        # A card with an explicit expiry (for example "1 minute" test cards)
+        # must not be silently extended by the offline grace window. Grace is
+        # reserved for regular fixed-duration licenses during transient network
+        # failures, not for cards that the admin deliberately made short-lived.
+        grace_until = expires_at if card_expiry else expires_at + self.settings.grace_days * 86400
         payload = {
             "license_id": activation["id"],
             "activation_id": activation["id"],

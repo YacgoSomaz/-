@@ -163,6 +163,32 @@ def test_refresh_license_signs_request_with_refresh_token(tmp_path, monkeypatch)
     assert "xxxxxxxx" not in json.dumps(headers)
 
 
+def test_refresh_license_clears_local_cache_on_server_denial(tmp_path, monkeypatch) -> None:
+    device_hash = "device-a"
+    server_reply, public_key = _signed_package(device_hash)
+    monkeypatch.setattr(config, "LICENSE_PATH", tmp_path / "license.json")
+    monkeypatch.setattr(config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    license_client.activate_card_key(
+        "LRX-ABCDE-ABCDE-ABCDE-ABCDE",
+        server_url="https://license.example.com",
+        post=lambda *_args, **_kwargs: _Response(server_reply),
+    )
+    assert config.LICENSE_PATH.exists()
+
+    def post(_url: str, **_kwargs):
+        return _Response({"detail": "当前设备授权已冻结"}, status_code=403)
+
+    try:
+        license_client.refresh_license(post=post)
+    except license_client.LicenseServerDenial as exc:
+        assert "冻结" in str(exc)
+    else:
+        raise AssertionError("服务器拒绝刷新时必须抛出 LicenseServerDenial")
+
+    assert not config.LICENSE_PATH.exists()
+
+
 def test_legacy_plain_license_is_migrated_to_protected_cache(tmp_path, monkeypatch) -> None:
     device_hash = "device-a"
     server_reply, public_key = _signed_package(device_hash)

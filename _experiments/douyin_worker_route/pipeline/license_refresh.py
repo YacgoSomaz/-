@@ -1,8 +1,8 @@
 """Background online refresh for commercial installs.
 
-Network problems never stop the recorder by themselves. A valid cached license
-continues through its signed expiry/grace window; a server-side freeze is
-enforced at the next successful refresh.
+Network problems do not revoke a still-valid signed license by themselves.
+However, an explicit server-side denial (expired card, frozen device, disabled
+card) invalidates the local cache immediately.
 """
 
 from __future__ import annotations
@@ -15,6 +15,8 @@ def refresh_once() -> str:
         return "skipped"
     try:
         license_client.refresh_license()
+    except license_client.LicenseServerDenial as exc:
+        return f"revoked: {exc}"
     except license_client.LicenseClientError as exc:
         return str(exc)
     return "refreshed"

@@ -37,8 +37,7 @@ python -m pipeline.webui --host 127.0.0.1 --port 8848
 
 ```powershell
 cd C:\Users\q2414\Desktop\live_watch
-pwsh -NoProfile -File packaging\build\build_release.ps1 `
-  -Commercial `
+pwsh -NoProfile -File packaging\build\build_commercial_release.ps1 `
   -LicenseServerUrl "https://license.runmo.art" `
   -LicensePublicKey "<Ed25519 公钥>" `
   -Version "1.0.0"
@@ -141,37 +140,51 @@ git diff --stat
 
 ## 五、最近一次重要改动
 
-### 授权后台根路径修复
+### 授权过期与后台冻结立即生效
 
 问题：
 
 ```text
-https://license.runmo.art/
-```
-
-打开显示：
-
-```json
-{"detail":"Not Found"}
+卡密过期后仍可继续使用，后台冻结设备后也不影响已安装客户端。
 ```
 
 根因：
 
-授权服务只有 `/admin` 管理台，没有 `/` 根路由。
+- 服务端给显式过期卡密仍叠加了离线宽限期，1 分钟测试卡实际被延长。
+- 客户端授权刷新周期过长，旧安装包可能数小时后才感知后台状态变化。
+- 服务器明确拒绝刷新时，客户端以前按普通网络失败处理，继续信任本地缓存。
 
 修复：
 
-- `licensing_server/app.py` 新增 `/` -> `/admin` 302 跳转。
-- `licensing_server/tests/test_api.py` 增加回归测试。
-- 已部署到服务器并重启 `livewatch-license.service`。
+- `licensing_server/service.py`：显式过期卡密不再额外叠加 grace。
+- `pipeline/license_client.py`：新增 `LicenseServerDenial`，区分服务器拒绝和网络失败。
+- `pipeline/license_manager.py`：新增 `clear_license_doc()`，服务器拒绝时清除本地授权缓存。
+- `pipeline/license_refresh.py`：刷新遇到冻结/过期返回 `revoked: ...`。
+- `pipeline/config.py`：授权刷新默认约 60 秒一次，最低允许 30 秒。
+- 已部署到线上授权服务器并重启 `livewatch-license.service`。
+- 已构建商业安装包 `release/LiveWatchSetup_1.0.9.exe`。
 
 验证：
 
-```text
-GET /       -> 302 /admin
-GET /admin  -> 200 HTML
-GET /v1/health -> {"ok": true}
+```powershell
+$env:PYTHONPATH="D:\live_watch\_experiments\douyin_worker_route"
+python -m pytest licensing_server\tests `
+  _experiments\douyin_worker_route\tests\test_license_client.py `
+  _experiments\douyin_worker_route\tests\test_license_refresh.py `
+  _experiments\douyin_worker_route\tests\test_license_manager.py -q
 ```
+
+本次验证结果：`38 passed`。
+
+安装包：
+
+```text
+release\LiveWatchSetup_1.0.9.exe
+SHA256: 11CCBEA90B73C5BFA1601FB9460CD42A62BCA273BD4EBF697EB5CA9CCABDA71C
+大小:   329297137 bytes
+```
+
+接手提醒：冻结/过期不是毫秒级断开，而是在启动刷新或下一次授权刷新时生效，默认约 60 秒内。旧客户端必须覆盖安装 1.0.9 或之后版本才包含本地清缓存修复。
 
 ## 六、当前产品问题清单
 
@@ -184,6 +197,7 @@ GET /v1/health -> {"ok": true}
 5. AI 复盘报告 HTML 已经好于纯文本，但还需继续优化图文混排和 PDF/HTML 导出体验。
 6. 授权管理台目前是单管理员令牌，后续可加管理员账号、日志筛选、卡密导出。
 7. 商业安装包未做代码签名，用户首次安装可能被 SmartScreen 提醒。
+8. 自动更新还未实现；当前用户仍需下载安装新安装包覆盖安装。
 
 ## 七、开发原则
 
@@ -204,14 +218,23 @@ GET /v1/health -> {"ok": true}
    python -m pytest licensing_server\tests -q
    ```
 
-2. 打开主线前端：
+2. 如继续动授权，先运行授权专项回归：
+
+   ```powershell
+   $env:PYTHONPATH="D:\live_watch\_experiments\douyin_worker_route"
+   python -m pytest licensing_server\tests `
+     _experiments\douyin_worker_route\tests\test_license_client.py `
+     _experiments\douyin_worker_route\tests\test_license_refresh.py `
+     _experiments\douyin_worker_route\tests\test_license_manager.py -q
+   ```
+
+3. 打开主线前端：
 
    ```powershell
    cd _experiments\douyin_worker_route
    python -m pipeline.webui --host 127.0.0.1 --port 8848
    ```
 
-3. 优先处理短视频中心作品加载超过 20 条的问题。
+4. 优先处理短视频中心作品加载超过 20 条的问题。
 
-4. 修改前先截图当前 UI，修改后用浏览器截图对比，不要只凭代码判断。
-
+5. 修改前先截图当前 UI，修改后用浏览器截图对比，不要只凭代码判断。

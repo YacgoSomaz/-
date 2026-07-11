@@ -449,6 +449,20 @@ def save_license_doc(doc: dict[str, Any], path: Path | None = None) -> None:
     os.replace(tmp, target)
 
 
+def clear_license_doc(path: Path | None = None) -> None:
+    """Remove the local cached entitlement after a server-side denial.
+
+    Offline grace is only for network failures. If the licensing server says a
+    card is expired, frozen, or disabled, the cached signed package must stop
+    granting features immediately on this machine.
+    """
+    target = path or config.LICENSE_PATH
+    try:
+        target.unlink()
+    except FileNotFoundError:
+        return
+
+
 def install_license_doc(doc: dict[str, Any], path: Path | None = None) -> LicenseStatus:
     """Verify and persist a signed license package.
 
