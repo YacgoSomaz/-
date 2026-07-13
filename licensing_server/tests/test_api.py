@@ -129,6 +129,41 @@ def test_admin_can_issue_card_with_cloud_policy(tmp_path: Path) -> None:
     assert cards[0]["policy"]["force_upgrade_below"] == "1.2.0"
 
 
+def test_admin_can_delete_card_and_freeze_existing_devices(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    card_key = service.create_card_key(features={"basic", "export"})
+    client = TestClient(create_app(service, admin_token="admin-test-token"))
+    activation = client.post(
+        "/v1/activate",
+        json={"card_key": card_key, "device_hash": "device-delete", "app_version": "1.0.0"},
+    )
+    assert activation.status_code == 200
+
+    cards = client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"}).json()["cards"]
+    assert len(cards) == 1
+    deleted = client.request(
+        "DELETE",
+        f"/admin/cards/{cards[0]['id']}",
+        headers={"Authorization": "Bearer admin-test-token"},
+        json={"reason": "test cleanup"},
+    )
+    assert deleted.status_code == 200
+    assert client.get("/admin/cards", headers={"Authorization": "Bearer admin-test-token"}).json()["cards"] == []
+    assert client.get("/admin/activations", headers={"Authorization": "Bearer admin-test-token"}).json()["activations"] == []
+
+    refreshed = client.post(
+        "/v1/refresh",
+        json={
+            "activation_id": activation.json()["activation_id"],
+            "refresh_token": activation.json()["refresh_token"],
+            "device_hash": "device-delete",
+            "app_version": "1.0.1",
+        },
+    )
+    assert refreshed.status_code == 403
+    assert refreshed.json()["detail"] == "当前设备授权已冻结"
+
+
 def test_admin_can_issue_wanshan_card_and_activation_preserves_product_code(tmp_path: Path) -> None:
     service = _service(tmp_path)
     client = TestClient(create_app(service, admin_token="admin-test-token"))
@@ -219,6 +254,28 @@ def test_update_manifest_can_be_empty_or_product_scoped(tmp_path: Path) -> None:
 
     wrong_product = client.get("/v1/update?product_code=wanshan_media&current_version=1.0.0")
     assert wrong_product.status_code == 404
+def test_admin_trust_cookie_is_bound_to_device_and_allows_reuse(tmp_path: Path) -> None:
+    service = _service(tmp_path)
+    client = TestClient(create_app(service, admin_token="admin-test-token"))
+    device_headers = {"X-Admin-Device": "browser-device-a"}
+
+    unauthorized = client.get("/admin/session", headers=device_headers)
+    assert unauthorized.status_code == 401
+
+    login = client.post(
+        "/admin/session",
+        headers=device_headers,
+        json={"token": "admin-test-token", "device_hash": "browser-device-a"},
+    )
+    assert login.status_code == 200
+    assert "livewatch_admin_trust" in client.cookies
+    assert login.json()["expires_at"] > 0
+
+    reused = client.get("/admin/cards", headers=device_headers)
+    assert reused.status_code == 200
+
+    wrong_device = client.get("/admin/cards", headers={"X-Admin-Device": "browser-device-b"})
+    assert wrong_device.status_code == 401
 
 
 def test_public_activation_endpoint_is_rate_limited(tmp_path: Path) -> None:

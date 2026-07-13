@@ -176,17 +176,43 @@ def test_refresh_license_clears_local_cache_on_server_denial(tmp_path, monkeypat
     )
     assert config.LICENSE_PATH.exists()
 
-    def post(_url: str, **_kwargs):
-        return _Response({"detail": "当前设备授权已冻结"}, status_code=403)
+    def deny(_url: str, **_kwargs):
+        return _Response({"detail": "卡密已到期"}, status_code=403)
 
     try:
-        license_client.refresh_license(post=post)
+        license_client.refresh_license(post=deny)
     except license_client.LicenseServerDenial as exc:
-        assert "冻结" in str(exc)
+        assert "卡密已到期" in str(exc)
     else:
-        raise AssertionError("服务器拒绝刷新时必须抛出 LicenseServerDenial")
+        raise AssertionError("服务器拒绝时必须抛出 LicenseServerDenial")
 
     assert not config.LICENSE_PATH.exists()
+
+
+def test_refresh_license_keeps_local_cache_on_server_error(tmp_path, monkeypatch) -> None:
+    device_hash = "device-a"
+    server_reply, public_key = _signed_package(device_hash)
+    monkeypatch.setattr(config, "LICENSE_PATH", tmp_path / "license.json")
+    monkeypatch.setattr(config, "LICENSE_PUBLIC_KEY", public_key)
+    monkeypatch.setattr(license_manager, "current_device_hash", lambda: device_hash)
+    license_client.activate_card_key(
+        "LRX-ABCDE-ABCDE-ABCDE-ABCDE",
+        server_url="https://license.example.com",
+        post=lambda *_args, **_kwargs: _Response(server_reply),
+    )
+    assert config.LICENSE_PATH.exists()
+
+    def fail(_url: str, **_kwargs):
+        return _Response({"detail": "授权服务器暂时不可用"}, status_code=500)
+
+    try:
+        license_client.refresh_license(post=fail)
+    except license_client.LicenseClientError as exc:
+        assert "授权服务器暂时不可用" in str(exc)
+    else:
+        raise AssertionError("服务器错误时必须抛出 LicenseClientError")
+
+    assert config.LICENSE_PATH.exists()
 
 
 def test_legacy_plain_license_is_migrated_to_protected_cache(tmp_path, monkeypatch) -> None:

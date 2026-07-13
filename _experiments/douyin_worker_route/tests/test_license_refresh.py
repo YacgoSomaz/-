@@ -1,6 +1,10 @@
 from pipeline import config, license_refresh
 
 
+def test_license_refresh_default_interval_is_ten_minutes() -> None:
+    assert config.LICENSE_REFRESH_INTERVAL_SEC == 600
+
+
 def test_refresh_loop_skips_development_builds(monkeypatch) -> None:
     monkeypatch.setattr(config, "LICENSE_ENFORCE", False)
 

@@ -78,9 +78,13 @@ def _request_json(post: Post, url: str, payload: dict[str, str], *, signing_secr
         raise LicenseClientError("授权服务器返回格式异常") from exc
     if not isinstance(data, dict):
         raise LicenseClientError("授权服务器返回格式异常")
-    if int(getattr(response, "status_code", 200)) >= 400:
+    status_code = int(getattr(response, "status_code", 200))
+    if 400 <= status_code < 500:
         detail = str(data.get("detail") or "授权操作失败")
         raise LicenseServerDenial(detail[:200])
+    if status_code >= 500:
+        detail = str(data.get("detail") or "授权服务器暂时不可用")
+        raise LicenseClientError(detail[:200])
     return data
 
 

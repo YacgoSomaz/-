@@ -6,13 +6,18 @@ Run in production with:
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import hmac
+import json
 import os
+import re
+import time
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field
 
 from .service import LicenseError, LicenseService, LicenseSettings
@@ -40,14 +45,20 @@ class CreateCardRequest(BaseModel):
     product_code: str = Field(default="live_replay_xia", min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_.-]+$")
     max_devices: int = Field(default=1, ge=1, le=20)
     expires_at: int = Field(default=0, ge=0)
-    max_active_rooms: int = Field(default=10, ge=1, le=50)
-    export_watermark: bool = True
+    policy: dict[str, Any] = Field(default_factory=dict)
+    max_active_rooms: int | None = Field(default=None, ge=1, le=50)
+    export_watermark: bool | None = None
     force_upgrade_below: str = Field(default="", max_length=64)
     note: str = Field(default="", max_length=500)
 
 
 class ReasonRequest(BaseModel):
     reason: str = Field(default="", max_length=500)
+
+
+class AdminLoginRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=500)
+    device_hash: str = Field(min_length=8, max_length=256)
 
 
 class UpdateSettings(BaseModel):
@@ -96,6 +107,8 @@ def create_app(
     limiter = rate_limiter or IpRateLimiter()
     proxy_ips = trusted_proxies or {"127.0.0.1", "::1"}
     updates = update_settings or UpdateSettings()
+    admin_cookie_name = "livewatch_admin_trust"
+    admin_session_ttl = 86400
 
     @app.middleware("http")
     async def rate_limit_public_license_requests(request: Request, call_next):
@@ -114,10 +127,58 @@ def create_app(
             )
         return await call_next(request)
 
-    def require_admin(authorization: Annotated[str | None, Header()] = None) -> None:
+    def _admin_client_ip(request: Request) -> str:
+        remote_ip = request.client.host if request.client else ""
+        return client_ip_from_request(
+            remote_ip,
+            request.headers.get("x-forwarded-for", ""),
+            proxy_ips,
+        )
+
+    def _admin_session_secret() -> bytes:
+        return hashlib.sha256(("admin-session:" + admin_token).encode("utf-8")).digest()
+
+    def _sign_admin_session(payload: dict[str, object]) -> str:
+        body = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        sig = hmac.new(_admin_session_secret(), body, hashlib.sha256).digest()
+        return (
+            base64.urlsafe_b64encode(body).decode("ascii").rstrip("=")
+            + "."
+            + base64.urlsafe_b64encode(sig).decode("ascii").rstrip("=")
+        )
+
+    def _verify_admin_session(token: str, *, client_ip: str, device_hash: str) -> bool:
+        try:
+            body_b64, sig_b64 = token.split(".", 1)
+            body = base64.urlsafe_b64decode((body_b64 + "=" * (-len(body_b64) % 4)).encode("ascii"))
+            sig = base64.urlsafe_b64decode((sig_b64 + "=" * (-len(sig_b64) % 4)).encode("ascii"))
+            expected = hmac.new(_admin_session_secret(), body, hashlib.sha256).digest()
+            if not hmac.compare_digest(sig, expected):
+                return False
+            payload = json.loads(body.decode("utf-8"))
+            if int(payload.get("exp", 0)) < int(time.time()):
+                return False
+            if payload.get("ip") != client_ip:
+                return False
+            if payload.get("device") != device_hash:
+                return False
+            return True
+        except Exception:
+            return False
+
+    def require_admin(
+        request: Request,
+        authorization: Annotated[str | None, Header()] = None,
+        x_admin_device: Annotated[str | None, Header()] = None,
+    ) -> None:
         expected = f"Bearer {admin_token}"
-        if authorization is None or not hmac.compare_digest(authorization, expected):
-            raise HTTPException(status_code=401, detail="管理员授权无效")
+        if authorization is not None and hmac.compare_digest(authorization, expected):
+            return
+        session = request.cookies.get(admin_cookie_name, "")
+        device = str(x_admin_device or "").strip()
+        if session and device and _verify_admin_session(session, client_ip=_admin_client_ip(request), device_hash=device):
+            return
+        raise HTTPException(status_code=401, detail="管理员授权无效")
 
     @app.get("/v1/health")
     def health() -> dict[str, bool]:
@@ -182,23 +243,72 @@ def create_app(
         except LicenseError as exc:
             raise _public_error(exc) from exc
 
+    @app.get("/wanshan-media/updates/{file_name}", include_in_schema=False)
+    def wanshan_update_file(file_name: str) -> FileResponse:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", file_name):
+            raise HTTPException(status_code=404, detail="Not Found")
+        root = Path(os.environ.get("WANSHAN_UPDATE_FILE_ROOT", "/var/www/wanshan-media/updates")).resolve()
+        target = (root / file_name).resolve()
+        if target.parent != root or not target.is_file():
+            raise HTTPException(status_code=404, detail="Not Found")
+        return FileResponse(target)
+
     @app.get("/admin", response_class=HTMLResponse)
-    def admin_console() -> str:
-        return ADMIN_HTML
+    def admin_console() -> HTMLResponse:
+        return HTMLResponse(
+            ADMIN_HTML,
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+            },
+        )
+
+    @app.post("/admin/session")
+    def admin_login(payload: AdminLoginRequest, request: Request, response: Response) -> dict[str, object]:
+        if not hmac.compare_digest(payload.token, admin_token):
+            raise HTTPException(status_code=401, detail="管理员授权无效")
+        now = int(time.time())
+        cookie = _sign_admin_session(
+            {
+                "ip": _admin_client_ip(request),
+                "device": payload.device_hash.strip(),
+                "iat": now,
+                "exp": now + admin_session_ttl,
+            }
+        )
+        secure_cookie = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").lower() == "https"
+        response.set_cookie(
+            admin_cookie_name,
+            cookie,
+            max_age=admin_session_ttl,
+            httponly=True,
+            secure=secure_cookie,
+            samesite="strict",
+            path="/admin",
+        )
+        return {"ok": True, "expires_in": admin_session_ttl, "expires_at": now + admin_session_ttl}
+
+    @app.get("/admin/session", dependencies=[Depends(require_admin)])
+    def admin_session() -> dict[str, object]:
+        return {"ok": True, "expires_in": admin_session_ttl, "expires_at": int(time.time()) + admin_session_ttl}
 
     @app.post("/admin/card-keys", dependencies=[Depends(require_admin)])
     def create_card(payload: CreateCardRequest) -> dict[str, str]:
+        policy = dict(payload.policy or {})
+        if payload.product_code == "live_replay_xia":
+            if payload.max_active_rooms is not None:
+                policy["max_active_rooms"] = payload.max_active_rooms
+            if payload.export_watermark is not None:
+                policy["export_watermark"] = payload.export_watermark
+            if payload.force_upgrade_below:
+                policy["force_upgrade_below"] = payload.force_upgrade_below
         try:
             card_key = service.create_card_key(
                 features=set(payload.features),
                 product_code=payload.product_code,
                 max_devices=payload.max_devices,
                 expires_at=payload.expires_at,
-                policy={
-                    "max_active_rooms": payload.max_active_rooms,
-                    "export_watermark": payload.export_watermark,
-                    "force_upgrade_below": payload.force_upgrade_below,
-                },
+                policy=policy,
                 note=payload.note,
             )
         except LicenseError as exc:
@@ -208,6 +318,14 @@ def create_app(
     @app.get("/admin/cards", dependencies=[Depends(require_admin)])
     def list_cards(limit: int = 200) -> dict[str, object]:
         return {"cards": service.list_cards(limit=limit)}
+
+    @app.delete("/admin/cards/{card_id}", dependencies=[Depends(require_admin)])
+    def delete_card(card_id: str, payload: ReasonRequest | None = None) -> dict[str, bool]:
+        try:
+            service.delete_card_key(card_id, reason=(payload.reason if payload else ""))
+        except LicenseError as exc:
+            raise _public_error(exc) from exc
+        return {"ok": True}
 
     @app.get("/admin/public-key", dependencies=[Depends(require_admin)])
     def public_key() -> dict[str, str]:

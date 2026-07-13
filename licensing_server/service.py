@@ -25,26 +25,21 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 
-VALID_FEATURES = {
-    "basic",
-    "export",
-    "batch",
-    "live_monitor",
-    "ai_replay",
-    "short_video_ai",
-    "lead_radar",
+PRODUCT_FEATURES = {
+    "live_replay_xia": {"basic", "export", "batch", "live_monitor", "ai_replay", "short_video_ai", "lead_radar"},
+    "wanshan_media": {"basic", "topic_radar", "copywriting", "prompt_templates", "video_workshop", "distribution", "analytics", "updates"},
+    "wanshan_zimeiti": {"basic", "topic_radar", "copywriting", "prompt_templates", "video_workshop", "distribution", "analytics", "updates"},
+}
+VALID_PRODUCT_CODES = set(PRODUCT_FEATURES)
+VALID_FEATURES = set().union(*PRODUCT_FEATURES.values())
+DEFAULT_POLICIES = {
+    "live_replay_xia": {"max_active_rooms": 10, "export_watermark": True, "force_upgrade_below": ""},
+    "wanshan_media": {},
+    "wanshan_zimeiti": {},
 }
 
-VALID_PRODUCT_CODES = {
-    "live_replay_xia",
-    "wanshan_media",
-}
-
-DEFAULT_POLICY = {
-    "max_active_rooms": 10,
-    "export_watermark": True,
-    "force_upgrade_below": "",
-}
+def default_policy_for_product(product_code: str | None) -> dict[str, Any]:
+    return dict(DEFAULT_POLICIES.get(str(product_code or "").strip(), {}))
 
 
 class LicenseError(ValueError):
@@ -209,33 +204,35 @@ class LicenseService:
         )
 
     @staticmethod
-    def _new_card_key() -> str:
+    def _new_card_key(prefix: str = "LRX") -> str:
         alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        safe_prefix = "".join(ch for ch in str(prefix or "LRX").upper() if ch.isalnum())[:6] or "LRX"
         groups = ["".join(secrets.choice(alphabet) for _ in range(5)) for _ in range(4)]
-        return "LRX-" + "-".join(groups)
+        return safe_prefix + "-" + "-".join(groups)
 
     @staticmethod
-    def normalize_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
+    def normalize_policy(policy: dict[str, Any] | None, product_code: str | None = None) -> dict[str, Any]:
+        selected_product = str(product_code or "").strip()
+        if selected_product in {"wanshan_media", "wanshan_zimeiti"}:
+            return {}
         raw = policy if isinstance(policy, dict) else {}
-        result = dict(DEFAULT_POLICY)
-        try:
-            result["max_active_rooms"] = max(
-                1,
-                min(int(raw.get("max_active_rooms", result["max_active_rooms"])), 50),
-            )
-        except (TypeError, ValueError):
-            result["max_active_rooms"] = DEFAULT_POLICY["max_active_rooms"]
-        result["export_watermark"] = bool(raw.get("export_watermark", result["export_watermark"]))
-        result["force_upgrade_below"] = str(raw.get("force_upgrade_below", "") or "").strip()[:64]
+        result = default_policy_for_product(selected_product)
+        if selected_product == "live_replay_xia":
+            try:
+                result["max_active_rooms"] = max(1, min(int(raw.get("max_active_rooms", result["max_active_rooms"])), 50))
+            except (TypeError, ValueError):
+                result["max_active_rooms"] = DEFAULT_POLICIES["live_replay_xia"]["max_active_rooms"]
+            result["export_watermark"] = bool(raw.get("export_watermark", result["export_watermark"]))
+            result["force_upgrade_below"] = str(raw.get("force_upgrade_below", "") or "").strip()[:64]
         return result
 
     @classmethod
-    def _policy_from_json(cls, value: str | None) -> dict[str, Any]:
+    def _policy_from_json(cls, value: str | None, product_code: str | None = None) -> dict[str, Any]:
         try:
             loaded = json.loads(value or "{}")
         except json.JSONDecodeError:
             loaded = {}
-        return cls.normalize_policy(loaded)
+        return cls.normalize_policy(loaded, product_code=product_code)
 
     def create_card_key(
         self,
@@ -253,13 +250,13 @@ class LicenseService:
         selected_product = str(product_code or self.settings.product_code).strip()
         if selected_product not in VALID_PRODUCT_CODES:
             raise LicenseError("产品代码无效")
-        allowed_features = sorted(set(features) & VALID_FEATURES)
+        allowed_features = sorted(set(features) & PRODUCT_FEATURES[selected_product])
         if not allowed_features:
             raise LicenseError("至少选择一个有效功能")
-        safe_policy = self.normalize_policy(policy)
+        safe_policy = self.normalize_policy(policy, selected_product)
         created_at = int(now if now is not None else time.time())
         for _ in range(8):
-            card_key = self._new_card_key()
+            card_key = self._new_card_key({"wanshan_zimeiti": "WSZ", "wanshan_media": "WSM"}.get(selected_product, "LRX"))
             card_id = uuid.uuid4().hex
             try:
                 with self._connect() as conn:
@@ -321,7 +318,7 @@ class LicenseService:
             "product_code": card["product_code"],
             "device_hash": activation["device_hash"],
             "features": json.loads(card["features_json"]),
-            "policy": self._policy_from_json(card["policy_json"]),
+            "policy": self._policy_from_json(card["policy_json"], card["product_code"]),
             "issued_at": now,
             "expires_at": expires_at,
             "grace_until": grace_until,
@@ -452,6 +449,16 @@ class LicenseService:
             conn.execute("UPDATE activations SET status = 'unbound' WHERE id = ?", (activation_id,))
             self._audit(conn, action="unbound", card_id=activation["card_id"], activation_id=activation_id, detail=reason, now=now_ts)
 
+    def delete_card_key(self, card_id: str, *, reason: str = "", now: int | None = None) -> None:
+        now_ts = int(now if now is not None else time.time())
+        with self._connect() as conn:
+            card = conn.execute("SELECT * FROM card_keys WHERE id = ?", (card_id,)).fetchone()
+            if card is None or card["status"] == "deleted":
+                raise LicenseError("卡密不存在")
+            conn.execute("UPDATE card_keys SET status = 'deleted' WHERE id = ?", (card_id,))
+            conn.execute("UPDATE activations SET status = 'frozen' WHERE card_id = ? AND status = 'active'", (card_id,))
+            self._audit(conn, action="card_deleted", card_id=card_id, detail=reason, now=now_ts)
+
     def list_activations(self, *, limit: int = 200) -> list[dict[str, Any]]:
         safe_limit = max(1, min(int(limit), 500))
         with self._connect() as conn:
@@ -461,6 +468,7 @@ class LicenseService:
                        activations.first_seen_at, activations.last_seen_at, activations.app_version,
                        card_keys.key_prefix, card_keys.max_devices, card_keys.note, card_keys.expires_at
                 FROM activations JOIN card_keys ON card_keys.id = activations.card_id
+                WHERE card_keys.status != 'deleted'
                 ORDER BY activations.last_seen_at DESC LIMIT ?
                 """,
                 (safe_limit,),
@@ -479,6 +487,7 @@ class LicenseService:
                        card_keys.created_at,
                        SUM(CASE WHEN activations.status = 'active' THEN 1 ELSE 0 END) AS active_devices
                 FROM card_keys LEFT JOIN activations ON activations.card_id = card_keys.id
+                WHERE card_keys.status != 'deleted'
                 GROUP BY card_keys.id
                 ORDER BY card_keys.created_at DESC LIMIT ?
                 """,
@@ -488,7 +497,7 @@ class LicenseService:
         for row in rows:
             item = dict(row)
             item["features"] = json.loads(item.pop("features_json"))
-            item["policy"] = self._policy_from_json(item.pop("policy_json"))
+            item["policy"] = self._policy_from_json(item.pop("policy_json"), item.get("product_code"))
             item["card_key"] = self._decrypt_card_key(item.pop("key_ciphertext", ""))
             result.append(item)
         return result

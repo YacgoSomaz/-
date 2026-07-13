@@ -122,6 +122,7 @@ _experiments/_repo_review_*/
 _third_party_eval/
 _ifupan_*.json
 _ifupan_*.png
+_remote_livewatch_license_*/
 
 # Local security/network tools and scan outputs
 tools/
