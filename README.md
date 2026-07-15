@@ -20,7 +20,7 @@ _experiments/douyin_worker_route/
 6. [`CHANGELOG.md`](CHANGELOG.md)：版本级变更摘要。
 7. [`DEVELOPMENT_LOG.md`](DEVELOPMENT_LOG.md)：按日期记录的详细开发过程。
 
-账号与更新协议分别以 [`docs/ACCOUNT_PRODUCT_CONTRACT.md`](docs/ACCOUNT_PRODUCT_CONTRACT.md) 和 [`docs/DESKTOP_UPDATE_CONTRACT.md`](docs/DESKTOP_UPDATE_CONTRACT.md) 为准，不要在三个客户端中各自发明字段。
+账号与更新协议分别以 [`docs/ACCOUNT_PRODUCT_CONTRACT.md`](docs/ACCOUNT_PRODUCT_CONTRACT.md) 和 [`docs/DESKTOP_UPDATE_CONTRACT.md`](docs/DESKTOP_UPDATE_CONTRACT.md) 为准；产品管理后台、人工会员授权和生产备份见 [`docs/ADMIN_CONSOLE.md`](docs/ADMIN_CONSOLE.md)。不要在三个客户端中各自发明字段。
 
 ## 当前状态（2026-07-15）
 

@@ -17,6 +17,8 @@
 | `lead_shrimp/` | 独立获客虾项目 | 已从本仓库忽略，不混入复盘虾提交 |
 | `.tmp-recharge-*` | 远端官网 / 服务临时副本 | 只用于本机部署核对，不入 Git |
 
+远端账号服务、版本发布后台与人工会员授权不在本仓库保存生产源码；接口、安全边界、备份位置和排错入口见 [`ADMIN_CONSOLE.md`](ADMIN_CONSOLE.md)。
+
 ## 2. 主线入口与编排
 
 主线目录：`_experiments/douyin_worker_route/`

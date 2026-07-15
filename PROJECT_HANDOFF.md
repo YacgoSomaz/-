@@ -84,6 +84,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 固定复盘虾产品受众为 `replay_shrimp`，只检查 `livewatch`；旧的 `membership_expires_at`、`is_member`、余额和根节点 `products` 不能作为解锁后门。
 - 增加一次性 `web_handoff`，客户端可安全跳转官网续费，票据仅 60 秒、单次消费，且只在 URL fragment 中短暂出现。
 - 新增并冻结 `docs/ACCOUNT_PRODUCT_CONTRACT.md`：三产品 ID、价格、权益、`user_products`、付款回调、签名字段与团队改动边界以该文件为唯一规范。
+- 产品管理后台已新增“会员授权” Tab：只允许管理员二次解锁后为已注册手机号开通指定产品，所有写入进入 `user_products` 并记录 `admin_product_grants`；接口和排错见 `docs/ADMIN_CONSOLE.md`。
 
 **状态：复盘虾已完成验签与跨产品拒绝测试；三个产品的远端 `user_products`、官网套餐和支付链路已部署。仍需分别做三个正式安装包的登录、续费、过期和跨产品端到端验收。**
 
@@ -116,6 +117,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 本轮最近完整主线回归：`292 passed`；加上旧授权兼容服务和构建 / 安装器契约的仓库级验证为 `331 passed`；本轮 Markdown 相对链接和 `git diff --check` 通过。
 - 更新 `.gitignore`、发布扫描与交接文档，明确禁止真实 Cookie、AI Key、session、数据库、私钥和安装期数据进入仓库或安装包。
 - `.tmp-recharge-api`、`.tmp-recharge-site`、独立 `lead_shrimp`、构建日志和安装包均已从复盘虾提交范围排除；旧原型迁移 / 删除作为本轮主线收口记录保留。接手者仍须先检查差异，不能 reset、checkout 或无脑 add。
+- 远端账号服务的本次会员授权部署已在生产目录生成 `backups/20260715211315`；`.tmp-recharge-api` 只是本机快照，下一位 AI 必须先读取生产现状再修改，禁止用旧快照覆盖服务器。
 
 ---
 
