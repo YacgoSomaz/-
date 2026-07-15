@@ -27,6 +27,8 @@ from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
 PRODUCT_FEATURES = {
     "live_replay_xia": {"basic", "export", "batch", "live_monitor", "ai_replay", "short_video_ai", "lead_radar"},
+    # 独立获客产品：它只能使用评论线索与导出，不能解锁复盘虾功能。
+    "lead_shrimp": {"basic", "lead_radar", "export"},
     "wanshan_media": {"basic", "topic_radar", "copywriting", "prompt_templates", "video_workshop", "distribution", "analytics", "updates"},
     "wanshan_zimeiti": {"basic", "topic_radar", "copywriting", "prompt_templates", "video_workshop", "distribution", "analytics", "updates"},
 }
@@ -34,6 +36,7 @@ VALID_PRODUCT_CODES = set(PRODUCT_FEATURES)
 VALID_FEATURES = set().union(*PRODUCT_FEATURES.values())
 DEFAULT_POLICIES = {
     "live_replay_xia": {"max_active_rooms": 10, "export_watermark": True, "force_upgrade_below": ""},
+    "lead_shrimp": {},
     "wanshan_media": {},
     "wanshan_zimeiti": {},
 }
@@ -256,7 +259,13 @@ class LicenseService:
         safe_policy = self.normalize_policy(policy, selected_product)
         created_at = int(now if now is not None else time.time())
         for _ in range(8):
-            card_key = self._new_card_key({"wanshan_zimeiti": "WSZ", "wanshan_media": "WSM"}.get(selected_product, "LRX"))
+            card_key = self._new_card_key(
+                {
+                    "lead_shrimp": "LEAD",
+                    "wanshan_zimeiti": "WSZ",
+                    "wanshan_media": "WSM",
+                }.get(selected_product, "LRX")
+            )
             card_id = uuid.uuid4().hex
             try:
                 with self._connect() as conn:

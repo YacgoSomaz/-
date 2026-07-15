@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, license_client, license_manager, license_policy, license_refresh, performance_analysis, short_video, short_video_ai, updater
+from . import account_client, account_license, account_manager, account_policy, ai_report, anchor_profiles, browser_cookies, comment_leads, config, diagnostics, live_workbench, performance_analysis, short_video, short_video_ai, updater, video_preview
 from . import export as export_mod
 from .anchor_resolver import AnchorResolveError, resolve_anchor
 from .manager import RoomManager, active_room_limit
@@ -100,19 +100,6 @@ threading.Thread(target=_performance_ai_loop, name="performance-ai-loop", daemon
 threading.Thread(target=short_video.prewarm_browser, name="short-video-browser-prewarm", daemon=True).start()
 
 
-def _license_refresh_loop() -> None:
-    """Refresh signed entitlement periodically without disturbing local work."""
-    while True:
-        try:
-            license_refresh.refresh_once()
-        except Exception:
-            pass
-        time.sleep(config.LICENSE_REFRESH_INTERVAL_SEC)
-
-
-threading.Thread(target=_license_refresh_loop, name="license-refresh-loop", daemon=True).start()
-
-
 @app.get("/", response_class=HTMLResponse)
 def index() -> str:
     return _FRONTEND.read_text(encoding="utf-8")
@@ -126,6 +113,62 @@ def api_status() -> JSONResponse:
         "risk_control": _mgr.risk_control_status(),
         "limits": {"max_active_rooms": active_room_limit()},
     })
+
+
+@app.get("/api/live-workbench")
+def api_live_workbench(rid: str | None = Query(default=None)) -> JSONResponse:
+    """Return local evidence for an active or recently completed session."""
+    return JSONResponse(live_workbench.build_snapshot(
+        _mgr.status(),
+        event_db=config.EVENTS_DB,
+        transcript_db=config.DB_PATH,
+        selected_rid=rid,
+        now=int(time.time()),
+        video_root=config.VIDEO_DIR,
+    ))
+
+
+@app.get("/api/live-preview/{rid}")
+def api_live_preview(
+    rid: str,
+    session_start: int | None = Query(default=None),
+    session_end: int | None = Query(default=None),
+) -> FileResponse:
+    """Serve a sealed video segment from an active or completed session."""
+    # Direct unit calls receive FastAPI's Query descriptor as the default;
+    # normal HTTP requests are already converted to integers/None.
+    session_start = session_start if isinstance(session_start, int) else None
+    session_end = session_end if isinstance(session_end, int) else None
+    statuses = _mgr.status()
+    if session_start is not None or session_end is not None:
+        if not session_start or not session_end or session_end <= session_start:
+            raise HTTPException(status_code=400, detail="直播场次时间无效")
+        session_id = f"history:{rid}:{session_start}:{session_end}"
+        snapshot = live_workbench.build_snapshot(
+            statuses,
+            event_db=config.EVENTS_DB,
+            transcript_db=config.DB_PATH,
+            selected_rid=session_id,
+            now=int(time.time()),
+            video_root=config.VIDEO_DIR,
+        )
+        room = snapshot.get("room") or {}
+        if room.get("session_id") != session_id or not room.get("record_video"):
+            raise HTTPException(status_code=404, detail="该场次没有可用的视频预览")
+        path = video_preview.latest_sealed_video(
+            config.VIDEO_DIR,
+            rid,
+            started_at=session_start,
+            ended_at=session_end,
+        )
+    else:
+        room = next((item for item in statuses if item.get("rid") == rid), None)
+        if room is None or room.get("phase") != "recording" or not room.get("record_video"):
+            raise HTTPException(status_code=404, detail="当前房间没有可用的视频预览")
+        path = video_preview.latest_sealed_video(config.VIDEO_DIR, rid)
+    if path is None:
+        raise HTTPException(status_code=404, detail="正在生成第一段视频预览")
+    return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/api/diagnostics")
@@ -197,15 +240,15 @@ def api_add_anchor(anchor: dict[str, object] = Body(...)) -> JSONResponse:
 
 
 @app.middleware("http")
-async def _license_gate(request: Request, call_next):
-    feature = license_policy.feature_for_request(request.method, request.url.path)
+async def _account_gate(request: Request, call_next):
+    feature = account_policy.feature_for_request(request.method, request.url.path)
     if feature:
         try:
-            license_manager.require_feature(feature)
-        except license_manager.LicenseFeatureError as exc:
+            account_manager.require_feature(feature)
+        except account_manager.AccountFeatureError as exc:
             return JSONResponse(
                 status_code=403,
-                content={"detail": f"此功能需要有效商业授权：{exc}"},
+                content={"detail": str(exc)},
             )
     return await call_next(request)
 
@@ -308,12 +351,12 @@ def api_set_video(rid: str, enabled: bool = Body(..., embed=True)) -> JSONRespon
 
 @app.post("/api/start_all")
 def api_start_all() -> JSONResponse:
-    return JSONResponse({"started": _mgr.start_all()})
+    return JSONResponse({"ok": True, "started": _mgr.start_all()})
 
 
 @app.post("/api/stop_all")
 def api_stop_all() -> JSONResponse:
-    return JSONResponse({"stopped": _mgr.stop_all()})
+    return JSONResponse({"ok": True, "stopped": _mgr.stop_all()})
 
 
 @app.post("/api/export")
@@ -323,56 +366,66 @@ def api_export() -> JSONResponse:
     return JSONResponse({"rooms": len(bundles), "dir": str(export_mod.config.EXPORT_DIR)})
 
 
-@app.get("/api/license/status")
-def api_license_status() -> JSONResponse:
-    """Return local license status without exposing full device fingerprint."""
-    status = license_manager.public_status()
-    status["device_hash_prefix"] = license_manager.current_device_hash()[:12]
-    return JSONResponse({"ok": True, "license": status})
-
-
-@app.get("/api/license/device")
-def api_license_device() -> JSONResponse:
-    return JSONResponse({"ok": True, "device_hash_prefix": license_manager.current_device_hash()[:12]})
-
-
-@app.post("/api/license/install")
-def api_license_install(payload: dict[str, object] = Body(...)) -> JSONResponse:
-    license_doc = payload.get("license")
-    if isinstance(license_doc, str):
+@app.get("/api/account/status")
+def api_account_status() -> JSONResponse:
+    """Refresh the signed account snapshot without exposing its remote session."""
+    session = account_manager.remote_session()
+    if session is not None:
         try:
-            license_doc = json.loads(license_doc)
-        except json.JSONDecodeError as exc:
-            raise HTTPException(status_code=400, detail="授权内容不是合法 JSON") from exc
-    if not isinstance(license_doc, dict):
-        raise HTTPException(status_code=400, detail="请提交授权包")
-    status = license_manager.install_license_doc(license_doc)
-    if not status.ok:
-        raise HTTPException(status_code=400, detail=status.reason)
-    public = license_manager.public_status()
-    public["device_hash_prefix"] = license_manager.current_device_hash()[:12]
-    return JSONResponse({"ok": True, "license": public})
+            account_manager.refresh_login(account_client.refresh_account(session))
+        except (account_client.AccountClientError, account_license.AccountLicenseError, ValueError):
+            # Keep the last still-valid signed snapshot during a short network
+            # outage.  Feature gates independently reject an expired snapshot.
+            pass
+    return JSONResponse({"ok": True, "account": account_manager.public_status()})
 
 
-@app.post("/api/license/activate")
-def api_license_activate(payload: dict[str, object] = Body(...)) -> JSONResponse:
-    card_key = str(payload.get("card_key") or "").strip()
+@app.post("/api/account/send-code")
+def api_account_send_code(payload: dict[str, object] = Body(...)) -> JSONResponse:
     try:
-        status = license_client.activate_card_key(card_key)
-    except license_client.LicenseClientError as exc:
+        result = account_client.send_sms_code(str(payload.get("phone") or ""))
+    except account_client.AccountClientError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    status["device_hash_prefix"] = license_manager.current_device_hash()[:12]
-    return JSONResponse({"ok": True, "license": status})
+    return JSONResponse({"ok": True, "message": str(result.get("message") or "验证码已发送")})
 
 
-@app.post("/api/license/refresh")
-def api_license_refresh() -> JSONResponse:
+@app.post("/api/account/login")
+def api_account_login(payload: dict[str, object] = Body(...)) -> JSONResponse:
     try:
-        status = license_client.refresh_license()
-    except license_client.LicenseClientError as exc:
+        result = account_client.login_with_sms(
+            str(payload.get("phone") or ""),
+            str(payload.get("code") or ""),
+        )
+        account_manager.save_login(result)
+    except (account_client.AccountClientError, account_license.AccountLicenseError, ValueError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    status["device_hash_prefix"] = license_manager.current_device_hash()[:12]
-    return JSONResponse({"ok": True, "license": status})
+    return JSONResponse({"ok": True, "account": account_manager.public_status()})
+
+
+@app.post("/api/account/recharge-url")
+def api_account_recharge_url() -> JSONResponse:
+    """Issue a one-time remote web handoff; remote session data stays private."""
+    session = account_manager.remote_session()
+    if session is None:
+        raise HTTPException(status_code=401, detail="请先使用手机号登录")
+    try:
+        result = account_client.create_recharge_handoff(session)
+    except account_client.AccountClientError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"ok": True, "continue_url": result["continue_url"]})
+
+
+@app.post("/api/account/logout")
+def api_account_logout() -> JSONResponse:
+    session = account_manager.remote_session()
+    if session is not None:
+        try:
+            account_client.logout_remote_session(session)
+        except account_client.AccountClientError:
+            # The local encrypted session must still be removed on network failure.
+            pass
+    account_manager.clear_login()
+    return JSONResponse({"ok": True, "account": account_manager.public_status()})
 
 
 @app.get("/api/update/check")
@@ -398,7 +451,7 @@ def api_update_download() -> JSONResponse:
 
 @app.post("/api/update/install")
 def api_update_install(payload: dict[str, object] | None = Body(default=None)) -> JSONResponse:
-    silent = bool((payload or {}).get("silent", True))
+    silent = bool((payload or {}).get("silent", False))
     try:
         result = updater.download_and_install(silent=silent)
     except updater.UpdateError as exc:

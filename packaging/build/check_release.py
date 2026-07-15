@@ -46,6 +46,7 @@ FORBIDDEN_FILE_NAMES = {
     "comment_leads_seen.json",
     "license.json",
     "license_clock.json",
+    "account_session.json",
     "HANDOFF.md",
     "CLAUDE_HANDOFF.md",
 }

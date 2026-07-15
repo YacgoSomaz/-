@@ -102,6 +102,7 @@ def test_activate_card_key_sends_hmac_replay_protection_headers(tmp_path, monkey
     assert headers["X-LiveWatch-App-Version"] == "1.2.3"
     assert headers["X-LiveWatch-Signature"]
     assert "LRX-ABCDE" not in json.dumps(headers)
+    assert captured["json"]["product_code"] == config.LICENSE_PRODUCT_CODE
 
 
 def test_refresh_license_reads_protected_package_without_leaking_token(tmp_path, monkeypatch) -> None:
@@ -161,6 +162,7 @@ def test_refresh_license_signs_request_with_refresh_token(tmp_path, monkeypatch)
     assert headers["X-LiveWatch-Device"] == device_hash
     assert headers["X-LiveWatch-Signature"]
     assert "xxxxxxxx" not in json.dumps(headers)
+    assert captured["json"]["product_code"] == config.LICENSE_PRODUCT_CODE
 
 
 def test_refresh_license_clears_local_cache_on_server_denial(tmp_path, monkeypatch) -> None:

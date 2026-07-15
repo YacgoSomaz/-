@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import base64
 import ctypes
+from ctypes import wintypes
 import hashlib
 import json
 import shutil
@@ -64,6 +65,10 @@ APP_NAME = "直播复盘侠"
 DEFAULT_PORT = 8848
 MANIFEST_NAME = "integrity_manifest.json"
 INTEGRITY_PUBLIC_KEY = "__LIVEWATCH_INTEGRITY_PUBLIC_KEY__"
+SINGLE_INSTANCE_MUTEX_NAME = r"Local\LiveWatchLauncher.SingleInstance.v1"
+ERROR_ALREADY_EXISTS = 183
+SW_RESTORE = 9
+_single_instance_mutex = None
 
 
 def _show_error(message: str) -> None:
@@ -71,6 +76,45 @@ def _show_error(message: str) -> None:
         ctypes.windll.user32.MessageBoxW(None, message, APP_NAME, 0x10)
     except Exception:  # noqa: BLE001
         pass
+
+
+def _focus_existing_window() -> None:
+    """Restore the existing desktop window when a second launcher is opened."""
+    if os.name != "nt":
+        return
+    try:
+        user32 = ctypes.windll.user32
+        window = user32.FindWindowW(None, APP_NAME)
+        if window:
+            user32.ShowWindow(window, SW_RESTORE)
+            user32.SetForegroundWindow(window)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _acquire_single_instance() -> bool:
+    """Keep a Windows mutex handle alive for the life of the desktop process."""
+    global _single_instance_mutex
+    if os.name != "nt":
+        return True
+    try:
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateMutexW.argtypes = (wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR)
+        kernel32.CreateMutexW.restype = wintypes.HANDLE
+        kernel32.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.CreateMutexW(None, False, SINGLE_INSTANCE_MUTEX_NAME)
+        if not handle:
+            # A failure to query the mutex must not make a healthy install unusable.
+            return True
+        if kernel32.GetLastError() == ERROR_ALREADY_EXISTS:
+            kernel32.CloseHandle(handle)
+            _focus_existing_window()
+            return False
+        _single_instance_mutex = handle
+        return True
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def _base_dir() -> Path:
@@ -329,6 +373,47 @@ def _runtime_security_findings(base: Path, app_dir: Path) -> list[str]:
     return findings
 
 
+def _enforce_startup_update_policy() -> None:
+    """Apply the server-signed update policy before starting the local service.
+
+    A release record is untrusted until ``pipeline.updater`` has verified the
+    dedicated update-v1 signature.  A failed request or verification must not
+    lock a legitimate customer out while offline, but a *verified* mandatory
+    release must stop the outdated binary before its web UI is started.
+    """
+    from pipeline import updater
+
+    try:
+        manifest = updater.check_update()
+    except updater.UpdateError as exc:
+        # Network failure is not a permission check.  Cloud APIs still enforce
+        # their own minimum-version policy server-side when that becomes needed.
+        print(f"签名更新策略校验失败，按当前可用策略启动：{exc}")
+        return
+
+    if not manifest.has_update:
+        return
+    if not (manifest.mandatory and manifest.has_update):
+        print(f"发现可选更新 {manifest.latest_version}，可在客户端内下载并安装。")
+        return
+
+    message = (
+        f"当前版本 {manifest.current_version} 已停止支持，需要升级到 "
+        f"{manifest.latest_version} 后才能继续使用。\n\n"
+        "点击“确定”后将下载校验通过的官方安装包并启动安装向导。"
+    )
+    _show_error(message)
+    try:
+        # Do not hand an EXE URL to the browser here: download_update validates
+        # the signed manifest's exact length and SHA-256 before it is launched.
+        installer = updater.download_update(manifest)
+        updater.run_installer(installer, silent=False)
+    except updater.UpdateError as exc:
+        _show_error(f"无法下载已验证的更新包：{exc}\n请稍后重试。")
+        raise SystemExit("必须更新，但更新包下载或校验失败") from exc
+    raise SystemExit("已启动更新安装向导，请完成安装后重新打开直播复盘侠。")
+
+
 def _tray_image() -> Image.Image:
     """生成简洁的 LiveWatch 托盘图标，避免额外二进制资源依赖。"""
     image = Image.new("RGBA", (64, 64), (14, 17, 23, 255))
@@ -474,6 +559,9 @@ class DesktopClient:
 
 
 def main() -> int:
+    if _is_frozen() and not _acquire_single_instance():
+        return 0
+
     base = _base_dir()
     app_dir = _find_app_dir(base)
     data_dir = _data_dir()
@@ -485,7 +573,12 @@ def main() -> int:
     packaged_assets = app_dir / "pipeline_data"
     if packaged_assets.exists():
         os.environ["LIVEWATCH_PIPELINE_DATA_DIR"] = str(packaged_assets)
-    os.environ.setdefault("LIVEWATCH_DANMU_BACKEND", "audio_only")
+    sidecar_exe = app_dir / "sidecar" / "douyinLive.exe"
+    if sidecar_exe.is_file():
+        os.environ.setdefault("LIVEWATCH_SIDECAR_EXE", str(sidecar_exe))
+        os.environ.setdefault("LIVEWATCH_DANMU_BACKEND", "sidecar")
+    else:
+        os.environ.setdefault("LIVEWATCH_DANMU_BACKEND", "audio_only")
     bundled_browsers = base / "browsers"
     if bundled_browsers.exists():
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(bundled_browsers)
@@ -525,6 +618,8 @@ def main() -> int:
         _show_error(message)
         raise SystemExit(message)
 
+    _enforce_startup_update_policy()
+
     requested_port = int(os.environ.get("LIVEWATCH_PORT", DEFAULT_PORT))
     port = _available_port(requested_port)
     url = f"http://127.0.0.1:{port}"
@@ -550,7 +645,15 @@ def main() -> int:
     if not _wait_for_port(port):
         raise SystemExit("后台服务启动超时，请查看数据目录 logs 下的日志。")
 
-    DesktopClient(url, data_dir, server).run()
+    try:
+        DesktopClient(url, data_dir, server).run()
+    finally:
+        try:
+            from pipeline.sidecar_runtime import shutdown as shutdown_sidecar
+
+            shutdown_sidecar()
+        except Exception:  # noqa: BLE001
+            pass
     if log_handle is not None:
         try:
             log_handle.close()

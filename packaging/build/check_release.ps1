@@ -33,7 +33,7 @@ $devRooms = @(
 
 # 禁止的文件名/扩展（任意层级）
 $banName = @(
-    "browser_cookies.json","short_video_cookies.json","rooms.json","ai_config.json","license.json","license_clock.json",
+    "browser_cookies.json","short_video_cookies.json","rooms.json","ai_config.json","license.json","license_clock.json","account_session.json",
     "pending_anchors.json","anchor_profiles.json","short_video_profiles.json","short_video_parse_cache.json",
     "short_video_jobs.json","short_video_benchmarks.json","comment_leads.json","comment_leads_seen.json",
     ".env","config.yaml","config.yml"

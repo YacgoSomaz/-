@@ -6,28 +6,34 @@
 
 直播复盘侠主程序的录音、转写、声纹、AI 复盘、导出、前端控制台、数据库台账与 sidecar JSON 接入适配层为项目自有实现。
 
-主程序默认运行模式：
+商业安装包默认运行模式：
 
 ```text
-LIVEWATCH_DANMU_BACKEND=audio_only
+LIVEWATCH_DANMU_BACKEND=sidecar
 ```
 
-该模式不内置抖音弹幕 WSS 内核，仅通过已验证 Cookie 探测直播流并驱动录音/录像/转写/复盘。
+该模式由本机 sidecar 处理抖音 WSS 互动事件，主程序同时使用已验证 Cookie 获取音视频流并完成录制、转写和复盘。
 
 ## 抖音弹幕事件 sidecar（可选外部组件）
 
-名称：`jwwsjlm/douyinLive`
+名称：`jwwsjlm/douyinLive`（固定为 `v2.0.24` / Windows amd64 发布构建 `79453ece4a44`）
 
 来源：`https://github.com/jwwsjlm/douyinLive`
 
 许可证：MIT License
 
-用途：作为独立外部进程或 Docker 容器提供本地 WebSocket 服务，输出 JSON 事件。直播复盘侠只连接本地 `ws://127.0.0.1:1088/ws/<直播间号>` 并接收事件，不复制该项目源码进主程序。
+用途：作为随安装包启动的本地进程提供 WebSocket 服务，输出 JSON 事件。直播复盘侠只连接本地 `ws://127.0.0.1:1088/ws/<直播间号>` 并接收事件，不复制该项目源码进主程序。
 
 当前验证版本：
 
 ```text
-ghcr.io/jwwsjlm/douyinlive:v2.0.18
+douyinLive-v2.0.24-79453ece4a44-windows-amd64.zip
+```
+
+该归档在引入时已按上游发布的 SHA-256 校验：
+
+```text
+cc1cc9df433337c62263d7925da77ab17622603bbb554f1c27d3cbe9048cce4f
 ```
 
 当前已验证事件：
@@ -40,8 +46,8 @@ ghcr.io/jwwsjlm/douyinlive:v2.0.18
 
 发行边界：
 
-- 若安装包不内置该 sidecar，只需在文档中说明可选接入来源。
-- 若未来把该 sidecar 二进制、Docker 镜像或其源码随安装包分发，必须同时附带该项目 MIT License 与版权声明。
+- 商业安装包内置该 sidecar 二进制，并在根目录附带 `LICENSE.douyinLive.txt`、本声明与版权信息。
+- 若未来升级其二进制、Docker 镜像或源码，必须复核许可证、固定版本和 SHA-256，再更新本声明。
 - 不得把该 sidecar 的源码直接复制进主程序后删除原始许可证声明。
 
 ## 已移除的旧 WSS 内核

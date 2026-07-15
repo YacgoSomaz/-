@@ -352,15 +352,30 @@ def list_session_summaries() -> list[dict[str, Any]]:
     ):
         return list(_SUMMARY_CACHE["rows"])
 
-    names = export.room_display_names()
     profiles = export.configured_room_profiles()
+    # `export_room_ids()` includes every room ever written to the local data
+    # stores.  Those historical rows are useful for export/audit, but they are
+    # not a reliable source of the accounts that are currently managed.  In
+    # particular, an old nickname can otherwise be paired with a newly cached
+    # avatar in the performance dashboard.  Only explicitly registered room
+    # profiles belong in the current-account session list.
+    registered_profiles = {
+        str(rid): profile
+        for rid, profile in profiles.items()
+        if isinstance(profile, dict)
+        and any(str(profile.get(field) or "").strip() for field in ("anchor_name", "source_url", "sec_user_id"))
+    }
     rows: list[dict[str, Any]] = []
-    for rid in export.export_room_ids():
+    for rid, profile in registered_profiles.items():
         try:
-            for bundle in _bundles_for_room(str(rid), names.get(str(rid), "")):
-                rows.append(_build_from_bundle(bundle, include_detail=False, profile=profiles.get(str(rid), {})))
+            # Prefer the configured identity over the name cached in old
+            # transcript/event records, so avatar and display name stay bound
+            # to the same account.
+            nickname = str(profile.get("anchor_name") or rid)
+            for bundle in _bundles_for_room(rid, nickname):
+                rows.append(_build_from_bundle(bundle, include_detail=False, profile=profile))
         except Exception as exc:  # noqa: BLE001 页面不能因单房间脏数据崩掉
-            rows.append(_error_row(str(rid), names.get(str(rid), ""), exc))
+            rows.append(_error_row(rid, str(profile.get("anchor_name") or rid), exc))
     rows.sort(key=_sort_key, reverse=True)
     _SUMMARY_CACHE.update({"key": cache_key, "ts": now, "rows": list(rows)})
     return rows
@@ -521,7 +536,7 @@ def _build_from_bundle(bundle: export.RoomBundle, *, include_detail: bool, profi
         "session_id": session_id,
         "session_day": _session_label(bundle.session_day),
         "rid": rid,
-        "anchor_name": bundle.nickname or (profile or {}).get("anchor_name") or rid,
+        "anchor_name": (profile or {}).get("anchor_name") or bundle.nickname or rid,
         "avatar_url": (profile or {}).get("avatar_url") or "",
         "live_start": _fmt_dt(start_ts),
         "live_end": _fmt_dt(end_ts),
@@ -1095,26 +1110,31 @@ def _latest_data_ts(bundle: export.RoomBundle) -> float:
 
 
 def _risk_segments(bundle: export.RoomBundle) -> list[dict[str, Any]]:
-    risks = []
+    """Build report evidence from the shared, categorized sensitive-word scan.
+
+    High-severity hits are report candidates immediately. Medium terms stay in
+    the detail-only review table until their nearby context is commercial enough
+    to be meaningful; low-severity editorial prompts never become risk evidence.
+    """
+    risks: list[dict[str, Any]] = []
     for t in bundle.transcripts:
         text = t.text or ""
-        for risk_type, level, terms in RISK_RULES:
-            matched = [term for term in terms if term in text]
-            if matched:
-                if not _risk_context_allowed(risk_type, text):
-                    continue
-                risks.append({
-                    "start_time": _fmt_dt(t.capture_start or t.segment_ts),
-                    "end_time": _fmt_dt(t.capture_end or ((t.capture_start or t.segment_ts) + (t.duration_sec or 0))),
-                    "type": "敏感词候选",
-                    "risk_type": risk_type,
-                    "risk_level": level,
-                    "speech": _clip(text, 140),
-                    "ai_judgement": f"命中{risk_type}：{'、'.join(matched[:4])}",
-                    "suggestion": "仅作为敏感词复核线索，不自动代表违规或合作判断。",
-                    "audio_path": t.mp3_name,
-                })
-                break
+        for hit in sensitive_words.scan_text(text):
+            if not hit.counts_as_risk:
+                continue
+            if hit.severity.lower() != "high" and hit.context_status != "语境较明确":
+                continue
+            risks.append({
+                "start_time": _fmt_dt(t.capture_start or t.segment_ts),
+                "end_time": _fmt_dt(t.capture_end or ((t.capture_start or t.segment_ts) + (t.duration_sec or 0))),
+                "type": "敏感词候选",
+                "risk_type": hit.category_name,
+                "risk_level": _severity_cn(hit.severity),
+                "speech": _clip(text, 140),
+                "ai_judgement": f"命中{hit.category_name}：{hit.term}",
+                "suggestion": hit.suggestion,
+                "audio_path": t.mp3_name,
+            })
     return risks[:30]
 
 
@@ -1131,6 +1151,8 @@ def _sensitive_summary(bundle: export.RoomBundle, *, include_samples: bool) -> d
                 "category_id": hit.category_id,
                 "category_name": hit.category_name,
                 "severity": _severity_cn(hit.severity),
+                "suggestion": hit.suggestion,
+                "counts_as_risk": hit.counts_as_risk,
                 "context_status": hit.context_status,
                 "context": _clip(hit.context, 110),
                 "speech": _clip(text, 160),

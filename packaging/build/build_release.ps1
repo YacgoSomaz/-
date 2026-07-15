@@ -19,9 +19,11 @@ param(
     [string]$Iscc = "",                    # ISCC.exe 路径；留空则自动探测
     [switch]$SkipInstaller,                # 只产 staging，不编译安装程序
     [string]$Version = "1.0.0",
-    [switch]$Commercial,                    # 注入商业授权公钥/服务端地址，并强制客户端校验授权
-    [string]$LicenseServerUrl = "",        # 例如 https://license.example.com
-    [string]$LicensePublicKey = "",         # base64url Ed25519 公钥（不是私钥）
+    [switch]$Commercial,                    # 账号版商业加固：Nuitka 编译业务代码 + 账号权益验签
+    [string]$AccountApiUrl = "https://anyq.site", # 手机号账号服务（仅 HTTPS）
+    [string]$AccountPublicKey = "",         # account-v1 Ed25519 SPKI 公钥（不是私钥）
+    [string]$UpdatePublicKey = "",          # update-v1 Ed25519 SPKI 公钥（不是私钥）
+    [string]$AccountProductCode = "replay_shrimp",
     [string]$IntegrityPrivateKey = "",      # 可选：base64url Ed25519 私钥；留空则本次构建临时生成
     [string]$IntegrityPublicKey = "",       # 可选：base64url Ed25519 公钥；留空则随私钥推导/生成
     [string]$CodeSignThumbprint = "",       # 可选：Windows 证书存储中的代码签名证书指纹
@@ -39,6 +41,11 @@ $AsrModel  = Join-Path $RepoRoot "_experiments\asr_bench\sensevoice_onnx"
 $SpkModel  = Join-Path $RepoRoot "_experiments\speaker_change_analysis\models"
 $Launcher  = Join-Path $ScriptDir "livewatch_launcher.py"
 $Assets    = Join-Path $ScriptDir "assets"
+$SidecarVendorDir = Join-Path $ScriptDir "vendor\douyinlive"
+$SidecarExe = Join-Path $SidecarVendorDir "douyinLive.exe"
+$SidecarLicense = Join-Path $SidecarVendorDir "LICENSE"
+$SidecarArchiveName = "douyinLive-v2.0.24-79453ece4a44-windows-amd64.zip"
+$SidecarExeSha256 = "59cd585998393b16c0cbb8f2e4d7caa382a98c7ba7c2c67b40d57ddd60205062"
 $IconFile  = Join-Path $Assets "livewatch.ico"
 $IssFile   = Join-Path $ScriptDir "livewatch.iss"
 $Checker   = Join-Path $ScriptDir "check_release.ps1"
@@ -66,8 +73,12 @@ function Invoke-Robocopy {
 
 # ---------- 0. 前置检查 ----------
 Write-Step "前置检查"
-foreach ($p in @($Route, $AsrModel, $SpkModel, $Launcher, $Checker, $PythonChecker)) {
+foreach ($p in @($Route, $AsrModel, $SpkModel, $Launcher, $Checker, $PythonChecker, $SidecarExe, $SidecarLicense)) {
     if (-not (Test-Path $p)) { throw "缺少构建输入: $p" }
+}
+$actualSidecarHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $SidecarExe).Hash.ToLowerInvariant()
+if ($actualSidecarHash -ne $SidecarExeSha256) {
+    throw "互动 sidecar 校验失败：$SidecarArchiveName 的 douyinLive.exe SHA-256 不匹配"
 }
 # 不再内置 Chromium：铸 cookie 用目标机系统自带的 Edge（Win10/11 必装），故无需 Playwright 浏览器缓存。
 if (-not (Test-Path (Join-Path $AsrModel "model.int8.onnx"))) { throw "缺少 SenseVoice 模型" }
@@ -82,11 +93,20 @@ if (-not (Test-Path $NodeExe)) { throw "node.exe 不存在: $NodeExe" }
 Write-Host "node.exe 来源: $NodeExe"
 
 if ($Commercial) {
-    if ($LicenseServerUrl -notmatch '^https://[^/\s]+(?:/[^\s]*)?$') {
-        throw "商业构建必须提供 HTTPS 授权服务地址：-LicenseServerUrl https://license.example.com"
+    if ($AccountApiUrl -notmatch '^https://[^/\s]+(?:/[^\s]*)?$') {
+        throw "商业构建必须提供 HTTPS 账号服务地址：-AccountApiUrl https://anyq.site"
     }
-    if ($LicensePublicKey -notmatch '^[A-Za-z0-9_-]{40,96}$') {
-        throw "商业构建必须提供 base64url Ed25519 公钥：-LicensePublicKey <public-key>"
+    if ($AccountPublicKey -notmatch '^[A-Za-z0-9_-]{40,128}$') {
+        throw "商业构建必须提供 account-v1 base64url Ed25519 公钥：-AccountPublicKey <public-key>"
+    }
+    if ($UpdatePublicKey -notmatch '^[A-Za-z0-9_-]{40,128}$') {
+        throw "商业构建必须提供 update-v1 base64url Ed25519 公钥：-UpdatePublicKey <public-key>"
+    }
+    if ($UpdatePublicKey -eq $AccountPublicKey) {
+        throw "update-v1 必须使用独立于 account-v1 的 Ed25519 公钥"
+    }
+    if ($AccountProductCode -ne 'replay_shrimp') {
+        throw "复盘虾商业包的账号产品码必须是 replay_shrimp"
     }
     & python -m nuitka --version
     if ($LASTEXITCODE -ne 0) {
@@ -130,9 +150,15 @@ function Sign-ReleaseBinary {
 
 function Initialize-IntegritySigning {
     if ($IntegrityPrivateKey -and $IntegrityPublicKey) {
+        if ($IntegrityPrivateKey -notmatch '^[A-Za-z0-9_-]{40,128}$' -or $IntegrityPublicKey -notmatch '^[A-Za-z0-9_-]{40,128}$') {
+            throw "完整性签名密钥格式无效；请传入 base64url Ed25519 密钥，构建已中止。"
+        }
         return @{ Private = $IntegrityPrivateKey; Public = $IntegrityPublicKey }
     }
     if ($env:LIVEWATCH_INTEGRITY_PRIVATE_KEY -and $env:LIVEWATCH_INTEGRITY_PUBLIC_KEY) {
+        if ($env:LIVEWATCH_INTEGRITY_PRIVATE_KEY -notmatch '^[A-Za-z0-9_-]{40,128}$' -or $env:LIVEWATCH_INTEGRITY_PUBLIC_KEY -notmatch '^[A-Za-z0-9_-]{40,128}$') {
+            throw "环境变量中的完整性签名密钥格式无效，构建已中止。"
+        }
         return @{
             Private = $env:LIVEWATCH_INTEGRITY_PRIVATE_KEY
             Public = $env:LIVEWATCH_INTEGRITY_PUBLIC_KEY
@@ -145,6 +171,9 @@ function Initialize-IntegritySigning {
         $json = & python -c "from pipeline.integrity_manifest import generate_keypair; import json; private, public = generate_keypair(); print(json.dumps({'private': private, 'public': public}))"
         if ($LASTEXITCODE -ne 0) { throw "完整性签名密钥生成失败" }
         $pair = $json | ConvertFrom-Json
+        if ([string]$pair.private -notmatch '^[A-Za-z0-9_-]{40,128}$' -or [string]$pair.public -notmatch '^[A-Za-z0-9_-]{40,128}$') {
+            throw "生成的完整性签名密钥格式无效"
+        }
         return @{ Private = [string]$pair.private; Public = [string]$pair.public }
     } finally {
         $env:PYTHONPATH = $oldPythonPath
@@ -164,7 +193,7 @@ New-Item -ItemType Directory -Force -Path $AppDir | Out-Null
 
 # ---------- 2. 程序源码（白名单拷贝，排除一切数据/缓存/样本） ----------
 Write-Step "拷贝程序源码 (allowlist)"
-# 安全模式：不打包旧 AGPL WSS 内核；桌面端默认使用 audio_only 后端。
+# 不打包旧 AGPL WSS 内核。互动事件改由固定版本、MIT 许可的本地 sidecar 提供。
 # 商业包把整个 pipeline 编译为单个 .pyd，只留下 HTML/CSS/JS 等公开前端资产。
 if ($Commercial) {
     New-Item -ItemType Directory -Force -Path $TmpNuitkaSource, $TmpNuitkaOutput | Out-Null
@@ -175,19 +204,24 @@ if ($Commercial) {
     # 公钥可公开，私钥与卡密库仅存在授权服务器。运行配置必须在编译前写入临时副本。
     $RuntimeFile = Join-Path $NuitkaPipeline "license_runtime.py"
     $RuntimeCode = @"
-"""Commercial build public licensing settings. Generated during packaging."""
-LICENSE_ENFORCE = True
-LICENSE_SERVER_URL = "$LicenseServerUrl"
-LICENSE_PUBLIC_KEY = "$LicensePublicKey"
+"""Commercial account build settings. Generated during packaging."""
+LICENSE_ENFORCE = False
+LICENSE_SERVER_URL = ""
+LICENSE_PUBLIC_KEY = ""
 LICENSE_APP_VERSION = "$Version"
+ACCOUNT_API_URL = "$AccountApiUrl"
+ACCOUNT_PUBLIC_KEY = "$AccountPublicKey"
+ACCOUNT_PRODUCT_CODE = "$AccountProductCode"
+UPDATE_PUBLIC_KEY = "$UpdatePublicKey"
 "@
     [System.IO.File]::WriteAllText($RuntimeFile, $RuntimeCode, [System.Text.UTF8Encoding]::new($false))
 
     Write-Host "Nuitka 编译商业业务模块（首次下载 Zig 编译器后会更快）"
     Push-Location $TmpNuitkaSource
     try {
+        # 打包机通常还会运行其他产品的构建；限制为单编译任务，避免 Zig/Scons 耗尽分页文件。
         & python -m nuitka --mode=package --include-package=pipeline --assume-yes-for-downloads --zig `
-            --no-pyi-file --output-dir=$TmpNuitkaOutput $NuitkaPipeline
+            --low-memory --jobs=1 --lto=no --no-pyi-file --output-dir=$TmpNuitkaOutput $NuitkaPipeline
         if ($LASTEXITCODE -ne 0) { throw "Nuitka 编译 pipeline 失败 exit=$LASTEXITCODE" }
     } finally {
         Pop-Location
@@ -200,17 +234,25 @@ LICENSE_APP_VERSION = "$Version"
     New-Item -ItemType Directory -Force -Path $PipelineData | Out-Null
     Copy-Item (Join-Path $NuitkaPipeline "frontend.html") (Join-Path $PipelineData "frontend.html") -Force
     Invoke-Robocopy (Join-Path $NuitkaPipeline "static") (Join-Path $PipelineData "static") @("/E")
-    Write-Host "商业授权已启用：业务代码已编译为二进制模块，安装包仅含公钥。" -ForegroundColor Green
+    $LexiconData = Join-Path $PipelineData "lexicons"
+    New-Item -ItemType Directory -Force -Path $LexiconData | Out-Null
+    Copy-Item (Join-Path $NuitkaPipeline "lexicons\sensitive_regex_seed.json") (Join-Path $LexiconData "sensitive_regex_seed.json") -Force
+    Copy-Item (Join-Path $NuitkaPipeline "lexicons\yunyingxia_forbidden_words.v1.json") (Join-Path $LexiconData "yunyingxia_forbidden_words.v1.json") -Force
+    Write-Host "商业账号与更新验签已启用：业务代码已编译为二进制模块，安装包仅含 account-v1 / update-v1 公钥。" -ForegroundColor Green
 } else {
     Invoke-Robocopy (Join-Path $Route "pipeline") (Join-Path $AppDir "pipeline") `
         @("/E", "/XD", "__pycache__", "/XF", "*.pyc")
 }
-Write-Host "安全模式：不打包旧 AGPL WSS 内核；桌面端默认使用 audio_only 后端。" -ForegroundColor Green
+Write-Host "互动事件：内置 MIT douyinLive sidecar；桌面端默认使用 sidecar 后端。" -ForegroundColor Green
 
-# ---------- 3. 内置 node + 模型 ----------
-Write-Step "内置 node 与模型"
+# ---------- 3. 内置 node、互动 sidecar 与模型 ----------
+Write-Step "内置 node、互动 sidecar 与模型"
 New-Item -ItemType Directory -Force -Path (Join-Path $AppDir "bin") | Out-Null
 Copy-Item $NodeExe (Join-Path $AppDir "bin\node.exe") -Force
+$SidecarDir = Join-Path $AppDir "sidecar"
+New-Item -ItemType Directory -Force -Path $SidecarDir | Out-Null
+Copy-Item $SidecarExe (Join-Path $SidecarDir "douyinLive.exe") -Force
+Sign-ReleaseBinary (Join-Path $SidecarDir "douyinLive.exe")
 
 $ModelsDir = Join-Path $Staging "models"
 Invoke-Robocopy $AsrModel (Join-Path $ModelsDir "sensevoice_onnx") @("/E")
@@ -261,6 +303,7 @@ $ThirdPartyNotices = Join-Path $Route "THIRD_PARTY_NOTICES.md"
 if (Test-Path $ThirdPartyNotices) {
     Copy-Item $ThirdPartyNotices (Join-Path $Staging "THIRD_PARTY_NOTICES.md") -Force
 }
+Copy-Item $SidecarLicense (Join-Path $Staging "LICENSE.douyinLive.txt") -Force
 
 # ---------- 5.5 完整性清单 ----------
 Write-Step "生成完整性清单"
@@ -312,12 +355,32 @@ if (-not $Iscc) {
 if (-not $Iscc -or -not (Test-Path $Iscc)) { throw "未找到 ISCC.exe，请安装 Inno Setup 或用 -Iscc 指定" }
 
 New-Item -ItemType Directory -Force -Path $ReleaseOut | Out-Null
-& $Iscc "/DAppVersion=$Version" "/DStagingDir=$Staging" "/DOutputDir=$ReleaseOut" $IssFile
+$isccArgs = @(
+    "/DAppVersion=$Version",
+    "/DStagingDir=$Staging",
+    "/DOutputDir=$ReleaseOut"
+)
+if ($CodeSignThumbprint) {
+    # Inno must sign while compiling so the embedded uninstaller is signed too.
+    # $q and $f are Inno SignTool placeholders, deliberately left literal here.
+    if (-not $script:ResolvedSignTool) { $script:ResolvedSignTool = Resolve-SignTool }
+    $innoSignCommand = '$q' + $script:ResolvedSignTool + '$q sign /sha1 ' + $CodeSignThumbprint +
+        ' /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 /v $f'
+    $isccArgs += "/DInnoSignTool=1"
+    $isccArgs += "/Slivewatch=$innoSignCommand"
+}
+& $Iscc @isccArgs $IssFile
 if ($LASTEXITCODE -ne 0) { throw "ISCC 编译失败 exit=$LASTEXITCODE" }
 
 $setup = Get-ChildItem $ReleaseOut -Filter "LiveWatchSetup*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 if ($setup) {
-    Sign-ReleaseBinary $setup.FullName
+    if ($CodeSignThumbprint) {
+        # 安装器已由 ISCC 签名；这里只验签，避免二次签名破坏内嵌卸载器签名流程。
+        $signature = Get-AuthenticodeSignature -FilePath $setup.FullName
+        if ($signature.Status -ne "Valid") {
+            throw "安装程序签名校验失败: $($setup.FullName) ($($signature.Status))"
+        }
+    }
     Write-Step "完成"
     Write-Host ("安装程序: {0}" -f $setup.FullName)
     Write-Host ("大小:     {0:N1} MB" -f ($setup.Length / 1MB))

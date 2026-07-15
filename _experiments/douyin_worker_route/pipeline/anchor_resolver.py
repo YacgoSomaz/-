@@ -117,7 +117,12 @@ def resolve_anchor(
                 _safe_close(sess)
 
     fields = _classify(final_url)
-    page = _parse_page(page_html, failures) if page_html else {}
+    expected_sec_user_id = str(fields.get("sec_user_id") or "")
+    page = (
+        _parse_page(page_html, failures, expected_sec_user_id=expected_sec_user_id)
+        if page_html
+        else {}
+    )
     is_live = page.get("is_live")
     if is_live is None and _text_says_live(text):
         is_live = True
@@ -327,6 +332,17 @@ _SECUID_RES = (
     re.compile(r'sec_user_id=([^"&\\]+)'),
     re.compile(r'sec_user_id\\?=([^"&\\]+)'),
 )
+# A logged-in live-page response may embed the Cookie owner's profile before the
+# room payload.  Only metadata inside roomStore.anchor/owner identifies the
+# monitored anchor; global nickname/sec_user_id fields are merely a fallback
+# for older public pages that have no roomStore at all.
+_ROOM_ANCHOR_START_RES = (
+    re.compile(
+        r'roomStore"?\s*:\s*\{.*?roomInfo"?\s*:\s*\{.*?'
+        r'(?:anchor|owner)"?\s*:\s*\{',
+        re.DOTALL,
+    ),
+)
 _NICK_RES = (
     re.compile(r'"nickname"\s*:\s*"([^"]{1,40})"'),
     re.compile(r'nickname\\":\\"([^"\\]{1,40})'),
@@ -350,7 +366,12 @@ def _looks_like_challenge(html: str) -> bool:
     return classify_room_page(html) == "challenge"
 
 
-def _parse_page(html: str, failures: list[str]) -> dict[str, object]:
+def _parse_page(
+    html: str,
+    failures: list[str],
+    *,
+    expected_sec_user_id: str = "",
+) -> dict[str, object]:
     """尽力从落地页 HTML 提 room_id / 昵称 / 头像 / 是否在播；命中验证墙直接放弃。"""
     if _looks_like_challenge(html):
         failures.append("challenge_page")
@@ -358,13 +379,26 @@ def _parse_page(html: str, failures: list[str]) -> dict[str, object]:
 
     normalized = _decode_page_value(html)
     out: dict[str, object] = {}
-    out.update(_first_group(normalized, _ROOMID_RES, "room_id"))
-    out.update(_first_group(normalized, _WEBID_RES, "web_id"))
-    out.update(_first_group(normalized, _SECUID_RES, "sec_user_id"))
-    nickname = _first_valid_match(normalized, _NICK_RES)
+    room_anchor = _room_anchor_fragment(normalized)
+    profile_anchor = _profile_fragment_for_sec_user_id(normalized, expected_sec_user_id)
+    # For a /user/<sec_user_id> input, accepting an unbound global profile
+    # would leak the logged-in Cookie account into the monitored anchor.
+    metadata_html = room_anchor or profile_anchor
+    if not metadata_html and not expected_sec_user_id:
+        metadata_html = normalized
+    # A profile link can include the Cookie owner's active room near the top of
+    # the page.  For that input type, room/web IDs must be bound to the target
+    # profile object as strictly as nickname and avatar are.
+    identifier_html = metadata_html if expected_sec_user_id else normalized
+    out.update(_first_group(identifier_html, _ROOMID_RES, "room_id"))
+    out.update(_first_group(identifier_html, _WEBID_RES, "web_id"))
+    out.update(_first_group(metadata_html, _SECUID_RES, "sec_user_id"))
+    if expected_sec_user_id:
+        out["sec_user_id"] = expected_sec_user_id
+    nickname = _first_valid_match(metadata_html, _NICK_RES)
     if nickname:
         out["nickname"] = _decode_page_value(nickname)
-    avatar = _first_match(normalized, _AVATAR_RES)
+    avatar = _first_match(metadata_html, _AVATAR_RES)
     if avatar:
         out["avatar_url"] = _decode_page_value(avatar)
 
@@ -375,6 +409,36 @@ def _parse_page(html: str, failures: list[str]) -> dict[str, object]:
         if status is not None:
             out["is_live"] = status == "2"
     return out
+
+
+def _room_anchor_fragment(html: str) -> str:
+    """Return the bounded roomStore anchor payload, never the viewer profile."""
+    for pat in _ROOM_ANCHOR_START_RES:
+        match = pat.search(html)
+        if match:
+            # The useful owner fields are adjacent to the anchor object.  A
+            # bounded slice prevents a later unrelated JSON block from being
+            # treated as room metadata when this page contains multiple apps.
+            return html[match.end():match.end() + 8_000]
+    return ""
+
+
+def _profile_fragment_for_sec_user_id(html: str, sec_user_id: str) -> str:
+    """Find the target profile object, not an unrelated logged-in viewer object."""
+    target = str(sec_user_id or "").strip()
+    if not target:
+        return ""
+    pattern = re.compile(
+        r'"(?:sec_user_id|sec_uid|secUid)"\s*:\s*"' + re.escape(target) + r'"'
+    )
+    for match in pattern.finditer(html):
+        # JSON data is nested.  Starting at the nearest preceding object lets
+        # nickname/avatar fields that appear before or after sec_user_id stay
+        # associated with the exact requested profile.
+        start = html.rfind("{", max(0, match.start() - 8_000), match.start())
+        if start >= 0:
+            return html[start:match.end() + 8_000]
+    return ""
 
 
 def _first_group(html: str, patterns: tuple[re.Pattern, ...], key: str) -> dict[str, str]:

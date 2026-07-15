@@ -3,13 +3,19 @@
 把 `_experiments/douyin_worker_route` 的最新源码打成 **完全离线、程序/数据分离、普通用户安装即用**
 的 Windows 安装程序。**不改业务监听逻辑**，只新增打包层与少量路径解析（开发态行为完全不变）。
 
+> 2026-07-15 校正：当前正式入口是 `一键打包复盘虾.bat` → `interactive_verified_release.ps1` → `build_verified_release.ps1`。线上复盘虾更新版本已是 `1.1.14`，下一次构建必须为 `1.1.15+`。账号 `account-v1` 公钥和更新 `update-v1` 公钥必须独立；旧 `build_commercial_release.ps1` 属于卡密构建兼容入口，不再用于正式账号版发包。
+
+首次克隆构建仓库后先执行 `git lfs pull`，确保 `vendor/douyinlive/douyinLive.exe` 不是 LFS 指针；构建脚本会再校验其固定 SHA-256。
+
 ## 文件清单
 
 | 文件 | 作用 |
 |------|------|
 | `livewatch_launcher.py` | PyInstaller 桌面客户端入口。注入数据/资源路径，启动 uvicorn 后端，并用 WebView2 独立窗口与系统托盘承载控制台。 |
 | `build_release.ps1` | **一键可重复构建**。开发包拷源码；商业包会先用 Nuitka 编译整个业务包，再内置 node+模型、PyInstaller 运行时、安全扫描与 ISCC 安装程序。 |
-| `build_commercial_release.ps1` | **一键商业加固构建入口**。自动固定 `-Commercial`，从环境变量或授权服务器取公钥，再调用 `build_release.ps1`；不保存后台 token。 |
+| `build_verified_release.ps1` | 当前正式商业构建入口；固定账号 / 更新双公钥、产品码、Nuitka、完整性清单和扫描。 |
+| `interactive_verified_release.ps1` / `run_verified_release.ps1` | 一键 BAT 的交互与日志保留层。 |
+| `build_commercial_release.ps1` | 旧卡密构建兼容入口，禁止作为当前手机号账号版正式发包入口。 |
 | `check_release.ps1` | 构建产物安全扫描。发现 Cookie / 数据库 / 音频 / 日志 / 开发房间号 → 立即 `exit 1` 让构建失败。 |
 | `livewatch.iss` | Inno Setup 脚本。装到安装目录；覆盖升级保数据；卸载默认保留数据 + 明确「完全删除」选项。 |
 | `smoke_test.ps1` | 全新目录安装冒烟测试：启动、模型路径、数据目录、覆盖升级保数据。 |
@@ -30,35 +36,27 @@
 ## 构建命令
 
 ```powershell
-# 前置：Python + PyInstaller、Nuitka、Node（取 node.exe）、Inno Setup 6（提供 ISCC.exe）
+# 前置：Python 3.13（建议）+ PyInstaller + Nuitka + Node + Inno Setup 6
 python -m pip install -r packaging\build\requirements-build.txt
-pwsh -File packaging\build\build_release.ps1 -Version 1.0.0
 
-# 只产 staging、不编译安装程序：
-pwsh -File packaging\build\build_release.ps1 -SkipInstaller
+# 最简单：双击该 BAT，输入 1.1.15 或更高版本
+packaging\build\一键打包复盘虾.bat
 
-# 商业包：仅嵌入公钥和 HTTPS 授权服务地址；业务 pipeline 不携带 .py 源码
-pwsh -File packaging\build\build_release.ps1 -Commercial `
-  -LicenseServerUrl "https://license.example.com" `
-  -LicensePublicKey "Ed25519_base64url_公钥" `
-  -Version 1.1.0
+# 等价的非交互正式构建；两项都是公钥，不能相同，也不能填私钥
+$env:LIVEWATCH_ACCOUNT_PUBLIC_KEY = "account-v1 Ed25519 SPKI base64url 公钥"
+$env:LIVEWATCH_UPDATE_PUBLIC_KEY = "update-v1 Ed25519 SPKI base64url 公钥"
+pwsh -NoProfile -File packaging\build\build_verified_release.ps1 `
+  -Version 1.1.15 `
+  -AccountApiUrl "https://anyq.site" `
+  -AccountPublicKey $env:LIVEWATCH_ACCOUNT_PUBLIC_KEY `
+  -UpdatePublicKey $env:LIVEWATCH_UPDATE_PUBLIC_KEY
 
-# 推荐商业发包入口：固定商业加固流水线。
-# 方式 A：直接给授权公钥（最适合离线构建机）。
-$env:LIVEWATCH_LICENSE_PUBLIC_KEY = "Ed25519_base64url_公钥"
-pwsh -File packaging\build\build_commercial_release.ps1 -Version 1.1.0
-
-# 方式 B：临时用管理后台令牌拉取公钥；令牌不会写进安装包。
-$env:LIVEWATCH_LICENSE_ADMIN_TOKEN = "管理后台令牌"
-pwsh -File packaging\build\build_commercial_release.ps1 `
-  -LicenseServerUrl "https://license.runmo.art" `
-  -Version 1.1.0
-
-# 可选：给启动器与安装程序加 Windows Authenticode 签名。
-# 证书安装到当前 Windows 用户的证书存储后，填入证书指纹即可。
-pwsh -File packaging\build\build_commercial_release.ps1 `
-  -CodeSignThumbprint "证书SHA1指纹" `
-  -Version 1.1.0
+# 可选代码签名
+pwsh -NoProfile -File packaging\build\build_verified_release.ps1 `
+  -Version 1.1.15 `
+  -AccountPublicKey $env:LIVEWATCH_ACCOUNT_PUBLIC_KEY `
+  -UpdatePublicKey $env:LIVEWATCH_UPDATE_PUBLIC_KEY `
+  -CodeSignThumbprint "证书 SHA1 指纹"
 
 # 单独跑安全扫描 / 冒烟测试：
 pwsh -File packaging\build\check_release.ps1 -Target staging\LiveWatch
@@ -83,17 +81,13 @@ https://license.runmo.art/downloads/
 `InstallLiveWatch.ps1` 是备用在线校验安装脚本：下载完整 EXE 安装包后，会同时检查文件大小与 SHA256，
 校验通过才会启动 Inno Setup。两个脚本都不包含卡密、后台令牌、AI Key、私钥或任何用户数据。
 
-当前发放版本：
+当前签名更新通道版本（2026-07-15 实测）：
 
 ```text
-Version: 1.0.2
-URL:     https://license.runmo.art/downloads/LiveWatchSetup_1.0.2.exe
-SHA256:  53D6E00CF285E1DE31E14FD57E4155B16B9D23A1482D14974DCA8A6503DF1F72
-Bytes:   329330062
-
-Portable URL:    https://license.runmo.art/downloads/LiveWatchPortable_1.0.2.zip
-Portable SHA256: 34D0AFC96CDB4AC0B0F51F6E01DBF6E9E96FD9C22606C11F3FF6BED051740BE6
-Portable Bytes:  391625121
+Version: 1.1.14
+URL:     https://download.anyq.site/replay-shrimp/1.1.14/LiveWatchSetup_1.1.14.exe
+SHA256:  4D41794C77049D5E5E84E25A0F731F05FA81FB7BFAF5EF82174FCC3BC65FE133
+Bytes:   261169156
 ```
 
 未签名安装包在 Windows / Edge 上可能触发 SmartScreen 或安全下载确认。构建链能保证完整性、
@@ -111,8 +105,8 @@ Portable Bytes:  391625121
 ## 可重复性
 
 - 每次构建先 `Remove-Item` 清空 `staging\`，再全自动重建——**没有任何手工复制步骤**。
-- 每次商业发包建议只跑 `build_commercial_release.ps1`。它会自动进入商业模式，避免漏掉授权、
-  Nuitka 编译、完整性签名或安全扫描。授权后台 token 只从环境变量读取，不写入仓库和安装包。
+- 每次商业发包只跑 `一键打包复盘虾.bat` 或 `build_verified_release.ps1`，避免漏掉账号 / 更新公钥、
+  Nuitka 编译、完整性签名或安全扫描。客户端只携带公钥，不读取任何后台 token 或私钥。
 - 开发构建用**白名单**拷贝；商业构建把 `pipeline` 编译为单一 `.pyd`，并由扫描器拒绝任何业务 `.py` 源码。旧 `vendor\`、`run_worker.py`
   已不再允许进入产物），天然排除 `audio\`、`*.db`、
   `browser_cookies.json`、`rooms.json`、`exports\`、日志、样本、`__pycache__`、`_scratch*`。

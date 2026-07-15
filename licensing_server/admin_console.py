@@ -22,7 +22,7 @@ ADMIN_HTML = r"""<!doctype html>
   <div class="grid">
     <section class="card">
       <h2>创建卡密</h2>
-      <div class="field"><label>产品</label><select id="productCode"><option value="live_replay_xia" selected>直播复盘侠</option><option value="wanshan_zimeiti">万山自媒体</option><option value="wanshan_media">万山漫剧</option></select></div>
+      <div class="field"><label>产品</label><select id="productCode"><option value="live_replay_xia" selected>直播复盘侠</option><option value="lead_shrimp">获客虾</option><option value="wanshan_zimeiti">万山自媒体</option><option value="wanshan_media">万山漫剧</option></select></div>
       <div class="field"><label>授权功能</label><div class="features" id="features"></div></div>
       <div class="field"><label>设备数量 <span>默认一台电脑</span></label><select id="maxDevices"><option value="1">1 台</option><option value="2">2 台</option><option value="3">3 台</option><option value="5">5 台</option></select></div>
       <div id="livePolicy">
@@ -49,8 +49,9 @@ ADMIN_HTML = r"""<!doctype html>
 <div class="modal" id="detailsModal"><div class="modal-box"><div class="modal-title" id="detailsTitle">卡密详情</div><div class="modal-body" id="detailsBody"></div><div class="modal-actions"><button class="ghost" id="closeDetails">关闭</button></div></div></div>
 <script>
 const $=id=>document.getElementById(id);let adminToken='';let adminDevice='';
-const PRODUCT_NAMES={wanshan_zimeiti:'万山自媒体',wanshan_media:'万山漫剧',live_replay_xia:'直播复盘侠'};
+const PRODUCT_NAMES={wanshan_zimeiti:'万山自媒体',wanshan_media:'万山漫剧',lead_shrimp:'获客虾',live_replay_xia:'直播复盘侠'};
 const PRODUCT_FEATURES={
+  lead_shrimp:[['basic','基础功能'],['lead_radar','评论线索采集'],['export','线索导出']],
   wanshan_zimeiti:[['basic','基础功能'],['topic_radar','热点/选题'],['copywriting','文案生成'],['prompt_templates','提示词模板'],['video_workshop','视频工作台'],['distribution','平台分发'],['analytics','数据分析'],['updates','在线更新']],
   wanshan_media:[['basic','基础功能'],['topic_radar','小说/选题管理'],['copywriting','剧本转换'],['prompt_templates','提示词模板'],['video_workshop','分镜与视频工坊'],['distribution','批量导出'],['analytics','项目数据'],['updates','在线更新']],
   live_replay_xia:[['basic','基础功能'],['live_monitor','直播监听'],['export','数据导出'],['ai_replay','AI复盘'],['short_video_ai','短视频AI'],['lead_radar','AI获客'],['batch','批量操作']]

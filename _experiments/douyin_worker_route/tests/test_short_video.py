@@ -2,8 +2,42 @@ from __future__ import annotations
 
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 from pipeline import config, short_video
+
+
+def test_fetch_next_profile_page_requests_a_full_batch() -> None:
+    captured: list[str] = []
+
+    class _Page:
+        def evaluate(self, _script: str, url: str):
+            captured.append(url)
+            return {"aweme_list": []}
+
+    short_video._fetch_aweme_post_page(
+        _Page(),
+        "https://www.douyin.com/aweme/v1/web/aweme/post/?sec_user_id=SEC_UID&count=18",
+        "123456",
+    )
+
+    query = parse_qs(urlparse(captured[0]).query)
+    assert query["sec_user_id"] == ["SEC_UID"]
+    assert query["max_cursor"] == ["123456"]
+    assert query["count"] == ["35"]
+
+
+def test_short_video_login_requires_a_real_session_cookie() -> None:
+    assert short_video._has_douyin_login_cookie(
+        {"ttwid": "trust-only", "passport_csrf_token": "csrf-only"}
+    ) is False
+    assert short_video._has_douyin_login_cookie({"sessionid": "active-session"}) is True
+    assert short_video._has_douyin_login_cookie({"passport_auth_mix_state": "1"}) is True
+
+
+def test_short_video_uses_the_shared_douyin_cookie_store(monkeypatch) -> None:
+    monkeypatch.setattr(short_video.browser_cookies, "cached_jar", lambda: {"sessionid": "shared"})
+    assert short_video._short_video_cookie_jar() == {"sessionid": "shared"}
 
 
 def test_parse_profile_url_from_share_text() -> None:

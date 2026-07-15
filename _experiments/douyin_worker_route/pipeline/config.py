@@ -26,7 +26,12 @@ ROUTE_DIR = Path(__file__).resolve().parent.parent
 #   LIVEWATCH_DATA_DIR     → %LOCALAPPDATA%\LiveWatch\data   （cookie、rooms.json、库、audio、exports、日志）
 #   LIVEWATCH_RESOURCE_DIR → <安装目录>\models                （SenseVoice / 3D-Speaker 模型）
 # 两个变量都未设置时（开发态），全部回退到原来的相对路径，行为与改动前完全一致。
-_DATA_ENV = os.environ.get("LIVEWATCH_DATA_DIR")
+_LEAD_SHRIMP_STANDALONE = os.environ.get("LEADSHRIMP_STANDALONE", "").strip().lower() in {"1", "true", "yes", "on"}
+_DATA_ENV = (
+    os.environ.get("LEADSHRIMP_DATA_DIR")
+    if _LEAD_SHRIMP_STANDALONE
+    else os.environ.get("LIVEWATCH_DATA_DIR")
+)
 _RES_ENV = os.environ.get("LIVEWATCH_RESOURCE_DIR")
 
 # 用户数据根
@@ -109,6 +114,7 @@ AI_REPORT_DIR = EXPORT_DIR / "ai_reports"
 # 信任 cookie 缓存、房间清单、日志（用户数据）
 COOKIE_CACHE = DATA_DIR / "browser_cookies.json"
 SHORT_VIDEO_COOKIE_CACHE = DATA_DIR / "short_video_cookies.json"
+DOUYIN_LOGIN_STATE_JSON = DATA_DIR / "douyin_login_state.json"
 ROOMS_JSON = DATA_DIR / "rooms.json"
 PENDING_JSON = DATA_DIR / "pending_anchors.json"  # 待开播主播清单（只有 sec_user_id，等开播探测直播号）
 ANCHOR_PROFILE_CACHE = DATA_DIR / "anchor_profiles.json"
@@ -120,24 +126,52 @@ SHORT_VIDEO_BENCHMARKS_JSON = DATA_DIR / "short_video_benchmarks.json"
 SHORT_VIDEO_ASSET_DIR = DATA_DIR / "short_video_assets"
 COMMENT_LEADS_JSON = DATA_DIR / "comment_leads.json"
 COMMENT_LEADS_STATE_JSON = DATA_DIR / "comment_leads_seen.json"
+COMMENT_LEADS_LOGIN_STATE_JSON = DATA_DIR / "comment_leads_login_state.json"
 COMMENT_LEADS_EXPORT_DIR = EXPORT_DIR / "comment_leads"
 COMMENT_LEADS_PROFILE_DIR = DATA_DIR / "comment_leads_browser_profile"
 LOG_DIR = DATA_DIR / "logs"
 
+# ---------- 手机号账号登录（短信与支付密钥仅保存在远端账号服务） ----------
+# 客户端只调用 HTTPS 账号服务；本地只保存经系统保护的远端会话，不保存短信/支付密钥。
+_ACCOUNT_RUNTIME_URL = str(getattr(license_runtime, "ACCOUNT_API_URL", "") or "").strip().rstrip("/")
+_ACCOUNT_RUNTIME_PUBLIC_KEY = str(getattr(license_runtime, "ACCOUNT_PUBLIC_KEY", "") or "").strip()
+_UPDATE_RUNTIME_PUBLIC_KEY = str(getattr(license_runtime, "UPDATE_PUBLIC_KEY", "") or "").strip()
+ACCOUNT_API_BASE_URL = os.environ.get("LIVEWATCH_ACCOUNT_API_BASE_URL", _ACCOUNT_RUNTIME_URL or "https://anyq.site").strip().rstrip("/")
+ACCOUNT_SESSION_PATH = DATA_DIR / "account_session.json"
+ACCOUNT_REQUEST_TIMEOUT_SEC = max(3.0, float(os.environ.get("LIVEWATCH_ACCOUNT_REQUEST_TIMEOUT_SEC", "12")))
+ACCOUNT_REFRESH_INTERVAL_SEC = max(60, int(os.environ.get("LIVEWATCH_ACCOUNT_REFRESH_INTERVAL_SEC", "600")))
+# This desktop product is fixed at build time.  It must not be selected by a
+# browser request or a user-editable setting.
+ACCOUNT_PRODUCT_ID = str(getattr(license_runtime, "ACCOUNT_PRODUCT_CODE", "") or "replay_shrimp").strip()
+# Public Ed25519 SPKI DER keys, base64url encoded.  These are safe to ship; the
+# matching private key remains only in the remote account service.
+ACCOUNT_LICENSE_PUBLIC_KEYS = {
+    "account-v1": _ACCOUNT_RUNTIME_PUBLIC_KEY or "MCowBQYDK2VwAyEACqLAEE2KnduTFtw1gVQIExS1qLRa-XI3TaWpbchMbKc",
+}
+# A missing update key intentionally means that the client cannot trust an
+# update manifest.  Commercial packaging requires this key; it is never read
+# from a user-editable environment variable in the installed application.
+UPDATE_RELEASE_PUBLIC_KEYS = {"update-v1": _UPDATE_RUNTIME_PUBLIC_KEY} if _UPDATE_RUNTIME_PUBLIC_KEY else {}
+
 # ---------- 商业授权（开发态默认不强制，商业包通过编译期 license_runtime 开启） ----------
 LICENSE_PATH = DATA_DIR / "license.json"
 LICENSE_CLOCK_PATH = DATA_DIR / "license_clock.json"
-LICENSE_PRODUCT_CODE = os.environ.get("LIVEWATCH_PRODUCT_CODE", "live_replay_xia")
-LICENSE_PRODUCT_SALT = os.environ.get("LIVEWATCH_PRODUCT_SALT", "live_replay_xia_device_v1")
+_DEFAULT_LICENSE_PRODUCT_CODE = "lead_shrimp" if _LEAD_SHRIMP_STANDALONE else "live_replay_xia"
+_DEFAULT_LICENSE_PRODUCT_SALT = "lead_shrimp_device_v1" if _LEAD_SHRIMP_STANDALONE else "live_replay_xia_device_v1"
+LICENSE_PRODUCT_CODE = str(
+    getattr(license_runtime, "LICENSE_PRODUCT_CODE", "") or _DEFAULT_LICENSE_PRODUCT_CODE
+).strip()
+LICENSE_PRODUCT_SALT = _DEFAULT_LICENSE_PRODUCT_SALT
 if license_runtime.LICENSE_ENFORCE:
     # 商业包的授权开关、公钥、服务地址来自编译期注入，不接受本机环境变量覆盖。
     LICENSE_ENFORCE = True
     LICENSE_PUBLIC_KEY = license_runtime.LICENSE_PUBLIC_KEY.strip()
     LICENSE_SERVER_URL = license_runtime.LICENSE_SERVER_URL.strip().rstrip("/")
 else:
-    LICENSE_ENFORCE = os.environ.get("LIVEWATCH_LICENSE_ENFORCE", "").strip().lower() in {"1", "true", "yes", "on"}
-    LICENSE_PUBLIC_KEY = os.environ.get("LIVEWATCH_LICENSE_PUBLIC_KEY", license_runtime.LICENSE_PUBLIC_KEY).strip()
-    LICENSE_SERVER_URL = os.environ.get("LIVEWATCH_LICENSE_SERVER_URL", license_runtime.LICENSE_SERVER_URL).strip().rstrip("/")
+    _LICENSE_ENV_PREFIX = "LEADSHRIMP" if _LEAD_SHRIMP_STANDALONE else "LIVEWATCH"
+    LICENSE_ENFORCE = os.environ.get(f"{_LICENSE_ENV_PREFIX}_LICENSE_ENFORCE", "").strip().lower() in {"1", "true", "yes", "on"}
+    LICENSE_PUBLIC_KEY = os.environ.get(f"{_LICENSE_ENV_PREFIX}_LICENSE_PUBLIC_KEY", license_runtime.LICENSE_PUBLIC_KEY).strip()
+    LICENSE_SERVER_URL = os.environ.get(f"{_LICENSE_ENV_PREFIX}_LICENSE_SERVER_URL", license_runtime.LICENSE_SERVER_URL).strip().rstrip("/")
 LICENSE_REQUEST_TIMEOUT_SEC = max(3.0, float(os.environ.get("LIVEWATCH_LICENSE_REQUEST_TIMEOUT_SEC", "12")))
 LICENSE_APP_VERSION = os.environ.get("LIVEWATCH_APP_VERSION", "1.0.0").strip() or "1.0.0"
 LICENSE_REFRESH_INTERVAL_SEC = max(60, int(os.environ.get("LIVEWATCH_LICENSE_REFRESH_INTERVAL_SEC", "600")))

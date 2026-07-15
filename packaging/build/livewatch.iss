@@ -37,6 +37,13 @@ UninstallDisplayName=直播复盘侠
 UninstallDisplayIcon={app}\LiveWatchLauncher.exe
 CloseApplications=force
 CloseApplicationsFilter=LiveWatchLauncher.exe
+RestartApplications=no
+#ifdef InnoSignTool
+; 由 build_release.ps1 通过 ISCC /Slivewatch 注入签名命令。
+; 这会在编译期同时签名安装器和嵌入的卸载程序，避免卸载时仍显示未知发布者。
+SignTool=livewatch
+SignedUninstaller=yes
+#endif
 
 [Languages]
 Name: "chinesesimplified"; MessagesFile: "languages\ChineseSimplified.isl"
@@ -57,14 +64,42 @@ Name: "{autodesktop}\直播复盘侠"; Filename: "{app}\LiveWatchLauncher.exe"; 
 Filename: "{app}\LiveWatchLauncher.exe"; Description: "立即启动直播复盘侠"; Flags: nowait postinstall skipifsilent
 
 [InstallDelete]
+; 覆盖升级时，先清理安装目录中受控的旧程序树，再写入新版本。
+; 绝不删除 {app} 整目录，也绝不触碰 {localappdata}\LiveWatch\data，避免误删用户文件。
+; 这样旧版的 PyInstaller _internal、模型和已编译 pipeline 不会与新包混用。
+Type: filesandordirs; Name: "{app}\app"
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\models"
+Type: filesandordirs; Name: "{app}\browsers"
+Type: filesandordirs; Name: "{app}\asr_bench"
+Type: files; Name: "{app}\LiveWatchLauncher.exe"
+Type: files; Name: "{app}\integrity_manifest.json"
 ; 清理早期本地安装包遗留的程序源码与运行资源。用户数据统一保留在
 ; {localappdata}\LiveWatch\data，不在这里删除。
-Type: filesandordirs; Name: "{app}\app\pipeline"
-Type: filesandordirs; Name: "{app}\app\pipeline_data"
-Type: filesandordirs; Name: "{app}\app\vendor"
-Type: filesandordirs; Name: "{app}\app\third_party"
-Type: files; Name: "{app}\app\pipeline*.pyd"
-Type: files; Name: "{app}\app\run_worker.py"
+Type: filesandordirs; Name: "{localappdata}\LiveWatch\app"
+Type: filesandordirs; Name: "{localappdata}\LiveWatch\_internal"
+Type: filesandordirs; Name: "{localappdata}\LiveWatch\models"
+Type: filesandordirs; Name: "{localappdata}\LiveWatch\asr_bench"
+Type: files; Name: "{localappdata}\LiveWatch\LiveWatchLauncher.exe"
+Type: files; Name: "{localappdata}\LiveWatch\install.bat"
+Type: files; Name: "{localappdata}\LiveWatch\install_to_desktop.ps1"
+Type: files; Name: "{localappdata}\LiveWatch\uninstall_livewatch.ps1"
+Type: files; Name: "{localappdata}\LiveWatch\uninstall_shortcut.bat"
+Type: files; Name: "{localappdata}\LiveWatch\安装到桌面.bat"
+Type: files; Name: "{localappdata}\LiveWatch\卸载快捷方式.bat"
+Type: files; Name: "{localappdata}\LiveWatch\README_使用说明.md"
+
+[UninstallDelete]
+; Inno 会自动删除当前安装日志记录的文件；以下补充删除旧版本遗留的受控程序目录。
+; 用户数据仅由下方的明确确认逻辑删除。
+Type: filesandordirs; Name: "{app}\app"
+Type: filesandordirs; Name: "{app}\_internal"
+Type: filesandordirs; Name: "{app}\models"
+Type: filesandordirs; Name: "{app}\browsers"
+Type: filesandordirs; Name: "{app}\asr_bench"
+Type: files; Name: "{app}\LiveWatchLauncher.exe"
+Type: files; Name: "{app}\integrity_manifest.json"
+; 清理早期“安装到本机用户目录”的程序残留；不包含 data，用户资料仍保留。
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\app"
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\_internal"
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\models"
@@ -79,9 +114,116 @@ Type: files; Name: "{localappdata}\LiveWatch\卸载快捷方式.bat"
 Type: files; Name: "{localappdata}\LiveWatch\README_使用说明.md"
 
 [Code]
+const
+  LiveWatchUninstallKey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\{8F2A1C7E-4B3D-49A6-9E21-7C5D0A1B2E34}_is1';
+
+var
+  InstalledLauncher: String;
+
 function DataDir(): String;
 begin
   Result := ExpandConstant('{localappdata}\LiveWatch\data');
+end;
+
+function ReadInstalledValue(const ValueName: String; var Value: String): Boolean;
+begin
+  Result := RegQueryStringValue(HKLM64, LiveWatchUninstallKey, ValueName, Value);
+  if not Result then
+    Result := RegQueryStringValue(HKLM, LiveWatchUninstallKey, ValueName, Value);
+end;
+
+function ShouldLaunchInstalledApp(): Boolean;
+var
+  InstalledDir: String;
+  InstalledVersionText: String;
+  InstalledVersion: Int64;
+  PackageVersion: Int64;
+begin
+  Result := False;
+  InstalledLauncher := '';
+  if not ReadInstalledValue('Inno Setup: App Path', InstalledDir) then
+    Exit;
+  InstalledLauncher := AddBackslash(InstalledDir) + 'LiveWatchLauncher.exe';
+  if not FileExists(InstalledLauncher) then
+  begin
+    InstalledLauncher := '';
+    Exit;
+  end;
+  if not ReadInstalledValue('DisplayVersion', InstalledVersionText) then
+    Exit;
+  if not StrToVersion(InstalledVersionText, InstalledVersion) then
+    Exit;
+  if not StrToVersion('{#AppVersion}', PackageVersion) then
+    Exit;
+  // 同版或旧安装包不再显示空白安装向导；真正更高版本仍正常升级。
+  Result := ComparePackedVersion(InstalledVersion, PackageVersion) >= 0;
+end;
+
+function InitializeSetup(): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := True;
+  if not ShouldLaunchInstalledApp() then
+    Exit;
+  Log('检测到已安装的同版或更新版，直接启动：' + InstalledLauncher);
+  if not Exec(InstalledLauncher, '', ExtractFileDir(InstalledLauncher), SW_SHOWNORMAL,
+              ewNoWait, ResultCode) then
+    MsgBox('已检测到直播复盘侠，但启动失败。请从开始菜单或桌面快捷方式重新打开。', mbError, MB_OK);
+  Result := False;
+end;
+
+function IsLauncherRunning(): Boolean;
+var
+  ResultCode: Integer;
+  Output: TExecOutput;
+  Index: Integer;
+begin
+  Result := False;
+  try
+    if ExecAndCaptureOutput(ExpandConstant('{cmd}'),
+         '/c tasklist /FI "IMAGENAME eq LiveWatchLauncher.exe" /NH', '',
+         SW_HIDE, ewWaitUntilTerminated, ResultCode, Output) then
+    begin
+      for Index := 0 to GetArrayLength(Output.StdOut) - 1 do
+      begin
+        if Pos('LiveWatchLauncher.exe', Output.StdOut[Index]) > 0 then
+        begin
+          Result := True;
+          Exit;
+        end;
+      end;
+    end;
+  except
+    Log('检查 LiveWatchLauncher.exe 进程状态失败：' + GetExceptionMessage);
+  end;
+end;
+
+procedure StopLauncherTree();
+var
+  ResultCode: Integer;
+begin
+  if not IsLauncherRunning() then
+    Exit;
+  Log('正在关闭旧版 LiveWatchLauncher.exe 进程树');
+  Exec('taskkill.exe', '/F /IM LiveWatchLauncher.exe /T', '', SW_HIDE,
+       ewWaitUntilTerminated, ResultCode);
+end;
+
+function WaitForLauncherExit(MaxSeconds: Integer): Boolean;
+var
+  Index: Integer;
+begin
+  for Index := 1 to MaxSeconds do
+  begin
+    if not IsLauncherRunning() then
+    begin
+      Result := True;
+      Exit;
+    end;
+    Sleep(1000);
+  end;
+  Result := not IsLauncherRunning();
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -89,10 +231,10 @@ var
   ResultCode: Integer;
 begin
   Result := '';
-  // 先优雅关闭旧版进程树（LiveWatchLauncher 及其子进程 python/node/ffmpeg）
-  Exec('taskkill.exe', '/F /IM LiveWatchLauncher.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-  // 等 1 秒让文件锁释放
-  Sleep(1000);
+  // 先关闭旧版进程树并确认锁文件已释放；再让 Restart Manager 处理极少数异常锁。
+  StopLauncherTree();
+  if not WaitForLauncherExit(12) then
+    Result := '无法自动关闭正在运行的直播复盘侠。请在系统托盘图标中选择“彻底退出”后，再重新安装。';
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -102,8 +244,9 @@ var
 begin
   if CurUninstallStep = usUninstall then
   begin
-    Exec('taskkill.exe', '/F /IM LiveWatchLauncher.exe /T', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
-    Sleep(1000);
+    StopLauncherTree();
+    if not WaitForLauncherExit(12) then
+      MsgBox('直播复盘侠仍在运行。请在系统托盘图标中选择“彻底退出”后重新执行卸载。', mbError, MB_OK);
   end;
   if CurUninstallStep = usPostUninstall then
   begin

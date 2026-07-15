@@ -1,4 +1,5 @@
 from pipeline import comment_leads, config
+import inspect
 
 
 def test_extract_aweme_id_from_video_url():
@@ -6,6 +7,10 @@ def test_extract_aweme_id_from_video_url():
         comment_leads.extract_aweme_id("https://www.douyin.com/video/7634508503374255738")
         == "7634508503374255738"
     )
+
+
+def test_comment_capture_uses_a_visible_browser_by_default():
+    assert inspect.signature(comment_leads.capture_video_comments).parameters["headed"].default is True
 
 
 def test_extract_aweme_id_from_profile_url_vid_param():
@@ -47,6 +52,150 @@ def test_normalize_comment_public_fields():
     assert row["status"] == "待联系"
 
 
+def test_normalize_comment_keeps_reply_parent_and_level():
+    row = comment_leads.normalize_comment(
+        {
+            "cid": "reply_1",
+            "text": "我也想了解",
+            "user": {"nickname": "用户B", "sec_uid": "SEC_UID_2"},
+        },
+        aweme_id="7634508503374255738",
+        source_url="https://www.douyin.com/video/7634508503374255738",
+        parent_comment_id="comment_1",
+        level=2,
+    )
+
+    assert row["parent_comment_id"] == "comment_1"
+    assert row["level"] == 2
+
+
+def test_normalize_comment_tree_keeps_embedded_replies():
+    rows = comment_leads.normalize_comment_tree(
+        {
+            "cid": "parent_1",
+            "text": "这个小区怎么样？",
+            "user": {"nickname": "用户A", "sec_uid": "SEC_A"},
+            "reply_comment": [
+                {
+                    "cid": "reply_1",
+                    "text": "我也想了解",
+                    "user": {"nickname": "用户B", "sec_uid": "SEC_B"},
+                }
+            ],
+        },
+        aweme_id="7634508503374255738",
+        source_url="https://www.douyin.com/video/7634508503374255738",
+    )
+
+    assert [row["comment_id"] for row in rows] == ["parent_1", "reply_1"]
+    assert rows[1]["parent_comment_id"] == "parent_1"
+    assert rows[1]["level"] == 2
+
+
+def test_reply_statistics_reports_embedded_and_remaining_reply_counts():
+    stats = comment_leads.reply_statistics(
+        [
+            {
+                "cid": "parent_1",
+                "reply_comment_total": 3,
+                "reply_comment": [{"cid": "reply_1"}],
+            },
+            {
+                "cid": "parent_2",
+                "reply_comment_total": 2,
+                "reply_comment": [{"cid": "reply_2"}, {"cid": "reply_3"}],
+            },
+        ]
+    )
+
+    assert stats == {"reported": 5, "embedded": 3, "remaining": 2, "parent_ids": ["parent_1"]}
+
+
+def test_reply_expand_label_excludes_the_plain_reply_action():
+    assert comment_leads.is_reply_expand_label("展开5条回复") is True
+    assert comment_leads.is_reply_expand_label("查看回复") is True
+    assert comment_leads.is_reply_expand_label("回复") is False
+
+
+def test_expand_comment_replies_uses_real_mouse_clicks():
+    class Mouse:
+        def __init__(self):
+            self.clicks = []
+            self.moves = []
+            self.wheels = []
+
+        def click(self, x, y):
+            self.clicks.append((x, y))
+
+        def move(self, x, y):
+            self.moves.append((x, y))
+
+        def wheel(self, x, y):
+            self.wheels.append((x, y))
+
+    class Page:
+        def __init__(self):
+            self.mouse = Mouse()
+            self.targets = [{"x": 30, "y": 40}, None]
+
+        def evaluate(self, _script):
+            return self.targets.pop(0)
+
+        def wait_for_timeout(self, _ms):
+            return None
+
+    page = Page()
+    assert comment_leads._expand_comment_replies(page) == 1
+    assert page.mouse.clicks == [(30, 40)]
+    assert page.mouse.moves == [(30, 40)]
+    assert page.mouse.wheels == [(0, 420)]
+
+
+def test_reply_page_summary_keeps_parent_and_pagination_state():
+    assert comment_leads.reply_page_summary(
+        "parent_1", {"cursor": 30, "has_more": 1, "total": 5}, [{"cid": "reply_1"}, {"cid": "reply_2"}]
+    ) == {"parent_comment_id": "parent_1", "rows": 2, "cursor": 30, "has_more": True, "total": 5}
+
+
+def test_reply_expand_label_can_be_clicked_again_only_when_it_changes():
+    assert comment_leads.should_expand_reply_label("展开5条回复", "展开5条回复") is False
+    assert comment_leads.should_expand_reply_label("展开5条回复", "展开2条回复") is True
+
+
+def test_visible_reply_control_labels_keep_only_short_reply_controls():
+    class Page:
+        def evaluate(self, _script):
+            return ["回复", "展开2条回复", "查看全部回复", "很长的评论内容" * 5]
+
+    assert comment_leads.visible_reply_control_labels(Page()) == ["回复", "展开2条回复", "查看全部回复"]
+
+
+def test_reply_next_page_url_updates_only_cursor():
+    url = "https://www.douyin.com/aweme/v1/web/comment/list/reply/?aweme_id=1&comment_id=2&cursor=0&count=3&a_bogus=keep"
+    assert comment_leads.reply_next_page_url(url, 3) == (
+        "https://www.douyin.com/aweme/v1/web/comment/list/reply/?aweme_id=1&comment_id=2&cursor=3&count=3&a_bogus=keep"
+    )
+
+
+def test_comment_capture_keeps_public_comments_without_profile_link():
+    """A missing profile URL must not make a valid public comment disappear."""
+    captured = []
+    comment_leads._append_unique_rows(
+        captured,
+        [
+            {
+                "comment_id": "comment_without_profile",
+                "content": "请问这个怎么收费？",
+                "commenter_profile_url": "",
+            }
+        ],
+        set(),
+        10,
+    )
+
+    assert [row["comment_id"] for row in captured] == ["comment_without_profile"]
+
+
 def test_monitor_and_lead_store_roundtrip(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "COMMENT_LEADS_JSON", tmp_path / "comment_leads.json")
 
@@ -72,6 +221,38 @@ def test_monitor_and_lead_store_roundtrip(tmp_path, monkeypatch):
     assert result["inserted"] == 1
     assert result["total"] == 1
     assert comment_leads.list_leads()[0]["monitor_id"] == monitor["id"]
+
+
+def test_ingest_keeps_multiple_comments_from_the_same_person(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "COMMENT_LEADS_JSON", tmp_path / "comment_leads.json")
+    base = {"user": {"nickname": "用户A", "sec_uid": "SEC_UID_1"}}
+    first = comment_leads.normalize_comment({**base, "cid": "comment_1", "text": "户型怎么选？"}, aweme_id="1", source_url="https://www.douyin.com/video/1")
+    second = comment_leads.normalize_comment({**base, "cid": "comment_2", "text": "首付需要多少？"}, aweme_id="1", source_url="https://www.douyin.com/video/1")
+
+    result = comment_leads.ingest_rows([first, second])
+
+    assert result["inserted"] == 2
+    assert len(comment_leads.list_leads()) == 2
+
+
+def test_login_status_requires_a_verified_login_state(tmp_path, monkeypatch):
+    profile_dir = tmp_path / "comment_browser_profile"
+    profile_dir.mkdir()
+    (profile_dir / "Preferences").write_text("{}", encoding="utf-8")
+    state_path = tmp_path / "comment_login_state.json"
+    monkeypatch.setattr(config, "COMMENT_LEADS_PROFILE_DIR", profile_dir)
+    monkeypatch.setattr(config, "COMMENT_LEADS_LOGIN_STATE_JSON", state_path, raising=False)
+    monkeypatch.setattr(comment_leads.browser_cookies, "shared_status", lambda: {"has_login": False, "browser": "msedge", "cookie_count": 0})
+
+    assert comment_leads.login_status()["logged_in"] is False
+
+    state_path.write_text('{"authenticated": true, "browser": "msedge"}', encoding="utf-8")
+    assert comment_leads.login_status()["logged_in"] is False
+
+    monkeypatch.setattr(comment_leads.browser_cookies, "shared_status", lambda: {"has_login": True, "browser": "msedge", "cookie_count": 12})
+    status = comment_leads.login_status()
+    assert status["logged_in"] is True
+    assert status["browser"] == "msedge"
 
 
 def test_add_monitor_treats_profile_url_as_profile_monitor_and_uses_profile_cache(tmp_path, monkeypatch):
@@ -201,7 +382,7 @@ def test_run_selected_videos_only_collects_selected_video_rows(tmp_path, monkeyp
             aweme_id=aweme_id,
             source_url=url,
         )
-        return comment_leads.CaptureResult(True, [row], {"aweme_id": aweme_id, "source_url": url}, "")
+        return comment_leads.CaptureResult(True, [row], {"aweme_id": aweme_id, "source_url": url, "reported_total": 26}, "")
 
     monkeypatch.setattr(comment_leads, "capture_video_comments", fake_capture_video_comments)
 
@@ -213,6 +394,7 @@ def test_run_selected_videos_only_collects_selected_video_rows(tmp_path, monkeyp
 
     assert result["ok"] is True
     assert result["captured"] == 1
+    assert result["metadata"]["reported_total"] == 26
     leads = comment_leads.list_leads()
     assert len(leads) == 1
     assert leads[0]["aweme_id"] == "333333333333"

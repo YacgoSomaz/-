@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import json
 from pathlib import Path
 
 import pytest
@@ -48,6 +49,39 @@ def test_activation_returns_a_license_verified_by_the_desktop_client(tmp_path: P
     assert status.features == {"basic", "export"}
     assert activated["activation_id"]
     assert activated["refresh_token"]
+
+
+def test_lead_shrimp_card_is_bound_to_its_own_product(tmp_path: Path) -> None:
+    settings, _ = _settings(tmp_path)
+    service = LicenseService(settings)
+
+    card_key = service.create_card_key(
+        product_code="lead_shrimp",
+        features={"basic", "lead_radar", "export"},
+        max_devices=1,
+    )
+
+    activated = service.activate(
+        card_key=card_key,
+        device_hash="lead-device-a",
+        product_code="lead_shrimp",
+        now=1_700_000_000,
+    )
+    payload_b64 = str(activated["license"]["payload"])
+    payload = json.loads(
+        base64.urlsafe_b64decode(payload_b64 + "=" * (-len(payload_b64) % 4)).decode("utf-8")
+    )
+
+    assert payload["product_code"] == "lead_shrimp"
+    assert set(payload["features"]) == {"basic", "lead_radar", "export"}
+
+    with pytest.raises(LicenseError, match="产品不匹配"):
+        service.activate(
+            card_key=card_key,
+            device_hash="lead-device-b",
+            product_code="live_replay_xia",
+            now=1_700_000_001,
+        )
 
 
 def test_activation_license_contains_signed_cloud_policy(tmp_path: Path) -> None:

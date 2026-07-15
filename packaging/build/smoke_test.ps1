@@ -66,9 +66,11 @@ try {
     Check "安装目录含 models\sensevoice_onnx\model.int8.onnx" (Test-Path (Join-Path $install "models\sensevoice_onnx\model.int8.onnx"))
     Check "安装目录含 models\speaker\3dspeaker_eres2net_zh_16k.onnx" (Test-Path (Join-Path $install "models\speaker\3dspeaker_eres2net_zh_16k.onnx"))
     Check "安装目录含 app\bin\node.exe" (Test-Path (Join-Path $install "app\bin\node.exe"))
-    Check "安装目录含运行诊断模块" (Test-Path (Join-Path $install "app\pipeline\diagnostics.py"))
-    Check "安装目录含后台错误模块" (Test-Path (Join-Path $install "app\pipeline\runtime_health.py"))
-    Check "安装目录含自动声纹模块" (Test-Path (Join-Path $install "app\pipeline\speaker_worker.py"))
+    $compiledPipeline = @(Get-ChildItem (Join-Path $install "app") -Filter "pipeline*.pyd" -ErrorAction SilentlyContinue).Count -gt 0
+    $sourcePipeline = (Test-Path (Join-Path $install "app\pipeline\diagnostics.py")) -and `
+        (Test-Path (Join-Path $install "app\pipeline\runtime_health.py")) -and `
+        (Test-Path (Join-Path $install "app\pipeline\speaker_worker.py"))
+    Check "安装目录含已编译或源码业务模块" ($compiledPipeline -or $sourcePipeline)
     Check "外部数据目录此刻尚不存在(干净起步)" (-not (Test-Path $data))
 
     Write-Host "`n==== 首次启动 ====" -ForegroundColor Cyan

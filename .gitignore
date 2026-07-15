@@ -24,16 +24,11 @@ _real_audio_check.txt
 _merge_check.txt
 _xlsx_verify.txt
 _simp_check.txt
-_experiments/dycast/worker/
 _experiments/douyin_worker_route/_sample.txt
 _experiments/douyin_worker_route/_audio_probe.txt
 _experiments/douyin_worker_route/_mp3_result.txt
 _experiments/douyin_worker_route/_audio_multi.txt
 _experiments/douyin_worker_route/_worker_smoke.txt
-_experiments/wechat_channels_monitor/captures/*
-!_experiments/wechat_channels_monitor/captures/.gitkeep
-_experiments/wechat_channels_monitor/notes/*
-!_experiments/wechat_channels_monitor/notes/.gitkeep
 
 # Frontend dependencies and builds
 node_modules/
@@ -70,6 +65,8 @@ _experiments/douyin_worker_route/ai_config.json
 # 商业授权文件（设备绑定/卡密结果，本机用户数据，切勿入库）
 _experiments/douyin_worker_route/license.json
 _experiments/douyin_worker_route/license_clock.json
+# 手机号登录远端会话（本机保护存储，切勿入库）
+_experiments/douyin_worker_route/account_session.json
 # 浏览器铸的抖音信任 cookie（本机会话凭证，切勿入库）
 _experiments/douyin_worker_route/browser_cookies.json
 _experiments/douyin_worker_route/short_video_cookies.json
@@ -83,6 +80,8 @@ _experiments/douyin_worker_route/short_video_benchmarks.json
 _experiments/douyin_worker_route/short_video_assets/
 _experiments/douyin_worker_route/comment_leads.json
 _experiments/douyin_worker_route/comment_leads_seen.json
+_experiments/douyin_worker_route/comment_leads_login_state.json
+_experiments/douyin_worker_route/douyin_login_state.json
 _experiments/douyin_worker_route/comment_leads_browser_profile/
 _experiments/douyin_worker_route/exports/comment_leads/
 _experiments/douyin_worker_route/avatar_cache/
@@ -108,8 +107,12 @@ _experiments/douyin_worker_route/multi_events.db.bak_*
 _backups/
 _experiments/competitor_audit/
 
-# 本地隔离实战沙盒（整目录不参与版本管理：独立代码副本 + 运行期数据 + cookie，切勿入库）
-_experiments/douyin_live_run/
+# 本轮本地部署副本 / 独立产品目录（不属于复盘虾仓库）
+.tmp-recharge-*/
+lead_shrimp/
+
+# 一键构建过程日志（正式源码和测试保留，运行日志不入库）
+packaging/build/*.log
 
 # OS/editor files
 .DS_Store

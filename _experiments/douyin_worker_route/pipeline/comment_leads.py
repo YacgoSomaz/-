@@ -15,11 +15,15 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse, urlunparse
 
-from . import config, short_video
+from . import browser_cookies, config, short_video
 
 VIDEO_ID_RE = re.compile(r"(?:/video/|[?&](?:aweme_id|modal_id|vid)=)(\d{8,})")
 USER_ID_RE = re.compile(r"/user/([^/?#]+)")
+REPLY_EXPAND_LABEL_RE = re.compile(
+    r"^(?:(?:展开|查看)(?:(?:全部|共)?\d*条?)?回复|(?:全部|共)\d+条?回复|\d+条?回复)$"
+)
 SHORT_URL_RE = re.compile(r"https?://[^\s，。；;、)]+")
 AUTH_COOKIE_NAMES = {
     "sessionid",
@@ -271,14 +275,21 @@ def _comment_profile_url(sec_uid: str) -> str:
     return f"https://www.douyin.com/user/{sec_uid}" if sec_uid else ""
 
 
-def normalize_comment(raw: dict[str, Any], *, aweme_id: str, source_url: str) -> dict[str, Any]:
+def normalize_comment(
+    raw: dict[str, Any],
+    *,
+    aweme_id: str,
+    source_url: str,
+    parent_comment_id: str = "",
+    level: int = 1,
+) -> dict[str, Any]:
     user = raw.get("user") or {}
     sec_uid = str(user.get("sec_uid") or user.get("sec_user_id") or "")
     return {
         "aweme_id": str(raw.get("aweme_id") or aweme_id),
         "comment_id": str(raw.get("cid") or raw.get("comment_id") or ""),
-        "parent_comment_id": "",
-        "level": 1,
+        "parent_comment_id": str(parent_comment_id or ""),
+        "level": max(1, int(level or 1)),
         "content": str(raw.get("text") or raw.get("content") or ""),
         "comment_ip_location": str(raw.get("ip_label") or raw.get("ip_location") or ""),
         "like_count": raw.get("digg_count") or raw.get("like_count") or 0,
@@ -297,13 +308,117 @@ def normalize_comment(raw: dict[str, Any], *, aweme_id: str, source_url: str) ->
     }
 
 
+def normalize_comment_tree(
+    raw: dict[str, Any],
+    *,
+    aweme_id: str,
+    source_url: str,
+    parent_comment_id: str = "",
+    level: int = 1,
+) -> list[dict[str, Any]]:
+    """Normalize one comment and replies included inline by Douyin's list API."""
+    row = normalize_comment(
+        raw,
+        aweme_id=aweme_id,
+        source_url=source_url,
+        parent_comment_id=parent_comment_id,
+        level=level,
+    )
+    rows = [row]
+    parent_id = str(row.get("comment_id") or "")
+    for key in ("reply_comment", "reply_comments", "reply_list"):
+        replies = raw.get(key)
+        if not isinstance(replies, list):
+            continue
+        for reply in replies:
+            if isinstance(reply, dict):
+                rows.extend(
+                    normalize_comment_tree(
+                        reply,
+                        aweme_id=aweme_id,
+                        source_url=source_url,
+                        parent_comment_id=parent_id,
+                        level=level + 1,
+                    )
+                )
+    return rows
+
+
+def reply_statistics(raw_comments: list[Any]) -> dict[str, Any]:
+    """Summarize reply counts announced by top-level comment API responses."""
+    reported = 0
+    embedded = 0
+    parent_ids: list[str] = []
+    for comment in raw_comments:
+        if not isinstance(comment, dict):
+            continue
+        try:
+            reply_total = max(0, int(comment.get("reply_comment_total") or 0))
+        except (TypeError, ValueError):
+            reply_total = 0
+        seen_embedded: set[str] = set()
+        anonymous_embedded = 0
+        for key in ("reply_comment", "reply_comments", "reply_list"):
+            replies = comment.get(key)
+            if not isinstance(replies, list):
+                continue
+            for reply in replies:
+                if not isinstance(reply, dict):
+                    continue
+                reply_id = str(reply.get("cid") or reply.get("comment_id") or "")
+                if reply_id:
+                    seen_embedded.add(reply_id)
+                else:
+                    anonymous_embedded += 1
+        embedded_count = len(seen_embedded) + anonymous_embedded
+        reported += reply_total
+        embedded += embedded_count
+        if reply_total > embedded_count:
+            parent_id = str(comment.get("cid") or comment.get("comment_id") or "")
+            if parent_id:
+                parent_ids.append(parent_id)
+    return {
+        "reported": reported,
+        "embedded": embedded,
+        "remaining": max(0, reported - embedded),
+        "parent_ids": parent_ids,
+    }
+
+
+def reply_page_summary(parent_comment_id: str, payload: dict[str, Any], comments: list[Any]) -> dict[str, Any]:
+    """Keep non-sensitive pagination state for a captured reply page."""
+    try:
+        cursor = int(payload.get("cursor") or 0)
+    except (TypeError, ValueError):
+        cursor = 0
+    try:
+        total = int(payload.get("total") or 0)
+    except (TypeError, ValueError):
+        total = 0
+    return {
+        "parent_comment_id": str(parent_comment_id or ""),
+        "rows": len(comments),
+        "cursor": cursor,
+        "has_more": payload.get("has_more") in (True, 1, "1"),
+        "total": total,
+    }
+
+
+def reply_next_page_url(url: str, cursor: int) -> str:
+    """Advance the captured browser reply URL without changing its other parameters."""
+    parsed = urlparse(url)
+    query = parse_qsl(parsed.query, keep_blank_values=True)
+    updated = [(key, str(cursor) if key == "cursor" else value) for key, value in query]
+    if not any(key == "cursor" for key, _ in updated):
+        updated.append(("cursor", str(cursor)))
+    return urlunparse(parsed._replace(query=urlencode(updated)))
+
+
 def _append_unique_rows(target: list[dict[str, Any]], rows: list[dict[str, Any]], seen_ids: set[str], limit: int) -> None:
     for row in rows:
         if len(target) >= limit:
             return
         if not str(row.get("content") or "").strip():
-            continue
-        if not str(row.get("commenter_profile_url") or "").strip():
             continue
         comment_id = str(row.get("comment_id") or "")
         key = comment_id or json.dumps(row, ensure_ascii=False, sort_keys=True)
@@ -313,12 +428,139 @@ def _append_unique_rows(target: list[dict[str, Any]], rows: list[dict[str, Any]]
         target.append(row)
 
 
+def _scroll_comment_panel(page: Any) -> None:
+    """Advance the comment list itself before falling back to the page scroll."""
+    page.evaluate(
+        """() => {
+          const isScrollable = el => el && el.scrollHeight > el.clientHeight + 12;
+          const panels = new Set();
+          const seeds = Array.from(document.querySelectorAll(
+            '[class*="comment" i], [id*="comment" i], [data-e2e*="comment" i]'
+          ));
+          for (const seed of seeds) {
+            let node = seed;
+            for (let depth = 0; node && depth < 8; depth += 1, node = node.parentElement) {
+              if (isScrollable(node)) panels.add(node);
+            }
+          }
+          if (!panels.size && isScrollable(document.scrollingElement)) panels.add(document.scrollingElement);
+          for (const panel of panels) {
+            const step = Math.max(560, Math.floor(panel.clientHeight * 0.86));
+            panel.scrollTop = Math.min(panel.scrollHeight - panel.clientHeight, panel.scrollTop + step);
+            panel.dispatchEvent(new Event('scroll', {bubbles: true}));
+            panel.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles: true, cancelable: true}));
+          }
+          window.scrollBy(0, 420);
+        }"""
+    )
+
+
+def _expand_comment_replies(page: Any) -> int:
+    """Open visible reply threads with trusted Playwright pointer events."""
+    expanded = 0
+    for _ in range(20):
+        target = page.evaluate(
+            """() => {
+              const replyText = /^(?:(?:展开|查看)(?:(?:全部|共)?\\d*条?)?回复|(?:全部|共)\\d+条?回复|\\d+条?回复)$/;
+              for (const el of Array.from(document.querySelectorAll('button, [role="button"], span, a'))) {
+                const text = String(el.innerText || el.textContent || '').replace(/\\s+/g, '');
+                if (!replyText.test(text)) continue;
+                const node = el.closest('button, [role="button"], a') || el;
+                if (node.dataset.livewatchReplyExpanded === text) continue;
+                node.scrollIntoView({block: 'center', inline: 'center'});
+                const rect = node.getBoundingClientRect();
+                if (rect.width <= 0 || rect.height <= 0) continue;
+                node.dataset.livewatchReplyExpanded = text;
+                return {x: rect.left + rect.width / 2, y: rect.top + rect.height / 2};
+              }
+              return null;
+            }"""
+        )
+        if not isinstance(target, dict):
+            break
+        try:
+            x, y = float(target["x"]), float(target["y"])
+            page.mouse.move(x, y)
+            page.mouse.click(x, y)
+            page.wait_for_timeout(250)
+            page.mouse.wheel(0, 420)
+            page.wait_for_timeout(300)
+            expanded += 1
+        except (KeyError, TypeError, ValueError):
+            break
+    return expanded
+
+
+def visible_reply_control_labels(page: Any) -> list[str]:
+    """Return short visible reply-control labels for pagination diagnostics."""
+    try:
+        labels = page.evaluate(
+            """() => Array.from(document.querySelectorAll('button, [role="button"], span, a'))
+              .map(el => String(el.innerText || el.textContent || '').replace(/\\s+/g, ''))
+              .filter(text => text.includes('回复') && text.length <= 24)"""
+        )
+    except Exception:  # noqa: BLE001
+        return []
+    out: list[str] = []
+    for label in labels if isinstance(labels, list) else []:
+        text = str(label or "")
+        if text and len(text) <= 24 and text not in out:
+            out.append(text)
+    return out[:40]
+
+
+def is_reply_expand_label(text: str) -> bool:
+    return bool(REPLY_EXPAND_LABEL_RE.fullmatch(str(text or "").replace(" ", "")))
+
+
+def should_expand_reply_label(previous_label: str, current_label: str) -> bool:
+    return is_reply_expand_label(current_label) and str(previous_label or "") != str(current_label or "")
+
+
+def _reply_parent_from_response_url(url: str) -> str:
+    try:
+        return str(parse_qs(urlparse(url).query).get("comment_id", [""])[0] or "")
+    except Exception:
+        return ""
+
+
 def _has_auth_cookie(context: Any) -> bool:
     try:
-        names = {cookie.get("name") for cookie in context.cookies("https://www.douyin.com")}
+        jar = {
+            str(cookie.get("name") or ""): str(cookie.get("value") or "")
+            for cookie in context.cookies("https://www.douyin.com")
+        }
     except Exception:
         return False
-    return bool(names & AUTH_COOKIE_NAMES)
+    return short_video._has_douyin_login_cookie(jar) and browser_cookies.shared_status().get("has_login") is True
+
+
+def _load_login_state() -> dict[str, Any]:
+    data = _load_json(config.COMMENT_LEADS_LOGIN_STATE_JSON, {})
+    return data if isinstance(data, dict) else {}
+
+
+def _save_login_state(authenticated: bool, browser: str) -> None:
+    _save_json(
+        config.COMMENT_LEADS_LOGIN_STATE_JSON,
+        {
+            "authenticated": bool(authenticated),
+            "browser": str(browser or ""),
+            "verification_version": 2,
+            "updated_at": _now(),
+        },
+    )
+
+
+def _launch_comment_context(playwright: Any, profile: Path, *, headless: bool) -> tuple[Any, str]:
+    """Use Edge for both product modules, with Chromium only as a local fallback."""
+    base = {"headless": headless, "viewport": {"width": 1365, "height": 768}, "locale": "zh-CN"}
+    for browser, extra in (("msedge", {"channel": "msedge"}), ("chromium", {})):
+        try:
+            return playwright.chromium.launch_persistent_context(str(profile), **base, **extra), browser
+        except Exception:  # noqa: BLE001
+            continue
+    raise RuntimeError("无法打开 Edge 或 Chromium 浏览器")
 
 
 def _metadata_from_aweme_payload(data: dict[str, Any]) -> dict[str, str]:
@@ -387,42 +629,24 @@ def _read_page_metadata(page: Any) -> dict[str, str]:
 def login_status() -> dict[str, Any]:
     profile_dir = config.COMMENT_LEADS_PROFILE_DIR
     has_profile = profile_dir.exists() and any(profile_dir.iterdir())
+    shared = browser_cookies.shared_status()
     return {
         "profile_dir": str(profile_dir),
         "has_profile": bool(has_profile),
-        # Exact auth validation needs opening the browser profile; keep this
-        # cheap for page refresh and let capture/login perform the real check.
-        "logged_in": bool(has_profile),
+        "logged_in": bool(shared.get("has_login")),
+        "browser": str(shared.get("browser") or "msedge"),
+        "cookie_count": int(shared.get("cookie_count") or 0),
     }
 
 
 def open_login_browser(*, start_url: str = "https://www.douyin.com/", wait_ms: int = 30000) -> dict[str, Any]:
-    try:
-        from playwright.sync_api import sync_playwright
-    except Exception as exc:  # noqa: BLE001
-        return {"ok": False, "error": f"Playwright 未安装：{exc}"}
-
-    profile = config.COMMENT_LEADS_PROFILE_DIR
-    profile.mkdir(parents=True, exist_ok=True)
-    with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            str(profile),
-            headless=False,
-            viewport={"width": 1365, "height": 768},
-            locale="zh-CN",
-        )
-        page = context.new_page()
-        page.goto(start_url or "https://www.douyin.com/", wait_until="domcontentloaded", timeout=30000)
-        deadline = time.time() + max(5, min(wait_ms / 1000, 45))
-        ok = _has_auth_cookie(context)
-        while time.time() < deadline and not ok:
-            page.wait_for_timeout(1000)
-            ok = _has_auth_cookie(context)
-        context.close()
-    return {"ok": ok, "message": "评论获客登录态已保存" if ok else "未检测到登录态，请重新登录"}
+    result = short_video.remint_short_video_cookie(
+        start_url or "https://www.douyin.com/", timeout_sec=max(30, min(wait_ms // 1000, 180))
+    )
+    return {"ok": bool(result.get("ok")) and bool(result.get("has_login")), "message": result.get("message") or "抖音授权完成"}
 
 
-def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = False) -> CaptureResult:
+def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = True) -> CaptureResult:
     """Capture public comments from one Douyin video using an authorized browser profile."""
     source_url = extract_first_url(url)
     aweme_id = extract_aweme_id(source_url)
@@ -441,6 +665,7 @@ def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = 
         "aweme_id": aweme_id,
         "authenticated": False,
         "comment_response_count": 0,
+        "reply_response_count": 0,
         "reported_total": None,
         "started_at": _now(),
     }
@@ -450,18 +675,18 @@ def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = 
     started_wall = time.time()
     last_new_wall = started_wall
     last_response_wall = 0.0
+    max_capture_seconds = min(120, max(45, 20 + int(max_comments / 12)))
+    reply_next_requests: dict[str, tuple[str, int]] = {}
+    requested_reply_pages: set[tuple[str, int]] = set()
 
     with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            str(profile),
-            headless=not headed,
-            viewport={"width": 1365, "height": 768},
-            locale="zh-CN",
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-            ),
-        )
+        context, browser = _launch_comment_context(p, profile, headless=not headed)
+        shared_jar = browser_cookies.cached_jar() if browser_cookies.shared_status().get("has_login") else {}
+        if shared_jar:
+            context.add_cookies([
+                {"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
+                for k, v in shared_jar.items()
+            ])
         page = context.new_page()
 
         def on_response(resp: Any) -> None:
@@ -477,13 +702,47 @@ def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = 
                 data = resp.json()
             except Exception:
                 return
+            is_reply_response = "/comment/list/reply" in resp.url
+            parent_comment_id = _reply_parent_from_response_url(resp.url) if is_reply_response else ""
             last_response_wall = time.time()
             metadata["comment_response_count"] += 1
-            metadata["reported_total"] = data.get("total")
-            metadata["has_more"] = data.get("has_more")
-            metadata["cursor"] = data.get("cursor")
+            if is_reply_response:
+                metadata["reply_response_count"] += 1
+            else:
+                metadata["reported_total"] = data.get("total")
+                metadata["has_more"] = data.get("has_more")
+                metadata["cursor"] = data.get("cursor")
             raw_comments = data.get("comments") or []
-            normalized = [normalize_comment(c, aweme_id=aweme_id, source_url=source_url) for c in raw_comments]
+            if is_reply_response:
+                reply_pages = metadata.setdefault("reply_pages", [])
+                if isinstance(reply_pages, list) and len(reply_pages) < 100:
+                    reply_pages.append(reply_page_summary(parent_comment_id, data, raw_comments))
+                if data.get("has_more") in (True, 1, "1") and parent_comment_id:
+                    try:
+                        reply_next_requests[parent_comment_id] = (resp.url, int(data.get("cursor") or 0))
+                    except (TypeError, ValueError):
+                        pass
+            if not is_reply_response:
+                stats = reply_statistics(raw_comments)
+                metadata["reported_reply_total"] = int(metadata.get("reported_reply_total") or 0) + stats["reported"]
+                metadata["embedded_reply_count"] = int(metadata.get("embedded_reply_count") or 0) + stats["embedded"]
+                pending_ids = metadata.setdefault("pending_reply_parent_ids", [])
+                if isinstance(pending_ids, list):
+                    for parent_id in stats["parent_ids"]:
+                        if parent_id not in pending_ids and len(pending_ids) < 100:
+                            pending_ids.append(parent_id)
+            normalized = [
+                row
+                for comment in raw_comments
+                if isinstance(comment, dict)
+                for row in normalize_comment_tree(
+                    comment,
+                    aweme_id=aweme_id,
+                    source_url=source_url,
+                    parent_comment_id=parent_comment_id,
+                    level=2 if is_reply_response else 1,
+                )
+            ]
             before_count = len(rows)
             _append_unique_rows(rows, normalized, seen_ids, max_comments)
             added_count = len(rows) - before_count
@@ -498,11 +757,11 @@ def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = 
                 reported_total = int(metadata.get("reported_total") or 0)
             except (TypeError, ValueError):
                 reported_total = 0
-            if reported_total == 0 and not raw_comments:
+            if not is_reply_response and reported_total == 0 and not raw_comments:
                 metadata["comment_no_more"] = True
             if reported_total and len(rows) >= min(reported_total, max_comments):
                 metadata["reached_reported_total"] = True
-            if data.get("has_more") in (False, 0, "0"):
+            if not is_reply_response and data.get("has_more") in (False, 0, "0"):
                 metadata["comment_no_more"] = True
 
         page.on("response", on_response)
@@ -515,8 +774,10 @@ def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = 
         _merge_metadata(metadata, _read_page_metadata(page))
         metadata["authenticated"] = _has_auth_cookie(context)
         if not metadata["authenticated"]:
+            _save_login_state(False, browser)
             context.close()
             return CaptureResult(False, rows, metadata, "未登录抖音，请先点击“授权登录”")
+        _save_login_state(True, browser)
 
         for selector in ('[aria-label*=评论]', '[title*=评论]', 'button:has-text("评论")', "text=评论"):
             if rows:
@@ -529,13 +790,14 @@ def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = 
             except Exception:
                 continue
 
-        for _ in range(60):
+        max_scroll_attempts = min(240, max(75, int(max_comments / 4)))
+        for _ in range(max_scroll_attempts):
             if len(rows) >= max_comments:
                 break
             elapsed = time.time() - started_wall
-            if metadata.get("reached_reported_total") or metadata.get("comment_no_more"):
+            if metadata.get("reached_reported_total"):
                 break
-            if metadata.get("comment_response_count") and rows and time.time() - last_new_wall > 8:
+            if metadata.get("comment_response_count") and rows and time.time() - last_new_wall > 15:
                 metadata["stalled_without_new_comments"] = True
                 break
             if (
@@ -546,19 +808,46 @@ def capture_video_comments(url: str, *, max_comments: int = 100, headed: bool = 
             ):
                 metadata["empty_comment_responses"] = True
                 break
-            if elapsed > 32:
+            if elapsed > max_capture_seconds:
                 metadata["timeout"] = True
                 break
-            if elapsed > 18 and not metadata.get("comment_response_count"):
+            if elapsed > 25 and not metadata.get("comment_response_count"):
                 metadata["no_comment_api"] = True
                 break
-            page.mouse.move(1180, 650)
-            page.mouse.wheel(0, 1200)
-            page.wait_for_timeout(900)
+            try:
+                metadata["reply_expand_attempts"] = int(metadata.get("reply_expand_attempts") or 0) + _expand_comment_replies(page)
+            except Exception:
+                pass
+            _scroll_comment_panel(page)
+            for parent_id, (response_url, next_cursor) in list(reply_next_requests.items()):
+                page_key = (parent_id, next_cursor)
+                if page_key in requested_reply_pages:
+                    continue
+                requested_reply_pages.add(page_key)
+                next_url = reply_next_page_url(response_url, next_cursor)
+                try:
+                    result = page.evaluate(
+                        """async url => {
+                          try {
+                            const response = await fetch(url, {credentials: 'include'});
+                            return {ok: response.ok, status: response.status};
+                          } catch (error) {
+                            return {ok: false, status: 0};
+                          }
+                        }""",
+                        next_url,
+                    )
+                    metadata["reply_direct_page_requests"] = int(metadata.get("reply_direct_page_requests") or 0) + 1
+                    if not isinstance(result, dict) or not result.get("ok"):
+                        metadata["reply_direct_page_failed"] = True
+                except Exception:
+                    metadata["reply_direct_page_failed"] = True
+            page.wait_for_timeout(700)
 
         deadline = time.time() + 3
         while len(rows) < max_comments and time.time() < deadline:
             page.wait_for_timeout(1000)
+        metadata["reply_control_labels"] = visible_reply_control_labels(page)
         context.close()
 
     metadata["finished_at"] = _now()
@@ -608,6 +897,11 @@ def _update_monitor_after_run(
     monitor["last_run_at"] = _now()
     monitor["last_error"] = error
     monitor["last_count"] = last_count
+    if metadata.get("reported_total") is not None:
+        try:
+            monitor["last_reported_total"] = int(metadata.get("reported_total") or 0)
+        except (TypeError, ValueError):
+            monitor["last_reported_total"] = 0
     _merge_metadata(monitor, metadata)
     if monitor.get("author_name"):
         monitor["title"] = monitor["author_name"]
@@ -690,6 +984,7 @@ def run_selected_videos(
     per_video_limit = max(1, min(int(max_comments or monitor.get("max_comments") or 100), 2000))
     total_captured = 0
     total_inserted = 0
+    reported_total = 0
     errors: list[str] = []
     metadata: dict[str, Any] = {
         "target_type": "selected_videos",
@@ -707,6 +1002,10 @@ def run_selected_videos(
     for video in clean_videos:
         result = capture_video_comments(str(video.get("url") or ""), max_comments=per_video_limit)
         total_captured += len(result.rows)
+        try:
+            reported_total += int(result.metadata.get("reported_total") or 0)
+        except (TypeError, ValueError):
+            pass
         _merge_metadata(metadata, result.metadata)
         if result.rows:
             inserted = ingest_rows(result.rows, monitor_id=monitor_id)
@@ -715,6 +1014,7 @@ def run_selected_videos(
             errors.append(f"{video.get('title') or video.get('id') or '作品'}：{result.error}")
 
     store = load_store()
+    metadata["reported_total"] = reported_total
     error = "；".join(dict.fromkeys(errors))[:500]
     ok = total_captured > 0
     job = {

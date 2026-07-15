@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import threading
 import time
 
@@ -33,6 +34,79 @@ _jar: dict[str, str] = {}
 _minted_at: float = 0.0
 _mint_rid: str | None = None  # 记住用哪个房间号铸，供 cookie 失效后自动重铸
 _last_auto_attempt: float = 0.0
+
+
+def is_authenticated(jar: dict[str, str] | None) -> bool:
+    """Whether a cookie jar contains a reusable Douyin account session."""
+    if not jar:
+        return False
+    if any(str(jar.get(key) or "").strip() for key in ("sessionid", "sessionid_ss", "sid_guard", "sid_tt")):
+        return True
+    return str(jar.get("passport_auth_mix_state") or "").strip().lower() in {"1", "true", "yes"}
+
+
+def _session_fingerprint(jar: dict[str, str] | None) -> str:
+    """Return a non-reversible identity for the account-session cookies."""
+    if not jar:
+        return ""
+    parts = [
+        f"{name}={str(jar.get(name) or '').strip()}"
+        for name in ("sessionid", "sessionid_ss", "sid_guard", "sid_tt", "passport_auth_mix_state")
+        if str(jar.get(name) or "").strip()
+    ]
+    if not parts:
+        return ""
+    return hashlib.sha256("|".join(parts).encode("utf-8")).hexdigest()
+
+
+def _verified_session_matches(jar: dict[str, str] | None) -> bool:
+    fingerprint = _session_fingerprint(jar)
+    if not fingerprint:
+        return False
+    try:
+        state = json.loads(config.DOUYIN_LOGIN_STATE_JSON.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return str(state.get("session_fingerprint") or "") == fingerprint
+
+
+def mark_login_verified(jar: dict[str, str] | None) -> bool:
+    """Persist verification only after the user completes a visible login flow."""
+    fingerprint = _session_fingerprint(jar)
+    if not is_authenticated(jar) or not fingerprint:
+        return False
+    try:
+        config.DOUYIN_LOGIN_STATE_JSON.write_text(
+            json.dumps({"session_fingerprint": fingerprint, "verified_at": int(time.time())}),
+            encoding="utf-8",
+        )
+    except OSError:
+        return False
+    return True
+
+
+def shared_status() -> dict[str, object]:
+    jar = cached_jar()
+    return {
+        "ok": bool(jar),
+        "has_login": is_authenticated(jar) and _verified_session_matches(jar),
+        "has_session_cookie": is_authenticated(jar),
+        "cookie_count": len(jar),
+        "minted_ts": int(_minted_at) if _minted_at else 0,
+        "browser": "msedge",
+    }
+
+
+def store_shared_jar(jar: dict[str, str]) -> None:
+    """Persist one authorized jar for dashboard, short video, and comment leads."""
+    global _jar, _minted_at
+    clean = {str(k): str(v) for k, v in (jar or {}).items() if k and v}
+    if not clean:
+        return
+    with _lock:
+        _jar = clean
+        _minted_at = time.time()
+        _save_cache(_jar, _minted_at)
 
 
 def _load_cache() -> tuple[dict[str, str], float]:

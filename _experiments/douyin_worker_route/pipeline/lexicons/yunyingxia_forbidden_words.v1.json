@@ -1,0 +1,1912 @@
+{
+  "format": "yunyingxia.forbidden-words.v1",
+  "source": "运营虾内置内容审核词库",
+  "generated_at": "2026-07-15T02:05:07.917Z",
+  "notes": [
+    "仅包含内置合规词库，不包含用户自定义词、账号数据或其他本机数据。",
+    "词条按包含匹配设计；请结合目标平台规则和业务语境使用。",
+    "该词库不覆盖政治、色情等高风险类别，请由目标产品自行配置。"
+  ],
+  "categories": [
+    {
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "emoji": "💰",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。",
+      "words": [
+        "加微信",
+        "加v",
+        "加vx",
+        "加VX",
+        "加wx",
+        "加WX",
+        "+v",
+        "+V",
+        "威信",
+        "薇信",
+        "徽信",
+        "微❤️",
+        "WeChat",
+        "wechat",
+        "QQ",
+        "qq群",
+        "Q群",
+        "扣扣",
+        "联系方式",
+        "我的手机",
+        "打电话",
+        "电话是",
+        "私信我",
+        "私我",
+        "评论扣1",
+        "扣1",
+        "扣666",
+        "关注我然后",
+        "点主页",
+        "看简介",
+        "看置顶",
+        "添加下方",
+        "扫码添加",
+        "扫二维码",
+        "某宝",
+        "某东",
+        "某多多",
+        "淘宝搜",
+        "某书"
+      ]
+    },
+    {
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "emoji": "⚠️",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。",
+      "words": [
+        "最好",
+        "最佳",
+        "最优",
+        "最快",
+        "最大",
+        "最小",
+        "最强",
+        "最高",
+        "最新",
+        "最低",
+        "最便宜",
+        "最贵",
+        "最先进",
+        "最科学",
+        "最受欢迎",
+        "最具",
+        "最有效",
+        "最权威",
+        "最领先",
+        "最专业",
+        "最顶级",
+        "第一",
+        "第一名",
+        "第一品牌",
+        "唯一",
+        "独一无二",
+        "仅此一家",
+        "史无前例",
+        "前所未有",
+        "空前绝后",
+        "绝无仅有",
+        "国家级",
+        "国家认证",
+        "国家免检",
+        "国家保护",
+        "央视推荐",
+        "央视独家",
+        "央视级",
+        "顶级",
+        "顶尖",
+        "至尊",
+        "王牌",
+        "王者",
+        "巅峰",
+        "终极",
+        "极致",
+        "绝对",
+        "完全",
+        "永远",
+        "终身",
+        "百分百",
+        "100%",
+        "全网最"
+      ]
+    },
+    {
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "emoji": "💊",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。",
+      "words": [
+        "根治",
+        "根除",
+        "治愈",
+        "痊愈",
+        "药到病除",
+        "包治",
+        "永不复发",
+        "无副作用",
+        "一次见效",
+        "药方",
+        "减肥神器",
+        "丰胸",
+        "壮阳",
+        "美白神器",
+        "速效",
+        "7天见效",
+        "三天减肥",
+        "一周瘦",
+        "整容级",
+        "换脸效果",
+        "整容般",
+        "延年益寿",
+        "长生",
+        "包治百病",
+        "神奇功效"
+      ]
+    },
+    {
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "emoji": "📈",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。",
+      "words": [
+        "稳赚",
+        "稳赢",
+        "稳赔",
+        "保本",
+        "保赚",
+        "保收益",
+        "保证收益",
+        "零风险",
+        "无风险",
+        "无亏损",
+        "翻倍",
+        "暴涨",
+        "暴利",
+        "暴富",
+        "一夜暴富",
+        "月入过万",
+        "日赚",
+        "躺赚",
+        "躺着赚钱",
+        "包赚",
+        "包中",
+        "包过",
+        "包中奖",
+        "高回报",
+        "稳定高收益"
+      ]
+    },
+    {
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "emoji": "🎓",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。",
+      "words": [
+        "保过",
+        "包过",
+        "必过",
+        "一次通过",
+        "100%通过",
+        "保录",
+        "保录取",
+        "保上岸",
+        "包上岸",
+        "不过退款",
+        "不过包赔",
+        "分数包"
+      ]
+    },
+    {
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "emoji": "🚫",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。",
+      "words": [
+        "限量秒杀",
+        "仅剩最后",
+        "最后一天",
+        "清仓价",
+        "内部价",
+        "特供",
+        "特批",
+        "特卖",
+        "纯天然",
+        "纯手工",
+        "纯进口",
+        "祖传秘方",
+        "祖传",
+        "宫廷秘方",
+        "御用",
+        "官方认证",
+        "国际认证",
+        "权威认证",
+        "专家认证",
+        "100%纯",
+        "99.9%"
+      ]
+    },
+    {
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "emoji": "😬",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。",
+      "words": [
+        "妈的",
+        "我靠",
+        "操蛋",
+        "草他",
+        "SB",
+        "sb",
+        "约炮",
+        "一夜情",
+        "包养",
+        "小三",
+        "nmsl",
+        "NMSL",
+        "mdzz",
+        "MDZZ"
+      ]
+    },
+    {
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "emoji": "🎯",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。",
+      "words": [
+        "抖音",
+        "快手",
+        "小红书",
+        "B站",
+        "bilibili",
+        "哔哩哔哩",
+        "视频号",
+        "公众号",
+        "微博",
+        "知乎",
+        "淘宝",
+        "京东",
+        "拼多多",
+        "天猫"
+      ]
+    },
+    {
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "emoji": "🎲",
+      "suggestion": "涉赌内容硬违禁，必须删除。",
+      "words": [
+        "赌博",
+        "赌场",
+        "六合彩",
+        "彩票",
+        "中奖",
+        "开奖",
+        "庄家",
+        "押注",
+        "赔率",
+        "返水",
+        "菠菜"
+      ]
+    },
+    {
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "emoji": "⛔",
+      "suggestion": "涉及违法内容硬违禁，必须删除。",
+      "words": [
+        "代开发票",
+        "代孕",
+        "非法贷款",
+        "黑中介",
+        "高仿",
+        "A货",
+        "一比一",
+        "1:1复刻",
+        "精仿",
+        "假证",
+        "办证",
+        "办理证件"
+      ]
+    }
+  ],
+  "entries": [
+    {
+      "word": "加微信",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "加v",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "加vx",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "加VX",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "加wx",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "加WX",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "+v",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "+V",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "威信",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "薇信",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "徽信",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "微❤️",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "WeChat",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "wechat",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "QQ",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "qq群",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "Q群",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "扣扣",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "联系方式",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "我的手机",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "打电话",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "电话是",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "私信我",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "私我",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "评论扣1",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "扣1",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "扣666",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "关注我然后",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "点主页",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "看简介",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "看置顶",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "添加下方",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "扫码添加",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "扫二维码",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "某宝",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "某东",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "某多多",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "淘宝搜",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "某书",
+      "category": "diversion",
+      "severity": "high",
+      "label": "导流引流",
+      "suggestion": "平台严禁站外导流，建议删除联系方式。引导关注可以用\"关注主页\"等替代。"
+    },
+    {
+      "word": "最好",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最佳",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最优",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最快",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最大",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最小",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最强",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最高",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最新",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最低",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最便宜",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最贵",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最先进",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最科学",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最受欢迎",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最具",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最有效",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最权威",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最领先",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最专业",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "最顶级",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "第一",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "第一名",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "第一品牌",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "唯一",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "独一无二",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "仅此一家",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "史无前例",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "前所未有",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "空前绝后",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "绝无仅有",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "国家级",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "国家认证",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "国家免检",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "国家保护",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "央视推荐",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "央视独家",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "央视级",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "顶级",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "顶尖",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "至尊",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "王牌",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "王者",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "巅峰",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "终极",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "极致",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "绝对",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "完全",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "永远",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "终身",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "百分百",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "100%",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "全网最",
+      "category": "absolute",
+      "severity": "medium",
+      "label": "绝对化用语（广告法禁用）",
+      "suggestion": "《广告法》明令禁止\"最\"\"第一\"\"国家级\"等绝对化用语。建议改成\"超好用\"\"备受好评\"\"行业领先\"等相对表述。"
+    },
+    {
+      "word": "根治",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "根除",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "治愈",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "痊愈",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "药到病除",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "包治",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "永不复发",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "无副作用",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "一次见效",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "药方",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "减肥神器",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "丰胸",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "壮阳",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "美白神器",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "速效",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "7天见效",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "三天减肥",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "一周瘦",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "整容级",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "换脸效果",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "整容般",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "延年益寿",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "长生",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "包治百病",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "神奇功效",
+      "category": "medical",
+      "severity": "high",
+      "label": "医疗夸大承诺",
+      "suggestion": "医疗、保健类产品不得宣称疗效或承诺结果。建议改成\"多人反馈\"\"用户体验\"等主观表达，或注明\"效果因人而异\"。"
+    },
+    {
+      "word": "稳赚",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "稳赢",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "稳赔",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "保本",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "保赚",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "保收益",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "保证收益",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "零风险",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "无风险",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "无亏损",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "翻倍",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "暴涨",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "暴利",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "暴富",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "一夜暴富",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "月入过万",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "日赚",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "躺赚",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "躺着赚钱",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "包赚",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "包中",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "包过",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "包中奖",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "高回报",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "稳定高收益",
+      "category": "finance",
+      "severity": "high",
+      "label": "金融承诺",
+      "suggestion": "投资理财类禁止承诺收益。建议删除\"稳赚\"\"保本\"等字眼，注明\"投资有风险\"。"
+    },
+    {
+      "word": "保过",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "包过",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "必过",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "一次通过",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "100%通过",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "保录",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "保录取",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "保上岸",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "包上岸",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "不过退款",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "不过包赔",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "分数包",
+      "category": "education",
+      "severity": "medium",
+      "label": "教育保过承诺",
+      "suggestion": "教育培训类禁止承诺通过或分数。建议改成\"历年通过率高\"\"高分学员较多\"等。"
+    },
+    {
+      "word": "限量秒杀",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "仅剩最后",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "最后一天",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "清仓价",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "内部价",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "特供",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "特批",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "特卖",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "纯天然",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "纯手工",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "纯进口",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "祖传秘方",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "祖传",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "宫廷秘方",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "御用",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "官方认证",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "国际认证",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "权威认证",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "专家认证",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "100%纯",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "99.9%",
+      "category": "false-claim",
+      "severity": "medium",
+      "label": "虚假宣传",
+      "suggestion": "避免无依据的声称。建议补充数据来源，或改成\"据用户反馈\"\"根据XX数据\"等可溯源表达。"
+    },
+    {
+      "word": "妈的",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "我靠",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "操蛋",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "草他",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "SB",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "sb",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "约炮",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "一夜情",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "包养",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "小三",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "nmsl",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "NMSL",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "mdzz",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "MDZZ",
+      "category": "vulgar",
+      "severity": "medium",
+      "label": "粗俗低俗",
+      "suggestion": "平台对低俗擦边内容会限流甚至封号，建议替换为中性表达。"
+    },
+    {
+      "word": "抖音",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "快手",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "小红书",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "B站",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "bilibili",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "哔哩哔哩",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "视频号",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "公众号",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "微博",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "知乎",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "淘宝",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "京东",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "拼多多",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "天猫",
+      "category": "cross-platform",
+      "severity": "low",
+      "label": "跨平台提及",
+      "suggestion": "在 A 平台文案里提到 B 平台名称（比如抖音内容里写\"小红书\"），平台会认为你引流走，容易被限流。建议替换为\"另一个平台\"\"某平台\"。"
+    },
+    {
+      "word": "赌博",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "赌场",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "六合彩",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "彩票",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "中奖",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "开奖",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "庄家",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "押注",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "赔率",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "返水",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "菠菜",
+      "category": "gambling",
+      "severity": "high",
+      "label": "博彩赌博",
+      "suggestion": "涉赌内容硬违禁，必须删除。"
+    },
+    {
+      "word": "代开发票",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "代孕",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "非法贷款",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "黑中介",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "高仿",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "A货",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "一比一",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "1:1复刻",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "精仿",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "假证",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "办证",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    },
+    {
+      "word": "办理证件",
+      "category": "illegal",
+      "severity": "high",
+      "label": "违法相关",
+      "suggestion": "涉及违法内容硬违禁，必须删除。"
+    }
+  ]
+}

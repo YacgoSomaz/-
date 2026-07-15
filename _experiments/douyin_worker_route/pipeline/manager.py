@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import shutil
 import sqlite3
@@ -23,9 +24,10 @@ from pathlib import Path
 
 from . import anchor_profiles, browser_cookies, config, license_manager, profile_watch
 from .audio_capture import record_room_muxer
-from .danmu_backend import create_fetcher, is_managed_status_backend
+from .danmu_backend import create_fetcher, is_managed_status_backend, normalized_backend
 from .douyin_sidecar_client import SidecarStatus
 from .event_sink import SqliteSink
+from .sidecar_runtime import ensure_running
 from .sensevoice_engine import SenseVoiceEngine
 from .speaker_worker import process_once as process_speakers_once
 from .runtime_health import ErrorRegistry, GlobalCooldown
@@ -61,6 +63,36 @@ WATCHDOG_RESTART_COOLDOWN_SEC = 150  # 同一房间两次强制重连的最小�
 def active_room_limit() -> int:
     """Return the signed cloud policy limit, falling back to the safe default."""
     return license_manager.policy_int("max_active_rooms", MAX_ACTIVE_ROOMS, minimum=1, maximum=50)
+
+
+def merge_live_anchor_metadata(
+    *,
+    current_name: str,
+    current_avatar: str,
+    live_name: str,
+    live_avatar: str,
+) -> tuple[str, str]:
+    """Merge untrusted live-connection display data without replacing identity.
+
+    A Douyin page/sidecar can expose the Cookie owner's profile alongside the
+    target room.  The resolved anchor identity is therefore authoritative once
+    it exists.  A connection may fill both fields only when the identity is
+    still blank, or fill a missing avatar when its returned name agrees with
+    the saved anchor name.  A name mismatch rejects the whole update so a
+    viewer avatar cannot be paired with the monitored anchor either.
+    """
+    saved_name = str(current_name or "").strip()
+    saved_avatar = str(current_avatar or "").strip()
+    reported_name = str(live_name or "").strip()
+    reported_avatar = str(live_avatar or "").strip()
+
+    if not saved_name:
+        return reported_name or saved_name, reported_avatar or saved_avatar
+    if not reported_name:
+        return saved_name, saved_avatar
+    if reported_name.casefold() != saved_name.casefold():
+        return saved_name, saved_avatar
+    return saved_name, reported_avatar or saved_avatar
 
 
 @dataclass
@@ -497,6 +529,7 @@ class RoomManager:
 
     def _danmu_loop(self, rid: str, stop: threading.Event) -> None:
         def _set(status: str, connected: bool, phase: str, next_retry_ts: int = 0) -> None:
+            completed_session: tuple[str, int, int] | None = None
             with self._lock:
                 st = self._rooms.get(rid)
                 if st is not None:
@@ -509,7 +542,11 @@ class RoomManager:
                         if st.recording_since == 0:
                             st.recording_since = int(time.time())
                     elif phase != "reconnecting":
+                        if st.recording_since:
+                            completed_session = (rid, st.recording_since, int(time.time()))
                         st.recording_since = 0
+            if completed_session is not None:
+                self._store.complete_session(*completed_session)
 
         def _backoff(base: float, jitter: float, status: str, phase: str) -> None:
             delay = base + random.uniform(0, jitter)
@@ -527,19 +564,21 @@ class RoomManager:
                         return
 
         def _update_metadata(nick: str, avatar: str) -> None:
-            nick = (nick or "").strip()
-            avatar = (avatar or "").strip()
-            if not nick and not avatar:
-                return
             changed = False
             with self._lock:
                 st = self._rooms.get(rid)
                 if st is not None:
-                    if nick and st.anchor_name != nick:
-                        st.anchor_name = nick
+                    next_name, next_avatar = merge_live_anchor_metadata(
+                        current_name=st.anchor_name,
+                        current_avatar=st.avatar_url,
+                        live_name=nick,
+                        live_avatar=avatar,
+                    )
+                    if st.anchor_name != next_name:
+                        st.anchor_name = next_name
                         changed = True
-                    if avatar and st.avatar_url != avatar:
-                        st.avatar_url = avatar
+                    if st.avatar_url != next_avatar:
+                        st.avatar_url = next_avatar
                         changed = True
             if changed:
                 self._save_rooms()
@@ -577,6 +616,33 @@ class RoomManager:
                     )
                     _wait_interruptible(min(remaining + 1, 60))
                     continue
+                if normalized_backend() == "sidecar":
+                    refresh = browser_cookies.auto_refresh(rid)
+                    if refresh.get("refreshed"):
+                        self.clear_risk_cooldown()
+                    if not refresh.get("ok"):
+                        _backoff(
+                            COOKIE_MISSING_BACKOFF_SEC,
+                            0,
+                            "等待用户完成抖音登录验证后再连接互动服务",
+                            "needs_verification",
+                        )
+                        continue
+                    sidecar_path = Path(str(os.environ.get("LIVEWATCH_SIDECAR_EXE") or ""))
+                    runtime = ensure_running(
+                        sidecar_path,
+                        config.DATA_DIR,
+                        live_id=rid,
+                        cookie_header=browser_cookies.cached_cookie_header(),
+                    )
+                    if not runtime.ok:
+                        _backoff(
+                            RECONNECT_BACKOFF_SEC,
+                            RECONNECT_JITTER_SEC,
+                            "本地互动服务暂不可用，正在重试",
+                            "reconnecting",
+                        )
+                        continue
                 if is_managed_status_backend():
                     fetcher = create_fetcher(
                         rid,
@@ -845,10 +911,13 @@ class RoomManager:
         return True
 
     def stop_room(self, rid: str) -> bool:
+        completed_session: tuple[str, int, int] | None = None
         with self._lock:
             st = self._rooms.get(rid)
             if st is None or not st.active:
                 return False
+            if st.recording_since:
+                completed_session = (rid, st.recording_since, int(time.time()))
             st.active = False
             if st.stop is not None:
                 st.stop.set()
@@ -856,6 +925,8 @@ class RoomManager:
             st.status = "停止中"
             st.phase = "stopping"
             st.next_retry_ts = 0
+        if completed_session is not None:
+            self._store.complete_session(*completed_session)
         return True
 
     def start_all(self) -> int:

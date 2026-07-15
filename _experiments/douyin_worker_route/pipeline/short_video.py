@@ -88,17 +88,7 @@ def _merge_unique_videos(*groups: list[dict[str, Any]] | tuple[dict[str, Any], .
 
 def _has_douyin_login_cookie(jar: dict[str, str] | None) -> bool:
     """判断当前 Cookie 是否像完整登录态；弱信任 Cookie 通常只能读主页首屏作品。"""
-    if not jar:
-        return False
-    login_keys = {
-        "sessionid",
-        "sessionid_ss",
-        "sid_guard",
-        "sid_tt",
-        "passport_csrf_token",
-        "passport_csrf_token_default",
-    }
-    return any(bool(jar.get(key)) for key in login_keys)
+    return browser_cookies.is_authenticated(jar)
 
 
 def _load_short_video_cookie_cache() -> tuple[dict[str, str], float]:
@@ -123,19 +113,18 @@ def _save_short_video_cookie_cache(jar: dict[str, str]) -> None:
 
 
 def _short_video_cookie_jar() -> dict[str, str]:
-    """短视频主页读取优先使用独立登录态，避免污染直播监听 Cookie。"""
-    jar, _ = _load_short_video_cookie_cache()
-    return jar or browser_cookies.cached_jar()
+    """All Douyin product modules reuse the one shared authorization jar."""
+    shared = browser_cookies.cached_jar()
+    legacy, _ = _load_short_video_cookie_cache()
+    if browser_cookies.is_authenticated(legacy) and not browser_cookies.is_authenticated(shared):
+        browser_cookies.store_shared_jar(legacy)
+        return legacy
+    return shared or legacy
 
 
 def short_video_cookie_status() -> dict[str, Any]:
-    jar, ts = _load_short_video_cookie_cache()
-    return {
-        "ok": bool(jar),
-        "has_login": _has_douyin_login_cookie(jar),
-        "cookie_count": len(jar),
-        "minted_ts": int(ts) if ts else 0,
-    }
+    _short_video_cookie_jar()  # one-time migration from the legacy short-video cache
+    return browser_cookies.shared_status()
 
 
 def remint_short_video_cookie(start_url: str | None = None, *, timeout_sec: int = 180) -> dict[str, Any]:
@@ -150,6 +139,7 @@ def remint_short_video_cookie(start_url: str | None = None, *, timeout_sec: int 
     if "douyin.com" not in target:
         target = "https://www.douyin.com/"
     existing = _short_video_cookie_jar()
+    existing_verified = bool(browser_cookies.shared_status().get("has_login"))
     with sync_playwright() as p:
         browser = None
         for launch_kwargs in ({"channel": "msedge"}, {}):
@@ -166,7 +156,7 @@ def remint_short_video_cookie(start_url: str | None = None, *, timeout_sec: int 
                 viewport={"width": 1360, "height": 900},
                 locale="zh-CN",
             )
-            if existing:
+            if existing and existing_verified:
                 ctx.add_cookies([
                     {"name": k, "value": v, "domain": ".douyin.com", "path": "/"}
                     for k, v in existing.items()
@@ -192,6 +182,8 @@ def remint_short_video_cookie(start_url: str | None = None, *, timeout_sec: int 
             if not jar.get("ttwid"):
                 return {"ok": False, "message": "没有取得抖音 Cookie，请在弹出的窗口完成登录后重试。"}
             _save_short_video_cookie_cache(jar)
+            browser_cookies.store_shared_jar(jar)
+            has_login = browser_cookies.mark_login_verified(jar) if has_login else False
             return {
                 "ok": True,
                 "has_login": has_login,
@@ -1255,18 +1247,17 @@ def _scroll_until_enough(page: Any, count: int) -> None:
 def _scroll_profile_page(page: Any, target: int) -> int:
     """向下滚动主页和内部滚动容器，触发抖音继续加载作品卡片。"""
     try:
-        page.mouse.move(960, 1040)
-        # 连续小步滚动比一次性拉到底更容易触发 IntersectionObserver。
-        for _ in range(3):
-            page.mouse.wheel(0, 760)
-            page.wait_for_timeout(120)
-        page.keyboard.press("PageDown")
+        # 每轮只推进一屏左右，留出时间让瀑布流的 IntersectionObserver
+        # 请求下一批作品；一次猛拉到底容易只停在首屏约 20 条。
+        page.mouse.move(960, 900)
+        page.mouse.wheel(0, 560)
+        page.wait_for_timeout(180)
     except Exception:  # noqa: BLE001
         pass
     try:
         return int(page.evaluate(
             """(target) => {
-              const step = Math.max(760, Math.floor(window.innerHeight * 0.74));
+              const step = Math.max(520, Math.floor(window.innerHeight * 0.58));
               const links = Array.from(document.querySelectorAll('a[href*="/video/"],a[href*="/note/"]'))
                 .filter(a => !/source=Baiduspider/i.test(a.href || ''));
               const last = links[links.length - 1];
@@ -1290,26 +1281,16 @@ def _scroll_profile_page(page: Any, target: int) -> int:
                 document.body,
                 ...Array.from(document.querySelectorAll('main, section, [class*="scroll"], [class*="Scroll"], [class*="route-scroll"], [class*="list"], [class*="List"], [class*="waterfall"], [class*="Waterfall"], [data-e2e]'))
               ].filter(Boolean);
-              const seen = new Set();
-              for (const el of candidates) {
-                if (seen.has(el)) continue;
-                seen.add(el);
-                const canScroll = el.scrollHeight > el.clientHeight + 80;
-                if (canScroll) {
-                  for (let i = 0; i < 3; i += 1) {
-                    const nextTop = Math.min(el.scrollHeight - el.clientHeight, el.scrollTop + step);
-                    el.scrollTop = nextTop;
-                    el.dispatchEvent(new Event('scroll', {bubbles:true}));
-                    el.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles:true, cancelable:true}));
-                  }
-                  el.dispatchEvent(new Event('scroll', {bubbles:true}));
-                  el.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles:true, cancelable:true}));
-                }
+              const panel = candidates.find(el => el.scrollHeight > el.clientHeight + 80);
+              if (panel) {
+                const nextTop = Math.min(panel.scrollHeight - panel.clientHeight, panel.scrollTop + step);
+                panel.scrollTop = nextTop;
+                panel.dispatchEvent(new Event('scroll', {bubbles:true}));
+                panel.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles:true, cancelable:true}));
               }
-              window.scrollBy(0, step * 2);
+              window.scrollBy(0, step);
               window.dispatchEvent(new Event('scroll'));
               window.dispatchEvent(new WheelEvent('wheel', {deltaY: step, bubbles:true, cancelable:true}));
-              if (last && last.scrollIntoView) last.scrollIntoView({block:'end', inline:'nearest'});
               const cards = Array.from(document.querySelectorAll('a[href*="/video/"],a[href*="/note/"]'))
                 .filter(a => {
                   const href = a.href || '';
@@ -1336,7 +1317,8 @@ def _replace_query(url: str, updates: dict[str, str]) -> str:
 
 
 def _fetch_aweme_post_page(page: Any, url: str, cursor: str) -> dict[str, Any]:
-    next_url = _replace_query(url, {"max_cursor": cursor, "count": "18"})
+    # 一次取完整批次，减少二次请求恰好被限流后只留下 20 多条作品的概率。
+    next_url = _replace_query(url, {"max_cursor": cursor, "count": "35"})
     data = page.evaluate(
         """async (u) => {
           const r = await fetch(u, {

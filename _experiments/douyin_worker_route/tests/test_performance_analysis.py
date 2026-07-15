@@ -90,6 +90,58 @@ def _patch_storage(monkeypatch, tmp_path):
     pa.config.AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def test_performance_list_hides_unregistered_history_and_uses_registered_profile(monkeypatch):
+    """Old database rooms must not impersonate the currently registered account."""
+    pa._SUMMARY_CACHE.clear()
+    calls = []
+    monkeypatch.setattr(pa.export, "room_display_names", lambda: {"legacy": "旧库昵称", "current": "陈旧昵称"})
+    monkeypatch.setattr(
+        pa.export,
+        "configured_room_profiles",
+        lambda: {"current": {"anchor_name": "当前账号", "avatar_url": "/api/avatars/current", "source_url": "https://live.douyin.com/current"}},
+    )
+    monkeypatch.setattr(pa.export, "export_room_ids", lambda: ["legacy", "current"])
+
+    def fake_bundles(rid, nickname):
+        calls.append((rid, nickname))
+        return [(rid, nickname)]
+
+    monkeypatch.setattr(pa, "_bundles_for_room", fake_bundles)
+    monkeypatch.setattr(
+        pa,
+        "_build_from_bundle",
+        lambda bundle, *, include_detail, profile: {
+            "rid": bundle[0],
+            "anchor_name": bundle[1],
+            "avatar_url": profile.get("avatar_url", ""),
+            "analysis_status": "done",
+            "overall_score": 80,
+            "metrics": {"danmu_count": 0},
+        },
+    )
+
+    rows = pa.list_session_summaries()
+
+    assert calls == [("current", "当前账号")]
+    assert rows == [{"rid": "current", "anchor_name": "当前账号", "avatar_url": "/api/avatars/current", "analysis_status": "done", "overall_score": 80, "metrics": {"danmu_count": 0}}]
+
+
+def test_performance_list_error_row_keeps_registered_profile_name(monkeypatch):
+    pa._SUMMARY_CACHE.clear()
+    monkeypatch.setattr(
+        pa.export,
+        "configured_room_profiles",
+        lambda: {"current": {"anchor_name": "当前账号", "source_url": "https://live.douyin.com/current"}},
+    )
+    monkeypatch.setattr(pa, "_bundles_for_room", lambda *_args: (_ for _ in ()).throw(RuntimeError("坏数据")))
+
+    rows = pa.list_session_summaries()
+
+    assert len(rows) == 1
+    assert rows[0]["anchor_name"] == "当前账号"
+    assert "坏数据" in rows[0]["analysis_status_text"]
+
+
 def _metric(
     *,
     peak_online: int = 50,
@@ -271,9 +323,32 @@ def test_performance_detail_includes_sensitive_word_review(monkeypatch, tmp_path
     result = pa.build_session_analysis("1001")
 
     assert result["sensitive_total"] >= 2
-    assert any(row["term"] == "官方" for row in result["sensitive_top_terms"])
+    assert any(row["term"] == "官方认证" for row in result["sensitive_top_terms"])
     assert result["sensitive_summary"]["samples"][0]["source"] == "主播话术"
     assert "复核" in result["sensitive_summary"]["samples"][0]["context_status"] or result["sensitive_summary"]["samples"][0]["context_status"] == "语境较明确"
+
+
+def test_high_risk_operational_lexicon_hits_are_included_in_report_risk_evidence(monkeypatch, tmp_path):
+    _patch_storage(monkeypatch, tmp_path)
+    bundle = _bundle()
+    bundle.transcripts[0] = export.TranscriptRow(
+        room_id="1001",
+        segment_ts=bundle.transcripts[0].segment_ts,
+        duration_sec=bundle.transcripts[0].duration_sec,
+        text="直播间扫码添加，稳赚不赔。",
+        char_count=14,
+        mp3_name="1001/seq00001.mp3",
+        capture_start=bundle.transcripts[0].capture_start,
+        capture_end=bundle.transcripts[0].capture_end,
+        speaker_label="speaker_A",
+    )
+    monkeypatch.setattr(pa.export, "build_bundle", lambda rid, nick="", **_kwargs: bundle)
+    monkeypatch.setattr(pa.export, "room_display_names", lambda: {"1001": "测试主播"})
+
+    result = pa.build_session_analysis("1001")
+
+    assert {row["risk_type"] for row in result["risk_segments"]} >= {"导流引流", "金融承诺"}
+    assert all("建议" in row["suggestion"] or "删除" in row["suggestion"] for row in result["risk_segments"])
 
 
 def test_list_summary_does_not_build_reference_metrics(monkeypatch, tmp_path):
@@ -282,7 +357,11 @@ def test_list_summary_does_not_build_reference_metrics(monkeypatch, tmp_path):
     monkeypatch.setattr(pa.export, "export_room_ids", lambda: ["1001"])
     monkeypatch.setattr(pa.export, "build_bundle", lambda rid, nick="", **_kwargs: bundle)
     monkeypatch.setattr(pa.export, "room_display_names", lambda: {"1001": "测试主播"})
-    monkeypatch.setattr(pa.export, "configured_room_profiles", lambda: {})
+    monkeypatch.setattr(
+        pa.export,
+        "configured_room_profiles",
+        lambda: {"1001": {"anchor_name": "测试主播", "source_url": "https://live.douyin.com/1001"}},
+    )
 
     def fail_reference(*_args, **_kwargs):
         raise AssertionError("列表页不应该计算同批参考指标")
@@ -377,7 +456,11 @@ def test_performance_sessions_are_split_by_day(monkeypatch, tmp_path):
     monkeypatch.setattr(pa.export, "export_room_ids", lambda: ["1001"])
     monkeypatch.setattr(pa.export, "build_bundle", fake_build_bundle)
     monkeypatch.setattr(pa.export, "room_display_names", lambda: {"1001": "测试主播"})
-    monkeypatch.setattr(pa.export, "configured_room_profiles", lambda: {})
+    monkeypatch.setattr(
+        pa.export,
+        "configured_room_profiles",
+        lambda: {"1001": {"anchor_name": "测试主播", "source_url": "https://live.douyin.com/1001"}},
+    )
 
     rows = pa.list_session_summaries()
 

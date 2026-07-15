@@ -15,9 +15,13 @@ def managed(tmp: str):
     add_pending/_save_pending hit the tmp paths, never the real data dir."""
     rooms_path = Path(tmp) / "rooms.json"
     pending_path = Path(tmp) / "pending_anchors.json"
+    profile_path = Path(tmp) / "anchor_profiles.json"
+    avatar_dir = Path(tmp) / "avatar_cache"
     with (
         patch("pipeline.manager.ROOMS_JSON", rooms_path),
         patch("pipeline.manager.PENDING_JSON", pending_path),
+        patch("pipeline.anchor_profiles.config.ANCHOR_PROFILE_CACHE", profile_path),
+        patch("pipeline.anchor_profiles.config.AVATAR_CACHE_DIR", avatar_dir),
         patch("pipeline.manager.config.ensure_dirs"),
         patch("pipeline.manager.SqliteSink"),
         patch("pipeline.manager.TranscriptStore"),
@@ -83,6 +87,9 @@ class PendingAnchorTests(unittest.TestCase):
             self.assertEqual(mgr._rooms["998877"].sec_user_id, "MS4wSEC1")
             self.assertEqual(mgr._rooms["998877"].anchor_name, "开播实名")
             start.assert_called_once_with("998877")
+            profile_path = Path(tmp) / "anchor_profiles.json"
+            self.assertTrue(profile_path.exists())
+            self.assertEqual(json.loads(profile_path.read_text(encoding="utf-8"))["998877"]["anchor_name"], "开播实名")
 
     def test_offline_keeps_pending_and_schedules_recheck(self) -> None:
         with tempfile.TemporaryDirectory() as tmp, managed(tmp) as mgr:

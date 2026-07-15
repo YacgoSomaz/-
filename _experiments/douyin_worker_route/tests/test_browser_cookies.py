@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from pipeline import browser_cookies
@@ -40,6 +42,24 @@ class BrowserCookieTests(unittest.TestCase):
 
         self.assertEqual(jar, {"ttwid": "old"})
         mint.assert_not_called()
+
+    def test_shared_status_requires_a_manually_verified_session_for_all_modules(self) -> None:
+        original_state_path = getattr(browser_cookies.config, "DOUYIN_LOGIN_STATE_JSON", None)
+        with TemporaryDirectory() as tmp:
+            browser_cookies.config.DOUYIN_LOGIN_STATE_JSON = Path(tmp) / "douyin_login_state.json"
+            browser_cookies._jar = {"ttwid": "trust", "sessionid": "shared-session"}
+            browser_cookies._minted_at = 200
+
+            unverified = browser_cookies.shared_status()
+            browser_cookies.mark_login_verified(browser_cookies._jar)
+            status = browser_cookies.shared_status()
+
+            self.assertFalse(unverified["has_login"])
+            self.assertTrue(status["has_login"])
+            self.assertEqual(status["cookie_count"], 2)
+            self.assertEqual(status["browser"], "msedge")
+        if original_state_path is not None:
+            browser_cookies.config.DOUYIN_LOGIN_STATE_JSON = original_state_path
 
     def test_auto_refresh_mints_once_when_cookie_is_expired(self) -> None:
         with (

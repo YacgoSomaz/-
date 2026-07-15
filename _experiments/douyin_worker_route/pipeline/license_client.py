@@ -127,6 +127,8 @@ def activate_card_key(card_key: str, *, server_url: str | None = None, post: Pos
             "card_key": value,
             "device_hash": license_manager.current_device_hash(),
             "app_version": config.LICENSE_APP_VERSION,
+            # The server rejects a card created for another desktop product.
+            "product_code": config.LICENSE_PRODUCT_CODE,
         },
         signing_secret=value,
     )
@@ -145,6 +147,7 @@ def refresh_license(*, post: Post = requests.post) -> dict[str, Any]:
                 "refresh_token": str(package.get("refresh_token") or ""),
                 "device_hash": license_manager.current_device_hash(),
                 "app_version": config.LICENSE_APP_VERSION,
+                "product_code": config.LICENSE_PRODUCT_CODE,
             },
             signing_secret=str(package.get("refresh_token") or ""),
         )

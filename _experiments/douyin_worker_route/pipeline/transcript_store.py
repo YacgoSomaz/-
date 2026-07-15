@@ -48,6 +48,17 @@ CREATE INDEX IF NOT EXISTS idx_recording_timeline_room_time
     ON recording_timeline(room_id, capture_start);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_recording_timeline_room_seq
     ON recording_timeline(room_id, seq) WHERE seq IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS recording_sessions (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_id    TEXT NOT NULL,
+    started_ts INTEGER NOT NULL,
+    ended_ts   INTEGER NOT NULL,
+    created_ts INTEGER NOT NULL,
+    UNIQUE(room_id, started_ts)
+);
+CREATE INDEX IF NOT EXISTS idx_recording_sessions_room_end
+    ON recording_sessions(room_id, ended_ts DESC);
 """
 
 
@@ -197,6 +208,26 @@ class TranscriptStore:
             self._conn.commit()
             return int(cur.lastrowid)
 
+    def complete_session(self, room_id: str, started_ts: int, ended_ts: int) -> None:
+        """Persist the exact boundary of a completed recording session.
+
+        Repeated stop/offline signals are idempotent.  Keeping this boundary
+        separate from individual media segments prevents later workbench reads
+        from merging two broadcasts that happen to use the same room id.
+        """
+        start = int(started_ts or 0)
+        end = int(ended_ts or 0)
+        if not room_id or start <= 0 or end <= start:
+            return
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO recording_sessions (room_id, started_ts, ended_ts, created_ts) "
+                "VALUES (?, ?, ?, ?) ON CONFLICT(room_id, started_ts) DO UPDATE SET "
+                "ended_ts = MAX(recording_sessions.ended_ts, excluded.ended_ts)",
+                (str(room_id), start, end, int(time.time())),
+            )
+            self._conn.commit()
+
     def max_seq(self, room_id: str) -> int:
         with self._lock:
             cur = self._conn.execute(
@@ -299,7 +330,7 @@ class TranscriptStore:
     def clear_all(self) -> None:
         """清空所有转写与录制台账（一键清除数据用）。库文件保留，只删行。"""
         with self._lock:
-            for table in ("transcripts", "recording_timeline"):
+            for table in ("transcripts", "recording_timeline", "recording_sessions"):
                 try:
                     self._conn.execute(f"DELETE FROM {table}")
                 except sqlite3.Error:

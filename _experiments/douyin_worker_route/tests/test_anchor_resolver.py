@@ -296,6 +296,39 @@ class DegradationTests(unittest.TestCase):
 
         self.assertEqual(result.anchor_name, "真实主播")
 
+    def test_room_anchor_metadata_never_uses_logged_in_cookie_account(self):
+        page = (
+            '{"nickname":"登录Cookie账号","sec_user_id":"MS4wLOGIN_ACCOUNT",'
+            '"avatar_thumb":{"url_list":["https://p.test/login.jpeg"]},'
+            '"roomStore":{"roomInfo":{"room":{"status":2},'
+            '"anchor":{"nickname":"目标主播","sec_user_id":"MS4wTARGET_ANCHOR",'
+            '"avatar_thumb":{"url_list":["https://p.test/anchor.jpeg"]}}}}}'
+        )
+        session = FakeSession({"https://live.douyin.com/555": FakeResponse(text=page)})
+
+        result = resolve_anchor("https://live.douyin.com/555", session=session)
+
+        self.assertEqual(result.anchor_name, "目标主播")
+        self.assertEqual(result.sec_user_id, "MS4wTARGET_ANCHOR")
+        self.assertEqual(result.avatar_url, "https://p.test/anchor.jpeg")
+
+    def test_profile_link_metadata_must_match_the_profile_sec_user_id(self):
+        target_url = "https://www.douyin.com/user/MS4wTARGET_PROFILE"
+        page = (
+            '{"webRid":"59288147052","nickname":"登录Cookie账号","sec_user_id":"MS4wLOGIN_ACCOUNT",'
+            '"avatar_thumb":{"url_list":["https://p.test/login.jpeg"]},'
+            '"user":{"nickname":"目标主页主播","sec_user_id":"MS4wTARGET_PROFILE",'
+            '"avatar_thumb":{"url_list":["https://p.test/profile.jpeg"]}}}'
+        )
+        session = FakeSession({target_url: FakeResponse(text=page)})
+
+        result = resolve_anchor(target_url, session=session)
+
+        self.assertEqual(result.anchor_name, "目标主页主播")
+        self.assertEqual(result.sec_user_id, "MS4wTARGET_PROFILE")
+        self.assertEqual(result.avatar_url, "https://p.test/profile.jpeg")
+        self.assertIsNone(result.web_id)
+
 
 class BadInputTests(unittest.TestCase):
     def test_empty_input_raises(self):
