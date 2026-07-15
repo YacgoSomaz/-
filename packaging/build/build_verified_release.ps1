@@ -23,12 +23,15 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = (Resolve-Path (Join-Path $ScriptDir '..\..')).Path
 $BuildScript = Join-Path $ScriptDir 'build_release.ps1'
 $ReleaseScanner = Join-Path $ScriptDir 'check_release.ps1'
+$VersionGuard = Join-Path $ScriptDir 'version_guard.ps1'
 $Staging = Join-Path $RepoRoot 'staging\LiveWatch'
 $ReleaseDir = Join-Path $RepoRoot 'release'
 
 if ($Version -notmatch '^\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z.-]+)?$') {
     throw 'Version 必须是例如 1.0.13 的版本号。'
 }
+& pwsh -NoProfile -File $VersionGuard -Version $Version
+if ($LASTEXITCODE -ne 0) { throw '版本预检失败，已在耗时编译前停止。' }
 if ($AccountApiUrl -notmatch '^https://[^/\s]+(?:/[^\s]*)?$') {
     throw 'AccountApiUrl 必须是 HTTPS 地址。'
 }

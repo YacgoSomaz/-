@@ -173,7 +173,8 @@ else:
     LICENSE_PUBLIC_KEY = os.environ.get(f"{_LICENSE_ENV_PREFIX}_LICENSE_PUBLIC_KEY", license_runtime.LICENSE_PUBLIC_KEY).strip()
     LICENSE_SERVER_URL = os.environ.get(f"{_LICENSE_ENV_PREFIX}_LICENSE_SERVER_URL", license_runtime.LICENSE_SERVER_URL).strip().rstrip("/")
 LICENSE_REQUEST_TIMEOUT_SEC = max(3.0, float(os.environ.get("LIVEWATCH_LICENSE_REQUEST_TIMEOUT_SEC", "12")))
-LICENSE_APP_VERSION = os.environ.get("LIVEWATCH_APP_VERSION", "1.0.0").strip() or "1.0.0"
+_RUNTIME_APP_VERSION = str(getattr(license_runtime, "LICENSE_APP_VERSION", "") or "").strip()
+LICENSE_APP_VERSION = os.environ.get("LIVEWATCH_APP_VERSION", _RUNTIME_APP_VERSION or "1.0.0").strip() or "1.0.0"
 LICENSE_REFRESH_INTERVAL_SEC = max(60, int(os.environ.get("LIVEWATCH_LICENSE_REFRESH_INTERVAL_SEC", "600")))
 LICENSE_CLOCK_ROLLBACK_TOLERANCE_SEC = max(
     60,
