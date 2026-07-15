@@ -39,7 +39,7 @@
 # 前置：Python 3.13（建议）+ PyInstaller + Nuitka + Node + Inno Setup 6
 python -m pip install -r packaging\build\requirements-build.txt
 
-# 最简单：双击该 BAT，输入 1.1.15 或更高版本
+# 最简单：双击该 BAT；脚本读取线上版本并自动构建下一修订号
 packaging\build\一键打包复盘虾.bat
 
 # 等价的非交互正式构建；两项都是公钥，不能相同，也不能填私钥
@@ -68,6 +68,9 @@ pwsh -File packaging\build\smoke_test.ps1
 正式入口会先访问线上签名更新接口并逐段比较版本号，只有输入版本严格高于线上版本才开始耗时编译。
 例如线上是 `1.1.14` 时，`1.0.17` 仍然更低，必须输入 `1.1.15` 或提升主 / 次版本。构建输入会固化到
 商业包的 `license_runtime.py`，安装后由更新器和界面共同读取，不依赖临时环境变量。
+
+双击一键 BAT 时无需输入版本：脚本按线上版本自动递增最后一段，例如 `1.1.14 → 1.1.15`，然后正式构建层
+再次联网校验。直接调用 `build_verified_release.ps1` 时仍可显式指定版本，适合需要提升主版本或次版本的发布。
 
 ## 官方下载页与校验安装
 

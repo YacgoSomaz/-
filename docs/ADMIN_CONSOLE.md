@@ -7,7 +7,7 @@
 该页面包含两个 Tab：
 
 - **版本发布**：OSS 直传、服务器复核 SHA-256、创建草稿、签名发布和撤回。
-- **会员授权**：按已注册手机号为复盘虾、漫剧虾、运营虾开通或延长指定天数的会员权限。
+- **会员授权**：按已注册手机号为复盘虾、漫剧虾、运营虾开通、延长或立即停用指定产品的会员权限。
 
 ## 安全边界
 
@@ -19,7 +19,7 @@
 4. 写请求 `Origin` 必须严格等于 `https://anyq.site`；
 5. 手机号、产品白名单和有效期全部由服务端校验；
 6. SQL 使用参数化语句，产品名称、价格和权益从服务端 `PAYMENT_PLANS` 取得；
-7. 每次写入 `admin_product_grants` 审计表，记录管理员、目标用户、产品、授权天数、原到期时间和新到期时间。
+7. 每次写入 `admin_product_grants` 审计表，记录管理员、目标用户、产品、动作、授权天数、原到期时间和新到期时间。
 
 管理密码、session、签名私钥和短信配置不得进入网页、URL、日志或本仓库。
 
@@ -31,12 +31,15 @@
 - 当前权益仍有效时，从原到期时间继续顺延；已过期或未开通时，从服务器当前时间起算。
 - 写入仍落到 `user_products`，客户端下一次登录或刷新签名权益包后生效。
 - 人工授权不会生成支付订单，也不能伪装成微信支付成功。
+- “立即停用”只允许操作当前生效中的已有产品，直接把 `user_products.expires_at` 更新为服务器时间，不删除购买与审计历史。
+- 服务端数据库立即生效；已经签给客户端的短时 `account_license` 最长约 600 秒后失效，客户端重新登录或刷新权益可立即得到过期状态。
 
 ## 接口
 
 ```text
 GET  /api/v1/admin/memberships?phone=<11位手机号>
 POST /api/v1/admin/memberships/grant
+POST /api/v1/admin/memberships/expire
 ```
 
 写入请求示例仅说明字段，不代表客户端可调用：
@@ -49,11 +52,22 @@ POST /api/v1/admin/memberships/grant
 }
 ```
 
+停用请求只接受白名单产品：
+
+```json
+{
+  "phone": "13800138000",
+  "product_ids": ["comic_shrimp"]
+}
+```
+
 ## 生产部署记录
 
 - 服务目录：`/home/ubuntu/recharge-api`
 - 进程：PM2 `recharge-api`
-- 2026-07-15 本次部署备份：`/home/ubuntu/recharge-api/backups/20260715211315`
+- 2026-07-15 会员开通部署备份：`/home/ubuntu/recharge-api/backups/20260715211315`
+- 2026-07-15 手机号校验热修备份：`/home/ubuntu/recharge-api/backups/20260715215504`
+- 2026-07-15 权益停用部署备份：`/home/ubuntu/recharge-api/backups/20260715215938`
 - 部署后验证：公网后台返回 200；会员授权 Tab 与手机号输入存在；健康检查正常；未登录查询和授权均返回 401。
 
 远端服务源码不属于复盘虾 Git 仓库。`.tmp-recharge-api/` 只是被忽略的本机部署快照；下一位接手者修改前必须先从生产服务器读取当前文件并生成新备份，不能用旧快照覆盖生产。
@@ -68,3 +82,4 @@ POST /api/v1/admin/memberships/grant
 | 手机号未注册 | 让用户先在任一客户端完成一次验证码登录 |
 | 开通后客户端仍无权限 | 客户端是否刷新 `account_license`；产品 ID、权益名和 `aud` 是否匹配 |
 | 重复开通时间异常 | 检查 `user_products.expires_at` 和 `admin_product_grants` 审计记录 |
+| 停用后客户端短时间仍显示会员 | 让客户端刷新权益或重新登录；已有签名快照最长约 600 秒自然失效 |

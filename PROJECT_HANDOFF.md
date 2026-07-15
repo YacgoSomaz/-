@@ -55,6 +55,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 历史构建产物 `release/LiveWatchSetup_1.0.15.exe`（SHA-256 `9e3e8bd019e2730df90a304251ae9cdee595a7c63f06e2571ea8d4e384547cd3`，322.60 MB）最早引入 WSS sidecar，但它低于当前线上版本并缺少之后完成的主播身份 / 工作台修复，已废弃，不得发布。
 - 2026-07-15 实测线上 `replay_shrimp` 签名更新通道返回 `1.1.14`：URL `https://download.anyq.site/replay-shrimp/1.1.14/LiveWatchSetup_1.1.14.exe`，SHA-256 `4d41794c77049d5e5e84e25a0f731f05fa81fb7bfaf5ef82174fcc3bc65fe133`，大小 `261169156` 字节。下一次商业构建固定使用 `1.1.15` 或更高。
 - 2026-07-15 修复正式包运行时忽略编译版本、回退显示 `1.0.0` 的问题；`build_verified_release.ps1` 现会在耗时编译前调用 `version_guard.ps1`，拒绝不高于线上版本的输入。注意 `1.0.17 < 1.1.14`，不能把最后一段较大误认为整体版本较新。
+- 一键 BAT 已进一步改为自动读取线上版本并递增最后一段，不再让运营人员手输版本；需要提升主 / 次版本时才直接调用正式 PowerShell 构建入口。
 - 左侧“直播工作台”现为折叠分组，不是独立功能页；其二级固定为“实时监控”（`liveConsole`）、“直播效能”（`pre`）和“AI直播复盘”（`review`）。切换到任一子页会保持分组展开。
 - `liveConsole` 已接入真实本机数据：`GET /api/live-workbench` 返回正在录制场次和最近完成场次，并以独立 `session_id` 选择。停止录制后不得清空工作台；`recording_sessions` 保存新场次的精确边界，升级前历史从 `recording_timeline` 推断。稳定转写、在线数、每分钟弹幕、录制时长、事件数和高频问题都只能落在所选场次起止时间内。
 - `GET /api/live-preview/{rid}` 为工作台提供视频预览：进行中场次选取当前房间稳定封口的 MP4；历史场次额外使用 `session_start` / `session_end` 限定文件时间窗。无历史录像时仍必须展示话术和互动记录。现有分段时长为 60 秒，故录制中的首帧/刷新可能最多延迟约 60 秒；这不是额外平台拉流，禁止为了预览再起第二条 ffmpeg 或平台浏览器请求。
@@ -86,6 +87,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 增加一次性 `web_handoff`，客户端可安全跳转官网续费，票据仅 60 秒、单次消费，且只在 URL fragment 中短暂出现。
 - 新增并冻结 `docs/ACCOUNT_PRODUCT_CONTRACT.md`：三产品 ID、价格、权益、`user_products`、付款回调、签名字段与团队改动边界以该文件为唯一规范。
 - 产品管理后台已新增“会员授权” Tab：只允许管理员二次解锁后为已注册手机号开通指定产品，所有写入进入 `user_products` 并记录 `admin_product_grants`；接口和排错见 `docs/ADMIN_CONSOLE.md`。
+- 同一 Tab 现可“立即停用”单个生效中产品：数据库立刻过期且写入 `action=expire` 审计；既有客户端签名快照最长约 600 秒失效。手机号前端校验转义错误已在生产修复。
 
 **状态：复盘虾已完成验签与跨产品拒绝测试；三个产品的远端 `user_products`、官网套餐和支付链路已部署。仍需分别做三个正式安装包的登录、续费、过期和跨产品端到端验收。**
 
