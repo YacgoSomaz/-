@@ -1,8 +1,9 @@
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$Version,
+    [string]$Version = '',
     [string]$PublishedVersion = '',
-    [string]$Endpoint = 'https://anyq.site/api/v1/releases/latest?product_id=replay_shrimp'
+    [string]$Endpoint = 'https://anyq.site/api/v1/releases/latest?product_id=replay_shrimp',
+    [switch]$NextVersion
 )
 
 $ErrorActionPreference = 'Stop'
@@ -34,6 +35,20 @@ function Compare-ReleaseVersion {
     return 0
 }
 
+function Get-NextReleaseVersion {
+    param([Parameter(Mandatory)][string]$Value)
+    $core = ($Value -split '[-+]', 2)[0]
+    if ($core -notmatch '^\d+(?:\.\d+){1,3}$') {
+        throw "版本号格式无效: $Value"
+    }
+    $parts = [System.Collections.Generic.List[int64]]::new()
+    foreach ($part in $core.Split('.')) { $parts.Add([int64]$part) }
+    while ($parts.Count -lt 3) { $parts.Add(0) }
+    $lastIndex = $parts.Count - 1
+    $parts[$lastIndex] += 1
+    return ($parts -join '.')
+}
+
 function Get-PublishedReleaseVersion {
     param([Parameter(Mandatory)][string]$Uri)
     try {
@@ -61,6 +76,15 @@ function Get-PublishedReleaseVersion {
 
 if ([string]::IsNullOrWhiteSpace($PublishedVersion)) {
     $PublishedVersion = Get-PublishedReleaseVersion -Uri $Endpoint
+}
+
+if ($NextVersion) {
+    Write-Output (Get-NextReleaseVersion -Value $PublishedVersion)
+    return
+}
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    throw '必须提供 Version，或使用 NextVersion 自动生成下一版本。'
 }
 
 if ((Compare-ReleaseVersion -Left $Version -Right $PublishedVersion) -le 0) {
