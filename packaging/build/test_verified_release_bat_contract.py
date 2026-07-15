@@ -29,10 +29,12 @@ class VerifiedReleaseBatContractTests(unittest.TestCase):
         self.assertIn("Start-Transcript -LiteralPath $logPath -Force", source)
         self.assertNotIn('exit $exitCode', source)
 
-    def test_interactive_script_collects_the_version_inside_powershell(self):
+    def test_interactive_script_automatically_uses_the_next_online_version(self):
         source = PROMPT.read_text(encoding='utf-8-sig')
-        self.assertIn("Read-Host 'Enter version", source)
-        self.assertIn('next build: 1.1.15', source)
+        self.assertIn("-NextVersion", source)
+        self.assertIn("version_guard.ps1", source)
+        self.assertNotIn("Read-Host 'Enter version", source)
+        self.assertNotIn('next build: 1.1.15', source)
         self.assertIn('$env:LIVEWATCH_BUILD_VERSION = $version', source)
         self.assertIn('& $runnerPath', source)
 
