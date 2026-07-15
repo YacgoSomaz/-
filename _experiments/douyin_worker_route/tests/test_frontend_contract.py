@@ -86,6 +86,13 @@ def test_update_ui_only_blocks_when_the_signed_release_requires_an_upgrade() -> 
     assert "安装向导已启动" in html
 
 
+def test_visible_version_labels_use_the_runtime_update_state() -> None:
+    html = FRONTEND.read_text(encoding="utf-8")
+    assert "直播复盘侠 v1.0.0" not in html
+    assert "updateState.current_version||'1.0.0'" not in html
+    assert "updateState.current_version||'—'" in html
+
+
 def test_account_login_uses_a_dedicated_modal_instead_of_an_inline_settings_form() -> None:
     html = FRONTEND.read_text(encoding="utf-8")
     assert 'class="account-trigger"' in html
