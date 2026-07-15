@@ -11,5 +11,5 @@ def test_frozen_launcher_smoke_test_isolates_local_app_data() -> None:
     assert "$originalLocalAppData" in SMOKE
     assert "$isolatedLocalAppData" in SMOKE
     assert '$env:LOCALAPPDATA = $isolatedLocalAppData' in SMOKE
-    assert '$data = Join-Path $isolatedLocalAppData "LiveWatch\\data"' in SMOKE
+    assert 'Join-Path $isolatedLocalAppData "LiveWatch\\data"' in SMOKE
     assert '$env:LOCALAPPDATA = $originalLocalAppData' in SMOKE

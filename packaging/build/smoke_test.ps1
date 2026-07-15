@@ -23,7 +23,9 @@ if (-not (Test-Path (Join-Path $Staging "LiveWatchLauncher.exe"))) { throw "未�
 
 $work    = Join-Path ([System.IO.Path]::GetTempPath()) ("lw_smoke_" + [guid]::NewGuid().ToString("N").Substring(0,8))
 $install = Join-Path $work "install"
-$data    = Join-Path $work "data"
+$originalLocalAppData = $env:LOCALAPPDATA
+$isolatedLocalAppData = Join-Path $work "localappdata"
+$data    = Join-Path $isolatedLocalAppData "LiveWatch\data"
 $fail = 0
 $proc = $null
 $proc2 = $null
@@ -43,7 +45,10 @@ function Wait-Port($p, $timeoutSec) {
 }
 
 function Start-App() {
-    $env:LIVEWATCH_DATA_DIR = $data
+    # 冻结商业包固定使用 %LOCALAPPDATA%\LiveWatch\data，避免外部变量重定向用户数据。
+    # 冒烟测试通过隔离 LOCALAPPDATA 模拟一台干净电脑，绝不读取真实用户数据。
+    $env:LOCALAPPDATA = $isolatedLocalAppData
+    Remove-Item Env:LIVEWATCH_DATA_DIR -ErrorAction SilentlyContinue
     $env:LIVEWATCH_PORT = "$Port"
     Remove-Item Env:LIVEWATCH_RESOURCE_DIR -ErrorAction SilentlyContinue  # 用安装目录\models 默认解析
     return Start-Process -FilePath (Join-Path $install "LiveWatchLauncher.exe") `
@@ -83,8 +88,15 @@ try {
         try {
             $diag = Invoke-RestMethod -Uri "http://127.0.0.1:$Port/api/diagnostics" -TimeoutSec 10
             $diagOk = ($null -ne $diag.cookie.state) -and $diag.models.ready -and ($null -ne $diag.recent_errors)
-        } catch { $diagOk = $false }
-        Check "诊断接口可用且模型就绪" $diagOk
+        }
+        catch {
+            # 干净环境没有账号会话；诊断属于 live_monitor 高级权益，403 是正确安全行为。
+            $statusCode = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
+            $detail = [string]$_.ErrorDetails.Message
+            try { $detail = [string](($detail | ConvertFrom-Json).detail) } catch { }
+            $diagOk = ($statusCode -eq 403) -and ($detail -match '登录|权益')
+        }
+        Check "诊断接口可用或正确要求账号权益" $diagOk
     }
     Start-Sleep -Seconds 2
     Check "外部数据目录已创建" (Test-Path $data)
@@ -118,6 +130,12 @@ finally {
     Stop-App $proc2
     Start-Sleep -Seconds 1
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrWhiteSpace($originalLocalAppData)) {
+        Remove-Item Env:LOCALAPPDATA -ErrorAction SilentlyContinue
+    }
+    else {
+        $env:LOCALAPPDATA = $originalLocalAppData
+    }
     Remove-Item Env:LIVEWATCH_DATA_DIR, Env:LIVEWATCH_PORT -ErrorAction SilentlyContinue
 }
 
