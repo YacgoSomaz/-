@@ -2,6 +2,14 @@
 
 本文档记录项目从研究验证到商业安装包的主要演进。它用于交接，不替代 Git 提交历史。
 
+## 2026-07-15：生成并验收 1.1.15 商业安装包
+
+- 自动版本入口读取线上 `1.1.14` 后选择 `1.1.15`，正式构建层再次校验通过；Nuitka 将 `pipeline` 编译为 `pipeline.cp314-win_amd64.pyd`，账号 / 更新双公钥、MIT `douyinLive` sidecar、Node、SenseVoice、声纹模型和本地静态资源均进入白名单产物。
+- 构建扫描检查 1767 个文件，未发现 Cookie、数据库、音频、日志或开发房间号；未压缩 staging 为 762.6 MB，Inno Setup 6.7.3 成功生成 `release/LiveWatchSetup_1.1.15.exe`。
+- 最终文件为 `338291343` 字节，SHA-256 `8806d2c19cb9ba36ed41191a4548bbdfcac929f57e598c70162711a7fd13d651`；安装器 ProductVersion、发布清单和编译运行时 `LICENSE_APP_VERSION` 均核对为 `1.1.15`。
+- 修复冻结商业包冒烟测试仍用 `LIVEWATCH_DATA_DIR` 的旧契约，改为隔离 `%LOCALAPPDATA%`，避免读取真实用户数据；首次启动、首页 200、高级诊断权限保护、模型、日志、数据隔离、覆盖升级保留和升级后重启全部通过。仓库完整回归 `337 passed`。
+- 当前安装包尚未进行 Windows Authenticode 代码签名，状态为 `NotSigned`；Nuitka 商业编译、应用完整性签名与账号 / 更新 Ed25519 验签均已启用。上传 OSS 与后台签名发布尚未执行。
+
 ## 2026-07-15：构建版本自动递增与会员权益停用
 
 - `一键打包复盘虾.bat` 不再要求手输版本号；交互层调用 `version_guard.ps1 -NextVersion` 读取线上 `replay_shrimp` 版本并自动递增最后一段，当前线上 `1.1.14` 会自动选择 `1.1.15`。正式构建仍再次校验新版本必须严格高于线上版本，避免并发或缓存导致倒退。
