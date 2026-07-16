@@ -83,6 +83,30 @@ def test_workbench_only_lists_recording_rooms_and_reads_selected_room_data(tmp_p
     ]
 
 
+def test_workbench_maps_sidecar_stat_events_to_live_online_count(tmp_path) -> None:
+    event_db = tmp_path / "events.db"
+    transcript_db = tmp_path / "transcripts.db"
+    con = sqlite3.connect(event_db)
+    con.execute(
+        "CREATE TABLE events (id INTEGER PRIMARY KEY, room_id TEXT, live_id TEXT, event_type TEXT, "
+        "user_name TEXT, content TEXT, extra TEXT, ts INTEGER)"
+    )
+    con.execute(
+        "INSERT INTO events (room_id, live_id, event_type, content, extra, ts) VALUES (?, ?, ?, ?, ?, ?)",
+        ("1001", "1001", "stat", "current=321;total_pv=888", json.dumps({"current": 321}), 999_000),
+    )
+    con.commit()
+    con.close()
+    snapshot = live_workbench.build_snapshot(
+        [{"rid": "1001", "phase": "recording", "anchor_name": "主播一", "recording_since": 900}],
+        event_db=event_db,
+        transcript_db=transcript_db,
+        selected_rid="1001",
+        now=1_000,
+    )
+    assert snapshot["stats"]["online"] == 321
+
+
 def test_workbench_keeps_the_latest_completed_session_after_recording_stops(tmp_path) -> None:
     event_db = tmp_path / "events.db"
     transcript_db = tmp_path / "transcripts.db"
