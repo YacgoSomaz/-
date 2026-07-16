@@ -139,7 +139,10 @@ _UPDATE_RUNTIME_PUBLIC_KEY = str(getattr(license_runtime, "UPDATE_PUBLIC_KEY", "
 ACCOUNT_API_BASE_URL = os.environ.get("LIVEWATCH_ACCOUNT_API_BASE_URL", _ACCOUNT_RUNTIME_URL or "https://anyq.site").strip().rstrip("/")
 ACCOUNT_SESSION_PATH = DATA_DIR / "account_session.json"
 ACCOUNT_REQUEST_TIMEOUT_SEC = max(3.0, float(os.environ.get("LIVEWATCH_ACCOUNT_REQUEST_TIMEOUT_SEC", "12")))
-ACCOUNT_REFRESH_INTERVAL_SEC = max(60, int(os.environ.get("LIVEWATCH_ACCOUNT_REFRESH_INTERVAL_SEC", "600")))
+# A signed snapshot is valid for at most ten minutes, but revocation should
+# normally reach an idle client within one minute.  Network failures do not
+# revoke a still-valid snapshot; authoritative 4xx responses do.
+ACCOUNT_REFRESH_INTERVAL_SEC = max(60, int(os.environ.get("LIVEWATCH_ACCOUNT_REFRESH_INTERVAL_SEC", "60")))
 # This desktop product is fixed at build time.  It must not be selected by a
 # browser request or a user-editable setting.
 ACCOUNT_PRODUCT_ID = str(getattr(license_runtime, "ACCOUNT_PRODUCT_CODE", "") or "replay_shrimp").strip()

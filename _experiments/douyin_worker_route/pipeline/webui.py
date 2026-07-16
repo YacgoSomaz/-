@@ -71,12 +71,48 @@ app.add_middleware(
     allow_headers=["*"],
 )
 _mgr = RoomManager()
+_account_refresh_lock = threading.Lock()
 
 
 def _run_blocking(fn, *args, **kwargs):
     """Run browser-heavy sync work in a clean worker thread."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         return pool.submit(fn, *args, **kwargs).result()
+
+
+def _refresh_account_session() -> str:
+    """Refresh the remote signed snapshot and classify the result.
+
+    Offline/network errors keep the last signed snapshot for its short TTL.
+    An explicit account/product denial clears it immediately so a stopped
+    membership cannot continue using the local cache.
+    """
+    with _account_refresh_lock:
+        session = account_manager.remote_session()
+        if session is None:
+            return "anonymous"
+        try:
+            account_manager.refresh_login(account_client.refresh_account(session))
+            return "refreshed"
+        except account_client.AccountClientError as exc:
+            if exc.authoritative:
+                account_manager.clear_login()
+                return "revoked"
+            return "unavailable"
+        except (account_license.AccountLicenseError, ValueError):
+            # A malformed/invalid signed envelope is not safe to retain.
+            account_manager.clear_login()
+            return "invalid"
+
+
+def _account_refresh_loop() -> None:
+    while True:
+        time.sleep(config.ACCOUNT_REFRESH_INTERVAL_SEC)
+        try:
+            _refresh_account_session()
+        except Exception:
+            # Background auth must never take down the local recording API.
+            pass
 _PACKAGE_ASSETS = package_asset_dir(__file__)
 _FRONTEND = _PACKAGE_ASSETS / "frontend.html"
 _STATIC = _PACKAGE_ASSETS / "static"
@@ -98,6 +134,12 @@ def _performance_ai_loop() -> None:
 
 threading.Thread(target=_performance_ai_loop, name="performance-ai-loop", daemon=True).start()
 threading.Thread(target=short_video.prewarm_browser, name="short-video-browser-prewarm", daemon=True).start()
+threading.Thread(target=_account_refresh_loop, name="account-refresh-loop", daemon=True).start()
+
+
+@app.on_event("startup")
+def _refresh_account_on_startup() -> None:
+    _refresh_account_session()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -369,14 +411,7 @@ def api_export() -> JSONResponse:
 @app.get("/api/account/status")
 def api_account_status() -> JSONResponse:
     """Refresh the signed account snapshot without exposing its remote session."""
-    session = account_manager.remote_session()
-    if session is not None:
-        try:
-            account_manager.refresh_login(account_client.refresh_account(session))
-        except (account_client.AccountClientError, account_license.AccountLicenseError, ValueError):
-            # Keep the last still-valid signed snapshot during a short network
-            # outage.  Feature gates independently reject an expired snapshot.
-            pass
+    _refresh_account_session()
     return JSONResponse({"ok": True, "account": account_manager.public_status()})
 
 

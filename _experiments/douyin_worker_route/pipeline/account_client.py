@@ -17,7 +17,16 @@ from . import config
 
 
 class AccountClientError(RuntimeError):
-    """User-safe account service error."""
+    """User-safe account service error with revocation classification."""
+
+    def __init__(self, message: str, *, status: int = 0) -> None:
+        super().__init__(message)
+        self.status = int(status)
+
+    @property
+    def authoritative(self) -> bool:
+        """True when the server explicitly says this session/product is invalid."""
+        return self.status in {400, 401, 403, 404, 409, 410}
 
 
 Post = Callable[..., Any]
@@ -52,10 +61,10 @@ def _json_response(response: Any) -> dict[str, Any]:
     if not bool(data.get("ok")) or status >= 400:
         detail = str(data.get("error") or data.get("detail") or "账号操作失败")
         if status == 429:
-            raise AccountClientError(detail[:200])
+            raise AccountClientError(detail[:200], status=status)
         if status >= 500:
-            raise AccountClientError("账号服务暂时不可用，请稍后再试")
-        raise AccountClientError(detail[:200])
+            raise AccountClientError("账号服务暂时不可用，请稍后再试", status=status)
+        raise AccountClientError(detail[:200], status=status)
     return data
 
 
