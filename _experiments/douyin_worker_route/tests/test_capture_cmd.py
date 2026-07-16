@@ -85,6 +85,22 @@ class BuildCaptureCmdTests(unittest.TestCase):
         cmd = _build_capture_cmd("http://x/index.m3u8", room, 1, csv, record_video=True, video_dir=None)
         self.assertNotIn("copy", cmd)
 
+    def test_video_on_adds_low_latency_hls_preview_without_a_second_input(self) -> None:
+        room = Path("/tmp/audio/123")
+        vdir = Path("/tmp/video/123")
+        preview = vdir / "preview"
+        csv = room / config.SEGMENT_LIST_NAME
+        cmd = _build_capture_cmd(
+            "http://x/index.m3u8", room, 7, csv,
+            record_video=True, video_dir=vdir, preview_dir=preview,
+        )
+        self.assertEqual(cmd.count("-i"), 1)
+        self.assertIn("-hls_time", cmd)
+        self.assertIn("2", cmd)
+        self.assertIn("-hls_list_size", cmd)
+        self.assertEqual(cmd[-1], str(preview / "preview.m3u8"))
+        self.assertIn("-hls_flags", cmd)
+
 
 if __name__ == "__main__":
     unittest.main()
