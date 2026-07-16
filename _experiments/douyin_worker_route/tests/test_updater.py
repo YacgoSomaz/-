@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pipeline import config, updater
+from pipeline.updater import UpdateManifest
 
 
 def _release(**changes: object) -> dict[str, object]:
@@ -38,3 +39,50 @@ def test_check_update_has_no_update_when_the_server_has_no_published_release(mon
     assert manifest.has_update is False
     assert manifest.mandatory is False
     assert manifest.installer_url == ""
+
+
+def test_download_update_reports_progress_without_exposing_unverified_url(monkeypatch, tmp_path) -> None:
+    class Response:
+        headers = {"Content-Length": "6"}
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def raise_for_status(self):
+            return None
+
+        def iter_content(self, chunk_size=0):
+            assert chunk_size == 1024 * 1024
+            yield b"abc"
+            yield b"def"
+
+    monkeypatch.setattr(config, "DATA_DIR", tmp_path)
+    digest = "bef57ec7f53a6d40beb640a780a639c83bc29ac8a9816f1fc6c5c6dcd93c4721"
+    monkeypatch.setattr(updater, "_sha256_file", lambda _path: digest)
+    progress: list[tuple[int, int]] = []
+
+    updater.download_update(UpdateManifest(
+        has_update=True,
+        current_version="1.0.12",
+        latest_version="1.0.13",
+        min_version="1.0.12",
+        mandatory=False,
+        installer_url="https://download.anyq.site/replay-shrimp/1.0.13/ReplayShrimpSetup_1.0.13.exe",
+        sha256=digest,
+        size_bytes=6,
+        notes="",
+    ), get=lambda *_args, **_kwargs: Response(), on_progress=lambda done, total: progress.append((done, total)))
+
+    assert progress == [(3, 6), (6, 6)]
+
+
+def test_update_download_status_has_explicit_phases() -> None:
+    status = updater.download_status()
+
+    assert status["phase"] in {"idle", "downloading", "ready", "error", "installing"}
+    assert "downloaded_bytes" in status
+    assert "total_bytes" in status
+    assert "percent" in status
