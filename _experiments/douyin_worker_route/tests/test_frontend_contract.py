@@ -75,6 +75,12 @@ def test_settings_uses_mobile_account_login_not_card_key_activation() -> None:
     assert "/api/license/" not in html
 
 
+def test_account_badge_uses_signed_product_membership_not_rbac_role() -> None:
+    html = FRONTEND.read_text(encoding="utf-8")
+    assert "account.membership_status==='active'?'复盘虾会员':'普通用户'" in html
+    assert "account.role==='regular'?'普通用户':account.role" not in html
+
+
 def test_update_ui_only_blocks_when_the_signed_release_requires_an_upgrade() -> None:
     html = FRONTEND.read_text(encoding="utf-8")
     assert "updateState.mandatory" in html
