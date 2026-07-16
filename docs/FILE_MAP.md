@@ -1,6 +1,6 @@
 # 文件结构与功能地图
 
-更新时间：2026-07-15
+更新时间：2026-07-16
 
 用途：让下一位工程师或 AI 从“功能 / 故障现象”快速定位到主文件、数据来源和回归测试。完整业务现状见 [`../PROJECT_HANDOFF.md`](../PROJECT_HANDOFF.md)，具体排障步骤见 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)。
 
@@ -124,7 +124,7 @@ live-console-grid
 | `pipeline/integrity_manifest.py` | 本地程序完整性清单 | 文件被替换或漏打包 | 完整性 / 构建测试 |
 | `docs/DESKTOP_UPDATE_CONTRACT.md` | 三端统一更新协议 | 客户端与服务端各说各话 | 更新契约测试 |
 
-仅上传 OSS 不等于发布更新；服务端必须生成 `update-v1` 私钥签名的版本记录。
+仅上传 OSS 不等于发布更新；服务端必须生成 `update-v1` 私钥签名的版本记录。运行中客户端通过账号服务 SSE 接收“重新检查”事件，并每 60 秒兜底；SSE 不能替代签名验真。
 
 ## 8. Windows 构建与安装
 

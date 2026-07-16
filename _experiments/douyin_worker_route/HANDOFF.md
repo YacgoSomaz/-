@@ -1,6 +1,6 @@
 # 直播复盘侠主线快速接手卡
 
-更新时间：2026-07-15
+更新时间：2026-07-16
 本目录是当前主程序目录：
 
 ```text
@@ -30,6 +30,8 @@ C:\Users\q2414\Desktop\live_watch\THIRD_PARTY_NOTICES.md
 重要更新：较早的商业包 `1.0.15` 已把 MIT `jwwsjlm/douyinLive v2.0.24` 固定为本机 WSS sidecar，但当前线上签名更新版本已经是 `1.1.14`。不要恢复旧的 `vendor/DouyinLiveWebFetcher` / `run_worker.py`；真实直播间互动端到端与 Windows 代码签名仍待完成。`1.0.15` 之后又修复了主播身份、直播工作台和历史场次，下一次构建必须使用 `1.1.15` 或更高，不能发布 `1.0.16` 造成版本倒退。
 
 直播工作台现已同时支持进行中和最近完成场次。停止录制会写入 `recording_sessions`，前端按 `session_id` 保留该场的话术、互动、时长和可用录像；升级前历史数据从 `recording_timeline` 推断。禁止再把“非 recording 状态”直接等同于空工作台。
+
+更新链路现已增加 `https://anyq.site/api/v1/releases/events?product_id=replay_shrimp` SSE 实时通知和客户端 60 秒签名检查兜底。事件只负责触发 `/api/update/check`，不能绕过 `update-v1` Ed25519 验签。强制更新会阻止运行中的业务操作。旧安装包没有监听能力，下一版必须先作为滚动升级基线发布；后台普通更新留空最低支持版本时必须使用 `0.0.0`，不能再默认填新版本。
 
 ---
 
@@ -106,7 +108,7 @@ $env:PYTHONPATH='C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_ro
 python -m pytest -q
 ```
 
-最近一次结果：`292 passed`。
+最近一次结果：`296 passed`；另有仓库级账号 / 构建契约 `43 passed`，合计 `339 passed`。
 
 仓库根目录同时运行主线、`licensing_server` 与 `packaging/build` 契约：`331 passed`。
 

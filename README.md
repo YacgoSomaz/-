@@ -137,7 +137,7 @@ python -m pytest -q
 ```powershell
 cd C:\Users\q2414\Desktop\live_watch
 $env:PYTHONPATH="$PWD\_experiments\douyin_worker_route"
-python -m pytest licensing_server\tests packaging\build\test_*.py -q
+python -m pytest licensing_server\tests packaging\build -q
 ```
 
 关键修改对应测试：
@@ -180,6 +180,10 @@ Windows 代码签名证书只通过证书存储 / 硬件介质使用，私钥不
 4. 在更新管理后台发布对应 `product_id` 的签名 `update_release`。
 5. 客户端从 `https://anyq.site/api/v1/releases/latest?...` 获取并用 `update-v1` 公钥验签。
 6. 客户端再校验固定下载域名、版本、文件大小和 SHA-256 后安装。
+
+已安装新监听器的客户端还会连接 `https://anyq.site/api/v1/releases/events?product_id=...`：后台签名发布后，运行中的客户端会立即重新检查签名更新，并每 60 秒兜底检查。SSE 只是通知，不能替代签名清单。旧安装包没有监听代码，必须先完成一次基线升级后才能获得实时推送。
+
+后台“最低支持版本”留空时，普通更新默认 `0.0.0`；选择强制更新时才默认等于新版本。若显式填写了更高的最低支持版本，即使 `mandatory=false`，低于该版本的客户端仍会被强制升级。
 
 协议字段以 [`docs/DESKTOP_UPDATE_CONTRACT.md`](docs/DESKTOP_UPDATE_CONTRACT.md) 为准。
 

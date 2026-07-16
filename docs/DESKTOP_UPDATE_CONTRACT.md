@@ -14,7 +14,10 @@
 
 ```text
 GET /api/v1/releases/latest?product_id=<fixed product_id>
+GET /api/v1/releases/events?product_id=<fixed product_id>
 ```
+
+`/events` 是按产品隔离的 SSE 通知通道，签名发布后发送 `release` 事件，并使用心跳保持连接。该事件只允许触发客户端重新请求 `/latest`，绝不能作为版本、强制更新或下载地址的可信来源。客户端还必须每 60 秒执行一次 `/latest` 兜底检查。
 
 成功时只消费 `update_release`；根节点的任何版本、链接、强制更新字段均不是授权数据。
 
@@ -87,6 +90,9 @@ Nginx 必须让 `/api/` 代理到账户服务，且该规则要位于静态站�
 4. 拒绝降级或同版本覆盖；下载后同时核验字节数与 SHA-256。
 5. `mandatory=true` 或 `current_version < min_supported_version` 才显示必须升级。普通更新只能提示，不能阻止用户继续使用。
 6. 安装时打开可见安装向导；不要把“静默覆盖安装”作为默认行为。
+7. 运行中发现强制更新后必须阻止业务操作；EventSource 断线允许自动重连，但不能因此绕过下一次签名检查。
+
+管理后台在最低支持版本留空时必须遵守：普通更新写 `0.0.0`，强制更新写本次新版本。显式填写的 `min_supported_version` 始终参与第 5 条判断。
 
 ## 每次发布操作
 
