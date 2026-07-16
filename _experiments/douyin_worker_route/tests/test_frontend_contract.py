@@ -92,6 +92,16 @@ def test_update_ui_only_blocks_when_the_signed_release_requires_an_upgrade() -> 
     assert "安装向导已启动" in html
 
 
+def test_running_client_receives_release_events_with_periodic_fallback() -> None:
+    html = FRONTEND.read_text(encoding="utf-8")
+    assert "new EventSource(updateEventUrl)" in html
+    assert "/api/v1/releases/events?product_id=" in html
+    assert "addEventListener('release'" in html
+    assert "checkUpdate(true)" in html
+    assert "setInterval(()=>checkUpdate(true),60000)" in html
+    assert "updateEventSource.close()" in html
+
+
 def test_visible_version_labels_use_the_runtime_update_state() -> None:
     html = FRONTEND.read_text(encoding="utf-8")
     assert "直播复盘侠 v1.0.0" not in html
