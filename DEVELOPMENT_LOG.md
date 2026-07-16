@@ -2,6 +2,15 @@
 
 本文档记录项目从研究验证到商业安装包的主要演进。它用于交接，不替代 Git 提交历史。
 
+## 2026-07-16：修复后台授权后仍显示普通用户
+
+- 生产库核对确认管理后台原本已正确写入 `user_products`，产品 ID、`entitlements_json` 与到期时间均有效；`users.role=regular` 是普通账号的 RBAC 角色，不等于“无会员”，也不应改成管理员角色。
+- 根因是官网钱包只把 `/api/auth/me` 的精简 `user` 对象传给渲染函数，又读取已不再返回的旧 `membership_plan / membership_expires_at`，因此无论后台是否开通产品都会显示“基础版 / 暂未开通”。
+- 账号服务新增由服务端当前时间和 `products[]` 计算的 `membership` 摘要；只统计真实未过期的 `status=active` 产品，汇总产品 ID、名称、权益和到期时间。该摘要只用于展示，桌面客户端仍只信 Ed25519 签名的 `account_license.products[]` 解锁。
+- 官网钱包改为保留完整账号响应并按有效 `products[]` 显示“已开通 N 款”、软件名称和各自到期时间；移除旧字段读取并更新静态资源缓存版本。
+- 复盘虾设置页不再把 `account.role` 显示成会员等级；签名产品包含 `replay_shrimp + livewatch` 时显示“复盘虾会员”，否则才显示“普通用户”。
+- 生产备份：账号服务 `/home/ubuntu/recharge-api/backups/20260716091423`，官网静态页 `/var/www/recharge-site-backups/20260716091857`。服务端部署快照 `22 passed`、官网账户契约 `2 passed`、仓库主线与构建回归 `338 passed`。
+
 ## 2026-07-15：生成并验收 1.1.15 商业安装包
 
 - 自动版本入口读取线上 `1.1.14` 后选择 `1.1.15`，正式构建层再次校验通过；Nuitka 将 `pipeline` 编译为 `pipeline.cp314-win_amd64.pyd`，账号 / 更新双公钥、MIT `douyinLive` sidecar、Node、SenseVoice、声纹模型和本地静态资源均进入白名单产物。

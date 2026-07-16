@@ -1,6 +1,6 @@
 # 直播复盘侠项目交接报告
 
-更新时间：2026-07-15
+更新时间：2026-07-16
 当前分支：`main`
 本轮接手前远端基线：`c78f543 Improve licensing admin and commercial integrity checks`（本文件所在提交之后请以 `git log -1` 为准）
 主线目录：`C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route`
@@ -64,6 +64,16 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 实时话术和互动统计必须按当前房间 `recording_since` 截断；已结束场次还必须按 `recording_end` 封顶。起点缺失时保持空白，禁止读取同主播其他场次补位。
 - “全部开始 / 全部停止”已补齐前端模板暴露、执行中防重复点击和后端错误提示。若权限网关或本地服务拒绝请求，界面必须显示失败原因，不能静默刷新。
 - 当前主线完整回归为 `292 passed`；真实本地库已在全部房间停止状态下恢复 7 个最近场次，最新场次保留 7 段转写和 369 秒时长。
+
+### 0.1.2 2026-07-16 会员授权显示链路校正
+
+- `users.role` 只表示 RBAC 角色：普通账号应保持 `regular`，管理员才是 `admin`。严禁为了显示会员而修改角色，否则会造成后台越权。
+- 软件会员的唯一事实仍是 `user_products`；桌面端的唯一授权凭据仍是 Ed25519 签名后的 `account_license.products[]`。`replay_shrimp/livewatch`、`comic_shrimp/comic_course`、`operation_shrimp/operation_course` 必须分别匹配。
+- 2026-07-16 已修复“管理后台授权成功，但官网仍显示普通用户 / 暂未开通”：官网旧代码只读取精简 `user` 中已不存在的旧会员字段，现改为读取完整响应中的有效 `products[]`。
+- `/api/auth/me` 现额外返回用于展示的 `membership` 摘要；它根据服务器时间剔除过期或畸形产品并汇总有效软件。该根节点摘要不得被桌面端当作解锁依据，客户端仍必须验签。
+- 复盘虾设置页会员徽标已从 `account.role` 改为签名产品计算出的 `membership_status`。刚在后台开通后，客户端应重新登录或点击刷新账号权益；既有签名快照最长 600 秒失效。
+- 生产回滚点：账号服务 `/home/ubuntu/recharge-api/backups/20260716091423`，官网 `/var/www/recharge-site-backups/20260716091857`。
+- 本次修复后仓库主线、账号和构建契约回归为 `338 passed`；账号服务部署快照 `22 passed`，官网账户契约 `2 passed`。
 
 ### 0.2 本次接手累计变更清单（2026-07-13 至 2026-07-15）
 
