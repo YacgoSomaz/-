@@ -100,6 +100,7 @@ def test_running_client_receives_release_events_with_periodic_fallback() -> None
     assert "checkUpdate(true)" in html
     assert "setInterval(()=>checkUpdate(true),60000)" in html
     assert "updateEventSource.close()" in html
+    assert "finally(()=>{updateState.mandatory_prompted=false})" in html
 
 
 def test_visible_version_labels_use_the_runtime_update_state() -> None:
