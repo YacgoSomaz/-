@@ -41,7 +41,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 正式账号、支付与产品入口是 `https://anyq.site`；远端 `user_products` 是三产品权益唯一来源。
 - 复盘虾只接受 `replay_shrimp + livewatch`；漫剧虾、运营虾的有效权益不能解锁复盘虾。
 - 客户端只以 Ed25519 验签成功且未过期的 `account_license` 解锁，根节点 `products`、旧会员字段和能量余额均不能解锁。
-- 三个安装包已通过 `https://download.anyq.site`（OSS + CDN + HTTPS）发布；官网 `https://anyq.site` 已展示下载链接和 SHA-256。
+- 三个安装包已通过 `https://download.anyq.site`（OSS + CDN + HTTPS）发布；官网 `https://anyq.site` 展示下载链接、版本和发布日期，SHA-256 不再直接展示给客户，只用于后台与客户端完整性校验。
 - 2026-07-14 最近主线回归为 `255 passed`；官网静态页契约为 `6 passed`。
 - 真实采集仍未最终验收：主页有时只读到 21～22 条作品；一个约 26 条评论的视频仍只采到约 11 条。这两项不能写成已修复。
 
@@ -132,7 +132,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 远端 `anyq.site` 已改为统一三产品官网：手机号登录、账户中心、套餐、微信支付和客户端下载。
 - 官网续费不传递 Cookie、验证码或长期会话；桌面端用一次性网页登录交接进入官网。
 - 建立 `download.anyq.site`：阿里云 OSS Bucket、CDN、大文件下载缓存、Range 回源、Referer 防盗链和 HTTPS 证书均已配置。
-- 复盘虾 `1.0.12`、漫剧虾 `0.1.13`、运营虾 `0.1.12` 已上传并从公网验证下载；官网已显示三者对应 SHA-256。
+- 复盘虾 `1.0.12`、漫剧虾 `0.1.13`、运营虾 `0.1.12` 已上传并从公网验证下载；官网客户页面显示三者版本与发布日期，发布后台仍保留对应 SHA-256。
 
 #### F. 测试、文档与工作区约束
 
