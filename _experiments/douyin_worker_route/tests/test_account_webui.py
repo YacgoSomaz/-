@@ -73,6 +73,22 @@ def test_account_status_refreshes_the_signed_snapshot_without_exposing_session(m
     assert payload["account"]["logged_in"] is True
 
 
+def test_account_refresh_clears_local_snapshot_when_server_revokes_product(monkeypatch) -> None:
+    session = {"cookie_name": "wz_session", "cookie_value": "remote-token"}
+    cleared: list[bool] = []
+
+    monkeypatch.setattr(account_manager, "remote_session", lambda: session)
+    monkeypatch.setattr(
+        account_client,
+        "refresh_account",
+        lambda value: (_ for _ in ()).throw(account_client.AccountClientError("产品权益已停用", status=403)),
+    )
+    monkeypatch.setattr(account_manager, "clear_login", lambda: cleared.append(True))
+
+    assert webui._refresh_account_session() == "revoked"
+    assert cleared == [True]
+
+
 def test_recharge_url_api_never_returns_remote_session(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(config, "ACCOUNT_SESSION_PATH", tmp_path / "account_session.json")
     account_manager.save_login(_signed_reply(monkeypatch))

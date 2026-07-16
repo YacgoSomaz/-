@@ -118,3 +118,13 @@ def test_create_recharge_handoff_rejects_cross_origin_continue_url() -> None:
             server_url="https://anyq.example",
             post=post,
         )
+
+
+def test_account_client_marks_authoritative_revocation_errors() -> None:
+    response = _Response({"ok": False, "error": "产品权益已停用"}, status_code=403)
+
+    with pytest.raises(account_client.AccountClientError) as caught:
+        account_client._json_response(response)
+
+    assert caught.value.status == 403
+    assert caught.value.authoritative is True
