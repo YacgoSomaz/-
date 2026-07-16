@@ -2,6 +2,46 @@
 
 本文档记录项目从研究验证到商业安装包的主要演进。它用于交接，不替代 Git 提交历史。
 
+## 2026-07-16：复盘虾 1.1.16 商业安装包完成
+
+- 版本守卫根据线上最新版本 `1.1.15` 自动选择下一版本 `1.1.16`，避免误填旧版本导致强制更新。
+- Nuitka 业务模块编译、PyInstaller 启动器、Inno Setup 安装器、发布目录安全扫描和完整性清单均通过；安全扫描未发现 Cookie、数据库、音频、日志或开发房间号。
+- 安装包：[release/LiveWatchSetup_1.1.16.exe](release/LiveWatchSetup_1.1.16.exe)，大小 `338,281,889` bytes，SHA-256 `22b26c0f9f17a06279fc793cf890267983494fea81451fa60972c394dd0b5dac`。
+- 对应发布清单：[release/LiveWatchSetup_1.1.16.release.json](release/LiveWatchSetup_1.1.16.release.json)，对象路径为 `replay-shrimp/1.1.16/LiveWatchSetup_1.1.16.exe`；上传 OSS 后仍需在 `https://anyq.site/admin/releases` 发布签名更新记录，单独上传 EXE 不会触发客户端更新。
+- 当前构建产物 Authenticode 状态为 `NotSigned`，Windows SmartScreen 仍可能提示；待代码签名证书可用后应重新签名并重新计算 SHA-256。
+
+## 2026-07-16：官网客户端下载区移到产品价格下方
+
+- 按客户反馈移除首屏品牌小标签、购买说明勾选、产品区辅助说明，以及结算页 `SELECTED PRODUCT` / `ORDER SUMMARY` 英文标签，减少面向客户页面中的内部/技术文案。
+- 下载卡片不再以弹窗独立展示；现在位于三款产品价格卡片下方，保留产品名、用途、版本、发布日期和下载按钮。帮助中心仍保留为弹窗，联系客服微信为 `cl17733174657`。
+- 线上静态资源缓存版本：`20260716-1518-download-inline`；生产回滚点：`/var/www/recharge-site-backups/20260716151937-downloads-inline`。Nginx 配置检查通过，`https://anyq.site/` 返回 HTTP 200，公网已验证下载区、缓存版本和旧下载弹窗均符合预期。
+
+## 2026-07-16：复盘虾停用会员后及时失效
+
+- `pipeline/webui.py` 新增启动时账号刷新与后台账号刷新线程；默认每 60 秒请求一次 `/api/auth/me`，服务端明确返回 401/403/404/409/410 等停用或失效状态时立即清除本地加密会话和权益快照。
+- 网络异常不会误踢用户，但签名权益仍受最多 600 秒的 `signed_until` 约束；账号状态接口也复用同一刷新逻辑，避免“只有手动点击刷新才失效”。
+- `pipeline/account_client.py` 为账号错误增加 HTTP 状态与 authoritative 分类，只有明确的服务端拒绝才清缓存；无效签名/畸形权益包也不再保留。
+- 回归验证：账号客户端、WebUI、账号签名、更新与构建契约共 `80 passed`；新增停用回归测试先红后绿。随后已完成 `1.1.16` 商业安装包构建。
+
+## 2026-07-16：官网客户文案与首屏排版收口
+
+- 官网首页删除“可用分析能量”等非通用字段，以及退款、自动开通等未经当前协议确认的承诺。
+- 首屏标题改为“选择产品，立即开始。”，取消强制断行，避免大字号在不同宽度下错位；产品区改为简短、真实的功能说明。
+- 支付页提示改为“付款后同步账户权益 / 有效期按订单计算 / 订单状态可在账户中查看”；信任区同步改为官方购买、权益同步、安装支持。
+- 线上静态资源版本：`20260716-1505-copy-cleanup`；已备份到 `/var/www/recharge-site-backups/20260716150401-customer-copy-cleanup`，Nginx 配置检查通过，`https://anyq.site/` 返回 200。
+
+## 2026-07-16：工作区迁移到 D 盘
+
+- 项目实体目录迁移至 `D:\qianshanzimeiti\live_watch`，迁移后文件数、总字节数、Git HEAD 及关键文档/安装包 SHA-256 已校验一致。
+- `C:\Users\q2414\Desktop\live_watch` 保留为 Windows Junction，兼容旧脚本与快捷方式；实际数据占用 D 盘空间。
+- 已确认并保留现有用户改动，未恢复 `release/LiveWatchPortable_1.0.2.zip` 的删除状态；`D:\live_watch` 为其他旧项目，未操作。
+
+## 2026-07-16：迁移后清理可重建临时产物
+
+- 删除 `staging/_iss_final_verify_163a7e76`、`_iss_singlefile_verify_e9a2ef17`、`_iss_verify`、`_iss_verify_ac86a060` 四个安装验证目录。
+- 删除 `.pytest_cache` 与 `.tmp-recharge-api*`、`.tmp-recharge-site` 临时目录；这些内容均可由测试或构建重新生成。
+- 保留 `staging/LiveWatch`、`staging/LeadShrimp`、`staging/_leadshrimp_nuitka` 等构建产物，以及 `release/build-1.0.12` 和历史实验目录，供后续 AI 迁移或回滚使用。
+
 ## 2026-07-16：官网单页舒展化视觉调整
 
 - 保持普通长页面结构不变，扩大主内容宽度与账户区留白；产品区上下间距、卡片内边距、标题、价格、功能列表和按钮尺寸整体放大，减少局促感。

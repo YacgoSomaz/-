@@ -6,21 +6,37 @@
 主线目录：`C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route`
 目标读者：下一位继续开发本项目的工程师或 AI Agent
 
+## 当前发布产物（2026-07-16）
+
+- 最新复盘虾安装包为 `release/LiveWatchSetup_1.1.16.exe`，SHA-256：`22b26c0f9f17a06279fc793cf890267983494fea81451fa60972c394dd0b5dac`，大小 `338,281,889` bytes。
+- 对应清单为 `release/LiveWatchSetup_1.1.16.release.json`。上传 OSS 的推荐对象键：`replay-shrimp/1.1.16/LiveWatchSetup_1.1.16.exe`。
+- OSS 上传完成后，必须在 anyq.site 发布后台提交 `replay_shrimp` 的签名 `update_release`；只上传 EXE 不会让客户端看到更新。
+- 本包扫描通过但尚未做 Windows Authenticode 签名（状态 `NotSigned`），因此 SmartScreen 提示仍可能出现。
+
 建议阅读顺序：`README.md` → 本文件 → `_experiments/douyin_worker_route/HANDOFF.md` → `docs/FILE_MAP.md` → `docs/TROUBLESHOOTING.md` → `CHANGELOG.md` → `DEVELOPMENT_LOG.md`。
+
+## 0.0.1 2026-07-16 本地工作区迁移
+
+- 项目实体文件已迁移至 `D:\qianshanzimeiti\live_watch`，文件数、总字节数、Git HEAD 与原工作区一致。
+- 为兼容旧快捷方式、脚本和 AI 交接路径，`C:\Users\q2414\Desktop\live_watch` 现在是指向上述 D 盘目录的 Windows Junction；不要删除该联接本身。
+- `D:\live_watch` 是另一份旧项目目录，本次未触碰；后续开发统一使用 `D:\qianshanzimeiti\live_watch` 或兼容联接路径。
+- 当前 Git 工作区状态保留原有用户改动：`release/LiveWatchPortable_1.0.2.zip` 仍处于删除状态，未擅自恢复或提交。
 
 ## 0.0 2026-07-16 官网当前线上结构
 
 官网 `https://anyq.site` 已按客户确认的三页顺序上线，不要再把下载卡片、FAQ 或技术 SHA-256 信息直接塞回购买页面：
 
-1. `01 账户概览`：手机号账户、权益状态、客户端下载入口和“选择产品”按钮。
-2. `02 选择产品`：三款产品价格卡，补充每款产品的客户可读功能说明；点击产品进入下一页。
+1. `01 账户概览`：手机号账户、权益状态和“选择产品”按钮。
+2. `02 选择产品`：三款产品价格卡，补充每款产品的客户可读功能说明；价格卡片下方直接展示客户端下载区；点击产品进入下一页。
 3. `03 确认支付`：选中产品切换、订单摘要和微信支付；支持返回产品页。
 
-第三页下方显示“安心购买 / 立即开通 / 专属支持”信任区和精简页脚；联系客服辅助安装固定使用微信 `cl17733174657`。三个页面是纵向滚动吸附页面，鼠标滚轮会进入下一页，顶部步骤条和“向下滚动继续”提示同步当前页；信任区和页脚不单独吸附为额外页面。客户端下载、帮助中心仅作为导航后的弹层，不改变现有签名下载与支付接口。当前静态资源版本 `20260716-1500`，生产回滚点为 `/var/www/recharge-site-backups/20260716121739-wheel-pages`。本地页面快照在 `.tmp-recharge-site/`（该目录被忽略，不属于复盘虾主线提交）。
+第三页下方显示“安心购买 / 立即开通 / 专属支持”信任区和精简页脚；联系客服辅助安装固定使用微信 `cl17733174657`。三个页面的滚轮吸附和步骤条已撤销，恢复普通长页面；帮助中心仍为弹层，客户端下载直接位于产品价格区下方，不改变现有签名下载与支付接口。本地页面快照在 `.tmp-recharge-site/`（该目录被忽略，不属于复盘虾主线提交）。
 
 > 当前修订：滚轮吸附和步骤条已撤销，恢复普通单页布局；上段说明保留为历史设计记录。当前线上版本为 `20260716-1600`，回滚点为 `/var/www/recharge-site-backups/20260716140406-single-page-rollback`。
 
 当前线上最新视觉版本为 `20260716-1700`：在普通单页基础上扩大容器和产品卡留白，产品卡最小高度约 420px，移动端单列适配。最新回滚点为 `/var/www/recharge-site-backups/20260716140854-spacious-layout`。
+
+> 当前线上最新收口版本为 `20260716-1518-download-inline`：删除首屏品牌小标签、购买说明勾选、产品区辅助句和结算页英文内部标签；客户端下载卡片已从弹窗移到三款产品价格卡片下方。帮助中心与联系客服弹窗保留，客服微信为 `cl17733174657`。回滚点：`/var/www/recharge-site-backups/20260716151937-downloads-inline`。
 
 ---
 
@@ -97,6 +113,13 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 发布后台“最低支持版本”留空规则已经修复：普通更新写 `0.0.0`，强制更新才默认写新版本。不要再用 `min_supported_version=latest` 发布普通更新，否则客户端仍会按最低支持版本规则强制升级。
 - 旧安装包没有 SSE / 60 秒兜底监听，服务器无法主动推送到一段不存在的客户端代码。下一版必须先作为滚动升级基线发布；安装该版之后，长期不关机的用户才能实时收到再下一版更新。
 - 生产回滚点：`/home/ubuntu/recharge-api/backups/20260716094507`。公网 SSE 已验证心跳与 CORS；本轮主线 `296 passed`，仓库级 `43 passed`，合计 `339 passed`。
+
+### 0.1.4 2026-07-16 复盘虾账号停用及时失效
+
+- `pipeline/webui.py` 启动时刷新账号权益，并启动后台刷新线程，默认每 60 秒调用一次远端 `/api/auth/me`；远端明确返回停用/未授权状态时清除本地加密账号会话和签名权益快照。
+- `pipeline/account_client.py` 的 `AccountClientError` 记录 HTTP 状态并提供 `authoritative` 分类；401/403/404/409/410 等明确拒绝会立即清缓存，网络错误则保留短时签名快照，避免断网误踢。
+- 签名载荷仍最多有效 600 秒，客户端只信 `account_license.payload`，不信根节点 `user/products` 或旧会员字段。账号状态接口已复用同一刷新逻辑。
+- 新增停用回归测试：服务端返回 403 后本地权益立即被清理；账号相关、更新和构建契约回归 `80 passed`。修复已编入 `1.1.16` 安装包；旧版本安装后不会自动获得本轮刷新逻辑。
 
 ### 0.2 本次接手累计变更清单（2026-07-13 至 2026-07-16）
 
