@@ -476,19 +476,27 @@ def api_update_check() -> JSONResponse:
 def api_update_download() -> JSONResponse:
     try:
         manifest = updater.check_update()
-        installer = updater.download_update(manifest)
+        status = updater.start_download(manifest)
     except updater.UpdateError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    payload = manifest.public_dict()
-    payload["installer"] = str(installer)
-    return JSONResponse({"ok": True, "update": payload})
+    return JSONResponse({"ok": True, "update": status})
+
+
+@app.get("/api/update/status")
+def api_update_status() -> JSONResponse:
+    return JSONResponse({"ok": True, "update": updater.download_status()})
 
 
 @app.post("/api/update/install")
 def api_update_install(payload: dict[str, object] | None = Body(default=None)) -> JSONResponse:
     silent = bool((payload or {}).get("silent", False))
     try:
-        result = updater.download_and_install(silent=silent)
+        status = updater.download_status()
+        if status["phase"] != "ready":
+            manifest = updater.check_update()
+            status = updater.start_download(manifest)
+            return JSONResponse({"ok": True, "update": status})
+        result = updater.install_download(silent=silent)
     except updater.UpdateError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return JSONResponse({"ok": True, "update": result})

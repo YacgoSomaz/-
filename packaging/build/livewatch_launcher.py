@@ -393,25 +393,15 @@ def _enforce_startup_update_policy() -> None:
 
     if not manifest.has_update:
         return
-    if not (manifest.mandatory and manifest.has_update):
-        print(f"发现可选更新 {manifest.latest_version}，可在客户端内下载并安装。")
-        return
-
-    message = (
-        f"当前版本 {manifest.current_version} 已停止支持，需要升级到 "
-        f"{manifest.latest_version} 后才能继续使用。\n\n"
-        "点击“确定”后将下载校验通过的官方安装包并启动安装向导。"
-    )
-    _show_error(message)
-    try:
-        # Do not hand an EXE URL to the browser here: download_update validates
-        # the signed manifest's exact length and SHA-256 before it is launched.
-        installer = updater.download_update(manifest)
-        updater.run_installer(installer, silent=False)
-    except updater.UpdateError as exc:
-        _show_error(f"无法下载已验证的更新包：{exc}\n请稍后重试。")
-        raise SystemExit("必须更新，但更新包下载或校验失败") from exc
-    raise SystemExit("已启动更新安装向导，请完成安装后重新打开直播复盘侠。")
+    if manifest.mandatory and manifest.has_update:
+        # The WebView UI will open first and show a non-dismissible update
+        # dialog with signed status and byte-level progress.  Keeping this
+        # preflight non-blocking avoids the opaque Windows MessageBox flow.
+        print(
+            f"发现强制更新 {manifest.latest_version}；软件界面将打开，并显示更新进度。"
+        )
+    else:
+        print(f"发现可选更新 {manifest.latest_version}，软件界面将打开并提示后台下载。")
 
 
 def _tray_image() -> Image.Image:

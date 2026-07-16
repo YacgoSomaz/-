@@ -86,9 +86,12 @@ def test_update_ui_only_blocks_when_the_signed_release_requires_an_upgrade() -> 
     assert "updateState.mandatory" in html
     assert "showMandatoryUpdate" in html
     assert "const {ElMessage,ElMessageBox}=ElementPlus;" in html
-    assert "closeOnClickModal:false" in html
-    assert "closeOnPressEscape:false" in html
-    assert "body:JSON.stringify({silent:false})" in html
+    assert "updateDialog.visible" in html
+    assert "updateDialog.mode==='mandatory'" in html
+    assert "startUpdateDownload" in html
+    assert "/api/update/status" in html
+    assert "正在下载更新包" in html
+    assert "下载完成" in html
     assert "安装向导已启动" in html
 
 
@@ -100,7 +103,8 @@ def test_running_client_receives_release_events_with_periodic_fallback() -> None
     assert "checkUpdate(true)" in html
     assert "setInterval(()=>checkUpdate(true),60000)" in html
     assert "updateEventSource.close()" in html
-    assert "finally(()=>{updateState.mandatory_prompted=false})" in html
+    assert "if(updateDialog.visible&&updateDialog.mode==='mandatory')return" in html
+    assert "setTimeout(()=>checkUpdate(false),900)" in html
 
 
 def test_visible_version_labels_use_the_runtime_update_state() -> None:

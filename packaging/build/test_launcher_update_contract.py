@@ -20,11 +20,15 @@ class LauncherUpdateContractTests(unittest.TestCase):
             LAUNCHER.index("from pipeline.webui import app"),
         )
 
-    def test_launcher_downloads_and_checks_the_verified_manifest_before_launching(self) -> None:
-        self.assertIn("updater.download_update(manifest)", LAUNCHER)
-        self.assertIn("updater.run_installer(installer, silent=False)", LAUNCHER)
+    def test_launcher_preflights_mandatory_update_but_leaves_visible_flow_to_the_ui(self) -> None:
         self.assertIn("签名更新策略校验失败", LAUNCHER)
         self.assertNotIn("https://download.anyq.site/", LAUNCHER)
+        self.assertIn("软件界面将打开，并显示更新进度", LAUNCHER)
+
+    def test_launcher_does_not_show_a_blocking_windows_message_box_for_mandatory_update(self) -> None:
+        policy = LAUNCHER[LAUNCHER.index("def _enforce_startup_update_policy"):LAUNCHER.index("def _tray_image")]
+        self.assertNotIn("_show_error(message)", policy)
+        self.assertNotIn("raise SystemExit(\"必须更新", policy)
 
     def test_launcher_allows_only_one_process_and_wakes_the_existing_window(self) -> None:
         self.assertIn("SINGLE_INSTANCE_MUTEX_NAME", LAUNCHER)
