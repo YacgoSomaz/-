@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import sqlite3
 
+import pytest
+
 from pipeline import config, live_workbench, webui
 from pipeline.transcript_store import TranscriptStore
 
@@ -201,6 +203,38 @@ def test_workbench_api_reads_the_manager_snapshot_and_local_databases(tmp_path, 
     assert payload["selected_rid"] == payload["room"]["session_id"]
     assert payload["room"]["anchor_name"] == "主播一"
     assert payload["stats"]["online"] == 1286
+
+
+def test_live_preview_hls_serves_only_the_active_room_sidecar(tmp_path, monkeypatch) -> None:
+    preview = tmp_path / "1001" / "preview"
+    preview.mkdir(parents=True)
+    playlist = preview / "preview.m3u8"
+    segment = preview / "seg00001.ts"
+    playlist.write_text("#EXTM3U\n#EXT-X-TARGETDURATION:2\n", encoding="utf-8")
+    segment.write_bytes(b"ts")
+    monkeypatch.setattr(config, "VIDEO_DIR", tmp_path)
+    monkeypatch.setattr(webui._mgr, "status", lambda: [{"rid": "1001", "phase": "recording", "record_video": True}])
+
+    response = webui.api_live_preview_hls("1001", "preview.m3u8")
+
+    assert response.path == playlist
+    assert response.media_type == "application/vnd.apple.mpegurl"
+    assert response.headers["cache-control"].startswith("no-store")
+    assert webui.api_live_preview_hls("1001", "seg00001.ts").path == segment
+
+
+def test_live_preview_hls_rejects_inactive_rooms_and_path_traversal(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(config, "VIDEO_DIR", tmp_path)
+    monkeypatch.setattr(webui._mgr, "status", lambda: [{"rid": "1001", "phase": "stopped", "record_video": True}])
+
+    with pytest.raises(webui.HTTPException) as inactive:
+        webui.api_live_preview_hls("1001", "preview.m3u8")
+    assert inactive.value.status_code == 404
+
+    monkeypatch.setattr(webui._mgr, "status", lambda: [{"rid": "1001", "phase": "recording", "record_video": True}])
+    with pytest.raises(webui.HTTPException) as traversal:
+        webui.api_live_preview_hls("1001", "../events.db")
+    assert traversal.value.status_code == 400
 
 
 def test_batch_control_apis_return_an_explicit_success_result(monkeypatch) -> None:

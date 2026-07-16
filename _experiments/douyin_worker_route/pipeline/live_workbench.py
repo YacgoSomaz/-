@@ -247,7 +247,10 @@ def _read_events(
     reference_time = recording_end or now
     cutoff_ms = reference_time * 1000 - 60_000
     for event_type, content, extra_raw, ts in rows:
-        if str(event_type or "") in {"room_stats", "room_user_seq"}:
+        # The bundled WSS sidecar normalizes both RoomStats and RoomUserSeq to
+        # ``stat``; older collectors used the verbose names.  Accept all three
+        # so the live online count is not silently stuck at zero.
+        if str(event_type or "") in {"stat", "room_stats", "room_user_seq"}:
             try:
                 extra = json.loads(extra_raw or "{}")
                 online = int(extra.get("current") or 0)

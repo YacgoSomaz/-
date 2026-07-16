@@ -248,7 +248,11 @@ def test_live_console_uses_a_click_to_expand_preview_and_shows_current_local_evi
     assert "live-preview-thumb" in html
     assert "live-preview-video" in html
     assert "/api/live-preview/" in html
-    assert "最多约 60 秒延迟" in html
+    assert "/hls/preview.m3u8" in html
+    assert "/static/hls.min.js" in html
+    assert "window.Hls.isSupported" in html
+    assert "低延迟 HLS" in html
+    assert "正在等待低延迟直播画面" in html
     assert "放大查看" in html
     assert 'v-model="liveConsole.previewExpanded"' in html
     assert "已接入本机实时证据" in html
@@ -271,7 +275,7 @@ def test_live_console_preview_is_a_bounded_thumbnail_for_portrait_and_landscape_
     assert ".live-preview-stage.is-landscape .live-preview-video" in html
     assert "object-fit:contain" in html
     assert "max-height:72vh" in html
-    assert "不额外打开平台页面" in html
+    assert "同一条取流的低延迟 HLS 预览" in html
     assert "live-preview-video-expanded" in html
 
 

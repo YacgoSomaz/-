@@ -197,6 +197,7 @@ def _build_capture_cmd(
     *,
     record_video: bool = False,
     video_dir: Path | None = None,
+    preview_dir: Path | None = None,
 ) -> list[str]:
     """构造连续录制的 ffmpeg 命令（单 ffmpeg）。
 
@@ -233,6 +234,18 @@ def _build_capture_cmd(
             "-segment_format", "mp4",
             str(video_dir / config.VIDEO_FILENAME),
         ]
+        if preview_dir is not None:
+            # Reuse the same input pull for a short sliding HLS window.  This
+            # is the live preview path; the 60-second MP4 archive remains the
+            # evidence/export path and is not used to fake real-time playback.
+            cmd += [
+                "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy",
+                "-f", "hls", "-hls_time", "2", "-hls_list_size", "4",
+                "-hls_flags", "delete_segments+append_list+omit_endlist",
+                "-hls_allow_cache", "0",
+                "-hls_segment_filename", str(preview_dir / "seg%05d.ts"),
+                str(preview_dir / "preview.m3u8"),
+            ]
     return cmd
 
 
@@ -366,9 +379,23 @@ def record_room_muxer(
         video_dir = (config.VIDEO_DIR / live_id) if rv else None
         if video_dir is not None:
             video_dir.mkdir(parents=True, exist_ok=True)
+        preview_dir = (video_dir / "preview") if video_dir is not None else None
+        if preview_dir is not None:
+            preview_dir.mkdir(parents=True, exist_ok=True)
+            # A restarted ffmpeg must not leave a previous playlist/segment
+            # window visible as if it were the current live stream.
+            for old in preview_dir.glob("seg*.ts"):
+                try:
+                    old.unlink()
+                except OSError:
+                    pass
+            try:
+                (preview_dir / "preview.m3u8").unlink(missing_ok=True)
+            except OSError:
+                pass
         cmd = _build_capture_cmd(
             url, room_dir, spawn_seq, csv_path,
-            record_video=rv, video_dir=video_dir,
+            record_video=rv, video_dir=video_dir, preview_dir=preview_dir,
         )
         try:
             csv_path.unlink(missing_ok=True)  # 每次 spawn 用全新 csv，避免读到上一轮残留

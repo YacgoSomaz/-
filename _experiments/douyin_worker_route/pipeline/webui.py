@@ -16,6 +16,7 @@ import base64
 import concurrent.futures
 import json
 import os
+import re
 import secrets
 import threading
 import time
@@ -211,6 +212,30 @@ def api_live_preview(
     if path is None:
         raise HTTPException(status_code=404, detail="正在生成第一段视频预览")
     return FileResponse(path, media_type="video/mp4", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/live-preview/{rid}/hls/{asset}")
+def api_live_preview_hls(rid: str, asset: str) -> FileResponse:
+    """Serve only the current room's short sliding HLS preview window.
+
+    The signed Douyin URL never leaves the recorder process.  The browser sees
+    same-origin playlist/segment URLs and cannot use this endpoint for another
+    room, a completed session, or a path traversal outside VIDEO_DIR.
+    """
+    if asset != "preview.m3u8" and not re.fullmatch(r"seg\d{5}\.ts", asset):
+        raise HTTPException(status_code=400, detail="直播预览资源无效")
+    room = next((item for item in _mgr.status() if str(item.get("rid")) == str(rid)), None)
+    if room is None or room.get("phase") != "recording" or not room.get("record_video"):
+        raise HTTPException(status_code=404, detail="当前房间没有实时视频预览")
+    root = config.VIDEO_DIR.resolve()
+    preview_dir = (root / str(rid) / "preview").resolve()
+    if preview_dir.parent.parent != root or not preview_dir.is_dir():
+        raise HTTPException(status_code=404, detail="实时预览尚未就绪")
+    path = (preview_dir / asset).resolve()
+    if path.parent != preview_dir or not path.is_file():
+        raise HTTPException(status_code=404, detail="实时预览片段尚未就绪")
+    media_type = "application/vnd.apple.mpegurl" if asset.endswith(".m3u8") else "video/mp2t"
+    return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/api/diagnostics")
