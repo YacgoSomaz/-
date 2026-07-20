@@ -128,3 +128,35 @@ def test_account_client_marks_authoritative_revocation_errors() -> None:
 
     assert caught.value.status == 403
     assert caught.value.authoritative is True
+
+
+def test_refresh_account_bypasses_intermediary_caches() -> None:
+    """A renewed account snapshot must never be served from an HTTP cache."""
+    captured: dict[str, object] = {}
+
+    def get(url: str, **kwargs: object) -> _Response:
+        captured["url"] = url
+        captured.update(kwargs)
+        return _Response(
+            {
+                "ok": True,
+                "user": {"id": 7, "phone": "13800138000", "role": "regular"},
+                "products": [{"product_id": "replay_shrimp", "status": "active", "entitlements": ["livewatch"]}],
+                "account_license": {"schema": "anyq.account-license.v1", "alg": "Ed25519", "key_id": "account-v1", "payload": "fresh-signed-payload", "signature": "fresh-signature"},
+            }
+        )
+
+    result = account_client.refresh_account(
+        {"cookie_name": "wz_session", "cookie_value": "opaque-remote-session"},
+        server_url="https://anyq.example",
+        get=get,
+    )
+
+    assert captured["url"] == "https://anyq.example/api/auth/me"
+    assert captured["headers"] == {
+        "Cookie": "wz_session=opaque-remote-session",
+        "X-Product-Code": "replay_shrimp",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
+    assert result["account_license"]["payload"] == "fresh-signed-payload"
