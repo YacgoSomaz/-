@@ -1,4 +1,4 @@
-; 直播复盘侠安装程序 (Inno Setup 6)
+; 复盘虾安装程序 (Inno Setup 6)
 ; 由 build_release.ps1 调用，命令行注入：
 ;   /DAppVersion=...  /DStagingDir=...  /DOutputDir=...
 ; 设计要点：
@@ -18,22 +18,26 @@
 
 [Setup]
 AppId={{8F2A1C7E-4B3D-49A6-9E21-7C5D0A1B2E34}
-AppName=直播复盘侠
+AppName=复盘虾
 AppVersion={#AppVersion}
-AppPublisher=直播复盘侠（个人版）
-DefaultDirName={autopf}\LiveWatch
-DefaultGroupName=直播复盘侠
+AppPublisher=复盘虾（个人版）
+; 旧版更新器没有传 /DIR 时，也要回到用户原来选择的安装目录。
+; 否则升级包会落到默认目录，桌面快捷方式仍然启动旧版本。
+DefaultDirName={code:GetDefaultInstallDir}
+DefaultGroupName=复盘虾
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
+; 目录由 GetDefaultInstallDir 统一解析，禁止 Inno 自动复用错误的历史目录。
+UsePreviousAppDir=no
 OutputDir={#OutputDir}
 OutputBaseFilename=LiveWatchSetup_{#AppVersion}
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
-SetupIconFile=assets\livewatch.ico
+SetupIconFile=assets/icon-options/replay-shrimp.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-UninstallDisplayName=直播复盘侠
+UninstallDisplayName=复盘虾
 UninstallDisplayIcon={app}\LiveWatchLauncher.exe
 CloseApplications=force
 CloseApplicationsFilter=LiveWatchLauncher.exe
@@ -56,12 +60,12 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Source: "{#StagingDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{group}\直播复盘侠"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"
-Name: "{group}\卸载直播复盘侠"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\直播复盘侠"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"; Tasks: desktopicon
+Name: "{group}\复盘虾"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"
+Name: "{group}\卸载复盘虾"; Filename: "{uninstallexe}"
+Name: "{autodesktop}\复盘虾"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\LiveWatchLauncher.exe"; Description: "立即启动直播复盘侠"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\LiveWatchLauncher.exe"; Description: "立即启动复盘虾"; Flags: nowait postinstall skipifsilent
 
 [InstallDelete]
 ; 覆盖升级时，先清理安装目录中受控的旧程序树，再写入新版本。
@@ -119,6 +123,7 @@ const
 
 var
   InstalledLauncher: String;
+  PreviousInstallPathInvalid: Boolean;
 
 function DataDir(): String;
 begin
@@ -130,6 +135,60 @@ begin
   Result := RegQueryStringValue(HKLM64, LiveWatchUninstallKey, ValueName, Value);
   if not Result then
     Result := RegQueryStringValue(HKLM, LiveWatchUninstallKey, ValueName, Value);
+end;
+
+function IsExistingInstallDir(const Candidate: String): Boolean;
+begin
+  // A valid previous install must contain the launcher.  C:\\Program is a
+  // known truncation produced by the old unquoted /DIR handoff and is never
+  // accepted as an upgrade target.
+  Result := (Candidate <> '') and
+    (CompareText(ExtractFileName(RemoveBackslashUnlessRoot(Candidate)), 'Program') <> 0) and
+    FileExists(AddBackslash(Candidate) + 'LiveWatchLauncher.exe');
+end;
+
+function GetDefaultInstallDir(Param: String): String;
+var
+  InstalledDir: String;
+begin
+  PreviousInstallPathInvalid := False;
+  // Inno evaluates this before showing the directory page.  Prefer the
+  // registered path from the existing installation, even when an old client
+  // launched this installer without an explicit /DIR switch.
+  if ReadInstalledValue('Inno Setup: App Path', InstalledDir) and
+     IsExistingInstallDir(InstalledDir) then
+    Result := InstalledDir
+  else
+  begin
+    if InstalledDir <> '' then
+      PreviousInstallPathInvalid := True;
+    Result := ExpandConstant('{autopf}\LiveWatch');
+  end;
+end;
+
+procedure InitializeWizard();
+var
+  InstalledDir: String;
+begin
+  // /DIR from an old updater can point at a stale default directory.  When a
+  // registered installation exists, force the directory page back to that
+  // installation so the package cannot silently create a second copy.
+  if PreviousInstallPathInvalid then
+    MsgBox('检测到旧安装记录，但原目录无效。请在安装目录页面选择原复盘虾目录，避免生成第二份安装。', mbInformation, MB_OK)
+  else if ReadInstalledValue('Inno Setup: App Path', InstalledDir) and
+          IsExistingInstallDir(InstalledDir) then
+    WizardForm.DirEdit.Text := InstalledDir;
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
+begin
+  Result := True;
+  if (CurPageID = wpSelectDir) and PreviousInstallPathInvalid and
+     (not IsExistingInstallDir(WizardForm.DirEdit.Text)) then
+  begin
+    MsgBox('请在安装目录页面选择原复盘虾目录，否则更新会安装成第二份程序。', mbError, MB_OK);
+    Result := False;
+  end;
 end;
 
 function ShouldLaunchInstalledApp(): Boolean;
@@ -169,7 +228,7 @@ begin
   Log('检测到已安装的同版或更新版，直接启动：' + InstalledLauncher);
   if not Exec(InstalledLauncher, '', ExtractFileDir(InstalledLauncher), SW_SHOWNORMAL,
               ewNoWait, ResultCode) then
-    MsgBox('已检测到直播复盘侠，但启动失败。请从开始菜单或桌面快捷方式重新打开。', mbError, MB_OK);
+    MsgBox('已检测到复盘虾，但启动失败。请从开始菜单或桌面快捷方式重新打开。', mbError, MB_OK);
   Result := False;
 end;
 
@@ -234,7 +293,7 @@ begin
   // 先关闭旧版进程树并确认锁文件已释放；再让 Restart Manager 处理极少数异常锁。
   StopLauncherTree();
   if not WaitForLauncherExit(12) then
-    Result := '无法自动关闭正在运行的直播复盘侠。请在系统托盘图标中选择“彻底退出”后，再重新安装。';
+    Result := '无法自动关闭正在运行的复盘虾。请在系统托盘图标中选择“彻底退出”后，再重新安装。';
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -246,7 +305,7 @@ begin
   begin
     StopLauncherTree();
     if not WaitForLauncherExit(12) then
-      MsgBox('直播复盘侠仍在运行。请在系统托盘图标中选择“彻底退出”后重新执行卸载。', mbError, MB_OK);
+      MsgBox('复盘虾仍在运行。请在系统托盘图标中选择“彻底退出”后重新执行卸载。', mbError, MB_OK);
   end;
   if CurUninstallStep = usPostUninstall then
   begin

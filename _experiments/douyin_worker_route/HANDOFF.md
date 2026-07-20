@@ -1,6 +1,6 @@
 # 直播复盘侠主线快速接手卡
 
-更新时间：2026-07-16
+更新时间：2026-07-20
 本目录是当前主程序目录：
 
 ```text
@@ -27,7 +27,7 @@ C:\Users\q2414\Desktop\live_watch\DEVELOPMENT_LOG.md
 C:\Users\q2414\Desktop\live_watch\THIRD_PARTY_NOTICES.md
 ```
 
-重要更新：较早的商业包 `1.0.15` 已把 MIT `jwwsjlm/douyinLive v2.0.24` 固定为本机 WSS sidecar，但当前线上签名更新版本已经是 `1.1.14`。不要恢复旧的 `vendor/DouyinLiveWebFetcher` / `run_worker.py`；真实直播间互动端到端与 Windows 代码签名仍待完成。`1.0.15` 之后又修复了主播身份、直播工作台和历史场次，下一次构建必须使用 `1.1.15` 或更高，不能发布 `1.0.16` 造成版本倒退。
+重要更新：较早的商业包 `1.0.15` 已把 MIT `jwwsjlm/douyinLive v2.0.24` 固定为本机 WSS sidecar，但当前线上签名更新版本已经是 `1.1.14`。不要恢复旧的 `vendor/DouyinLiveWebFetcher` / `run_worker.py`；真实直播间互动端到端与 Windows 代码签名仍待完成。`1.0.15` 之后又修复了主播身份、直播工作台和历史场次，当前本地最新构建基线为 `1.1.25`，下一次构建不能低于该版本。
 
 直播工作台现已同时支持进行中和最近完成场次。停止录制会写入 `recording_sessions`，前端按 `session_id` 保留该场的话术、互动、时长和可用录像；升级前历史数据从 `recording_timeline` 推断。禁止再把“非 recording 状态”直接等同于空工作台。
 
@@ -108,9 +108,9 @@ $env:PYTHONPATH='C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_ro
 python -m pytest -q
 ```
 
-最近一次结果：`296 passed`；另有仓库级账号 / 构建契约 `43 passed`，合计 `339 passed`。
+最近一次结果：主线与 `packaging/build` 回归 `337 passed`，另有 5 个已知弃用 / 依赖警告。
 
-仓库根目录同时运行主线、`licensing_server` 与 `packaging/build` 契约：`331 passed`。
+验证命令：`$env:PYTHONPATH="$PWD\_experiments\douyin_worker_route"; python -m pytest _experiments\douyin_worker_route\tests packaging\build -q`。
 
 当前线上签名更新版本：`1.1.14`
 
@@ -118,7 +118,7 @@ python -m pytest -q
 - SHA-256：`4D41794C77049D5E5E84E25A0F731F05FA81FB7BFAF5EF82174FCC3BC65FE133`
 - 字节数：`261169156`
 
-旧本地 `1.0.15` 候选已废弃（低于线上版本且不含本轮修复）；下一次商业构建版本：`1.1.15`。
+旧本地 `1.0.15` 候选已废弃（低于线上版本且不含本轮修复）；当前本地构建：`release/LiveWatchSetup_1.1.25.exe`，SHA-256 `a5a6569fdcb42a597b6ace01d4565733d7fde9c951f784ff06784ff89e5b058a`，338,374,466 bytes。该文件仍需单独完成 OSS 上传、后台签名发布和 Windows 代码签名；下一次商业构建版本不得低于 `1.1.25`。
 
 ---
 
@@ -131,11 +131,20 @@ python -m pytest -q
 5. 短视频 AI 评分和 AI 拆解要合并成一次动作，报告要绑定单个作品，历史支持查看、下载、Markdown。
 6. AI 获客从“选视频采评论”升级为“主页新作品监控”。
 7. 继续验收一次性续费交接、三产品签名权益隔离、支付成功后的客户端刷新；服务端 `user_products` 是唯一真相源。
-8. 商业安装包已接入账号公钥、更新公钥、Nuitka 和完整性检查；线上三产品签名更新接口已返回 200，仍需对 `1.1.15` 做完整下载、覆盖安装与 Windows 代码签名验收。
+8. 商业安装包已接入账号公钥、更新公钥、Nuitka 和完整性检查；线上三产品签名更新接口已返回 200，仍需对 `1.1.25` 做完整下载、覆盖安装与 Windows 代码签名验收。
 
 直播工作台补充约束：实时场次按 `recording_since` 读取，已结束场次必须同时按 `recording_since` 与 `recording_end` 截断；选择值使用独立 `session_id`，不得按主播 / 房间号混读多场数据。停止后不得清空最近场次；“全部开始 / 全部停止”必须保留显式成功/失败提示。任何修改都要跑 `test_live_workbench.py`、`test_video_preview.py` 与 `test_frontend_contract.py`。
 
 直播预览布局：用视频元数据判断 `portrait / landscape`，卡片固定为辅助列，比例变化不能挤压实时话术；宽屏三栏、中屏两栏、窄屏单列。放大弹窗必须复用 `/api/live-preview/{rid}` 的本机录制段，禁止为预览额外打开抖音页面或第二条平台拉流。
+
+## 5.1 2026-07-20 本地交付收口
+
+- `pipeline/updater.py` 会把真实安装目录写入更新状态，并以带引号的 `/DIR="..."` 传给 Inno Setup；`livewatch.iss` 从注册表读取并校验原安装目录，避免用户把软件装到 D 盘后更新落到第二份目录。
+- 更新弹窗展示安装目录、下载阶段和进度；旧包只具备 60 秒轮询，完成一次基线升级后才具备 SSE 触发的即时检查。
+- `pipeline/integrity_manifest.py` 只校验启动器和 `app/pipeline/*.pyd` 核心文件；素材、导出、模型、数据库和用户数据不再因为正常修改触发完整性拒绝。
+- `pipeline/frontend.html` 使用显式 `onPreviewDialogOpen` 打开放大预览，修复 `nextTick is not a function`；全局异常只显示短提示“操作错误，稍后再试”，不再覆盖整屏原始堆栈。
+- `pipeline/ai_report.py` 在 SSE 响应上强制 UTF-8，避免部分 AI 服务未声明 charset 时出现中文乱码；前端、导出和安装器品牌统一为“复盘虾”，图标为 `packaging/build/assets/icon-options/replay-shrimp.ico`。
+- 当前验证：`337 passed`、5 warnings；本地构建产物为 `1.1.25`，尚未替代线上 `1.1.14` 完成发布。
 
 ---
 

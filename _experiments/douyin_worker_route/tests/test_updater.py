@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+
 from pipeline import config, updater
 from pipeline.updater import UpdateManifest
 
@@ -86,3 +88,44 @@ def test_update_download_status_has_explicit_phases() -> None:
     assert "downloaded_bytes" in status
     assert "total_bytes" in status
     assert "percent" in status
+
+
+def test_frozen_updater_uses_the_current_launcher_directory(monkeypatch, tmp_path) -> None:
+    install_dir = tmp_path / "自定义安装目录"
+    install_dir.mkdir()
+    monkeypatch.setattr(updater.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(
+        updater.sys,
+        "executable",
+        str(install_dir / "LiveWatchLauncher.exe"),
+    )
+
+    assert updater.install_directory() == install_dir.resolve()
+
+
+def test_run_installer_passes_current_directory_to_inno_setup(monkeypatch, tmp_path) -> None:
+    install_dir = tmp_path / "安装位置"
+    install_dir.mkdir()
+    installer = tmp_path / "updates" / "ReplayShrimpSetup_1.1.18.exe"
+    installer.parent.mkdir()
+    installer.write_bytes(b"installer")
+    monkeypatch.setattr(updater.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(
+        updater.sys,
+        "executable",
+        str(install_dir / "LiveWatchLauncher.exe"),
+    )
+    captured: list[list[str]] = []
+
+    def fake_popen(args, **_kwargs):
+        captured.append(list(args))
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(updater.subprocess, "Popen", fake_popen)
+    updater.run_installer(installer, silent=False)
+
+    assert captured == [[
+        str(installer),
+        "/NORESTART",
+        f'/DIR="{install_dir.resolve()}"',
+    ]]

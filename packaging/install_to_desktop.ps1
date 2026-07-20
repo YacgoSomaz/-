@@ -3,10 +3,10 @@ $ErrorActionPreference = "Stop"
 $source = Split-Path -Parent $MyInvocation.MyCommand.Path
 $installDir = Join-Path $env:LOCALAPPDATA "LiveWatch"
 $desktop = [Environment]::GetFolderPath("Desktop")
-$shortcutPath = Join-Path $desktop "直播复盘侠.lnk"
+$shortcutPath = Join-Path $desktop "复盘虾.lnk"
 
 Write-Host ""
-Write-Host "直播复盘侠本地安装"
+Write-Host "复盘虾本地安装"
 Write-Host "----------------------------------------"
 Write-Host "Source: $source"
 Write-Host "Install dir: $installDir"
@@ -39,7 +39,7 @@ $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $exe
 $shortcut.WorkingDirectory = $installDir
 $shortcut.WindowStyle = 1
-$shortcut.Description = "启动直播复盘侠"
+$shortcut.Description = "启动复盘虾"
 $shortcut.Save()
 
 Write-Host ""

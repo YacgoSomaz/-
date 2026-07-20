@@ -39,6 +39,11 @@ class LauncherUpdateContractTests(unittest.TestCase):
         self.assertIn("_acquire_single_instance", LAUNCHER)
         self.assertIn("wintypes.HANDLE", LAUNCHER)
 
+    def test_launcher_integrity_is_limited_to_immutable_core_allowlist(self) -> None:
+        self.assertIn("def _is_integrity_core_path", LAUNCHER)
+        self.assertIn("if not _is_integrity_core_path(rel):", LAUNCHER)
+        self.assertIn("Older manifests may contain user data", LAUNCHER)
+
 
 if __name__ == "__main__":
     unittest.main()

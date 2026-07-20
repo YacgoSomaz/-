@@ -1,5 +1,5 @@
 <# 
-  直播复盘侠在线安装器
+  复盘虾在线安装器
 
   作用：
     1. 从官方 HTTPS 地址下载安装包。
@@ -102,7 +102,7 @@ if ($proc.ExitCode -ne 0) {
     throw "安装程序退出码异常：$($proc.ExitCode)"
 }
 
-Write-Host "直播复盘侠安装完成。" -ForegroundColor Green
+Write-Host "复盘虾安装完成。" -ForegroundColor Green
 
 if (-not $KeepInstaller) {
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue

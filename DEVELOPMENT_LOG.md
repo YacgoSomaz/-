@@ -1,6 +1,12 @@
-# 直播复盘侠开发日志
+# 复盘虾开发日志
 
 本文档记录项目从研究验证到商业安装包的主要演进。它用于交接，不替代 Git 提交历史。
+
+## 2026-07-17：品牌名称与安装图标统一
+
+- 客户端显示名称、安装器、开始菜单、桌面快捷方式和托盘菜单统一改为“复盘虾”。内部目录、进程名 `LiveWatchLauncher.exe`、更新对象路径和产品码保持不变，避免破坏升级兼容性。
+- 后续构建改用 `packaging/build/assets/icon-options/replay-shrimp.ico`：直接由确认版 256×256 原图生成，蓝色渐变底、叠层播放框和播放三角图标；PyInstaller 与 Inno Setup 使用同一图标源。
+- 本次只修改源码和打包配置，按要求没有编译或生成新的安装包；现有已安装包的图标和快捷方式要等下一次覆盖安装后才会更新。
 
 ## 2026-07-16：复盘虾 1.1.16 商业安装包完成
 
@@ -362,3 +368,33 @@
 - AI 获客系统需要从“手动视频评论采集”升级为“竞品主页新作品定时监控”。
 - 代码签名证书还未接入，安装包仍会显示未签名。
 - 商业授权后台只有单管理员令牌，后续可加多账号、操作审计和导出。
+
+## 2026-07-17：OSS 旧安装包自动清理
+
+- 线上 `/home/ubuntu/recharge-api` 增加 `release-retention.js`：按每个产品的语义化版本排序，保留最新 3 个已发布版本。
+- 超出保留窗口的已发布/已撤回安装包先进入 7 天回收期；只在回收期结束且再次确认不属于最新 3 个版本时，通过服务端 OSS 签名 DELETE 删除对象。
+- 当前版本、草稿版本和回收期间重新回到保留窗口的版本不会被删除；长期不发布新版本不会触发删除。
+- 清理任务启动后 10 秒执行一次，随后每 6 小时执行；失败任务记录错误并每小时重试。
+- 管理后台版本发布页新增“旧版本自动清理”状态卡和手动检查按钮；所有任务写入 `release_retention_jobs`，可审计待清理、已清理和失败重试记录。
+- 首次部署已发现并排队 3 个候选对象（复盘虾 1.1.14、复盘虾已撤回 0.1.21、运营虾 0.1.13），`not_before` 为 2026-07-24；本次部署没有立即删除 OSS 文件。
+- 线上备份目录：`/home/ubuntu/recharge-api/backups/retention-20260717011800`；远端 `node --check` 与 2 个保留策略测试通过，PM2 `recharge-api` 健康检查正常。
+
+## 2026-07-20：安装目录、完整性范围、预览错误与品牌收口
+
+本次只处理复盘虾主线，不修改漫剧虾或运营虾仓库。变更集中在主线业务、Windows 商业构建和交接文档：
+
+- 更新器：`pipeline/updater.py` 在下载状态中返回实际安装目录，启动安装器时传入带引号的 `/DIR="安装目录"`；`packaging/build/livewatch.iss` 通过注册表 `Inno Setup: App Path` 恢复并校验原路径，解决用户改装到 D 盘后更新落到第二目录、桌面快捷方式仍启动旧包的问题。
+- 更新体验：前端更新弹窗显示安装目录、当前下载阶段、字节进度和安装提示；普通更新与强制更新沿用签名 `update-v1` 清单，不能把 OSS 文件列表当更新源。
+- 完整性：`pipeline/integrity_manifest.py` 的 allowlist 收窄为启动器和 `app/pipeline/*.pyd` 核心文件。用户素材、导出、模型、数据库、缓存和保存路径的正常变化不再触发完整性拒绝。
+- 运行时错误：`pipeline/frontend.html` 将放大预览改为显式 `onPreviewDialogOpen`，修复 Vue 运行时 `nextTick is not a function`；全局异常改为记录诊断并显示短提示“操作错误，稍后再试”，不再渲染整屏原始堆栈。
+- AI 复盘：`pipeline/ai_report.py` 对 SSE 响应显式设置 UTF-8，修复服务端未声明 charset 时的中文乱码；导出、效能分析和 Web UI 文案同步使用“复盘虾”。
+- 发布资源：安装器品牌和图标统一为“复盘虾”，图标源为 `packaging/build/assets/icon-options/replay-shrimp.ico`；发布包仍需另行完成 Windows 代码签名、OSS 上传和后台签名清单发布。
+
+验证命令：
+
+```powershell
+$env:PYTHONPATH="$PWD\_experiments\douyin_worker_route"
+python -m pytest _experiments\douyin_worker_route\tests packaging\build -q
+```
+
+结果：`337 passed`，5 个已知弃用 / 依赖警告。当前本地构建 `release/LiveWatchSetup_1.1.25.exe` 的 SHA-256 为 `a5a6569fdcb42a597b6ace01d4565733d7fde9c951f784ff06784ff89e5b058a`，大小 `338,374,466` bytes；本次只推送源码和文档，不自动上传 OSS。

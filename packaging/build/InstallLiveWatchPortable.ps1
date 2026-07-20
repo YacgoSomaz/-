@@ -15,7 +15,7 @@ $ExpectedSha256 = "34D0AFC96CDB4AC0B0F51F6E01DBF6E9E96FD9C22606C11F3FF6BED051740
 $ExpectedBytes = 391625121
 
 function Write-Step([string]$Message) {
-  Write-Host "[直播复盘侠] $Message" -ForegroundColor Cyan
+  Write-Host "[复盘虾] $Message" -ForegroundColor Cyan
 }
 
 function Assert-SafeInstallDir([string]$Path) {
@@ -93,7 +93,7 @@ function Download-FileWithProgress([string]$Url, [string]$Destination, [int64]$E
           }
           $elapsed = [Math]::Max(0.1, ($now - $started).TotalSeconds)
           $speed = ($downloaded / 1MB) / $elapsed
-          Write-Progress -Activity "正在下载直播复盘侠" -Status ("{0:N1} MB / {1:N1} MB，{2:N1} MB/s" -f ($downloaded / 1MB), ($total / 1MB), $speed) -PercentComplete $percent
+        Write-Progress -Activity "正在下载复盘虾" -Status ("{0:N1} MB / {1:N1} MB，{2:N1} MB/s" -f ($downloaded / 1MB), ($total / 1MB), $speed) -PercentComplete $percent
           Write-Host ("  下载进度 {0}%  {1:N1}/{2:N1} MB  {3:N1} MB/s" -f $percent, ($downloaded / 1MB), ($total / 1MB), $speed)
           $lastReport = $now
         }
@@ -102,7 +102,7 @@ function Download-FileWithProgress([string]$Url, [string]$Destination, [int64]$E
     finally {
       if ($outputStream) { $outputStream.Dispose() }
       if ($inputStream) { $inputStream.Dispose() }
-      Write-Progress -Activity "正在下载直播复盘侠" -Completed
+      Write-Progress -Activity "正在下载复盘虾" -Completed
     }
   }
   finally {
@@ -150,7 +150,7 @@ try {
     $oldLauncher = Join-Path $InstallDir "LiveWatchLauncher.exe"
     $oldManifest = Join-Path $InstallDir "integrity_manifest.json"
     if (-not ((Test-Path -LiteralPath $oldLauncher) -or (Test-Path -LiteralPath $oldManifest))) {
-      throw "目标目录已存在且不像直播复盘侠安装目录：$InstallDir。请换一个目录。"
+      throw "目标目录已存在且不像复盘虾安装目录：$InstallDir。请换一个目录。"
     }
     $backup = "$InstallDir.bak_$(Get-Date -Format yyyyMMdd_HHmmss)"
     Write-Step "备份旧版本..."
@@ -168,7 +168,7 @@ try {
     Write-Step "创建桌面快捷方式..."
     $shell = New-Object -ComObject WScript.Shell
     $desktop = [Environment]::GetFolderPath("Desktop")
-    $shortcutPath = Join-Path $desktop "直播复盘侠.lnk"
+    $shortcutPath = Join-Path $desktop "复盘虾.lnk"
     $shortcut = $shell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = Join-Path $InstallDir "LiveWatchLauncher.exe"
     $shortcut.WorkingDirectory = $InstallDir

@@ -61,7 +61,7 @@ import webview
 import pystray
 from PIL import Image, ImageDraw
 
-APP_NAME = "直播复盘侠"
+APP_NAME = "复盘虾"
 DEFAULT_PORT = 8848
 MANIFEST_NAME = "integrity_manifest.json"
 INTEGRITY_PUBLIC_KEY = "__LIVEWATCH_INTEGRITY_PUBLIC_KEY__"
@@ -151,7 +151,7 @@ def _find_app_dir(base: Path) -> Path:
             return candidate
     raise SystemExit(
         "没有找到应用运行模块。\n"
-        "请确认 LiveWatchLauncher.exe 与 app、models 文件夹在同一个安装目录里。"
+        "请确认 LiveWatchLauncher.exe 与 app、models 文件夹在同一个复盘虾安装目录里。"
     )
 
 
@@ -260,6 +260,14 @@ def _canonical_manifest_payload(manifest: dict) -> bytes:
     ).encode("utf-8")
 
 
+def _is_integrity_core_path(rel: str) -> bool:
+    """Keep startup integrity checks limited to immutable program files."""
+    normalized = str(rel or "").replace("\\", "/").lower()
+    if normalized == "livewatchlauncher.exe":
+        return True
+    return normalized.startswith("app/pipeline") and normalized.count("/") == 1 and normalized.endswith(".pyd")
+
+
 def _verify_integrity_manifest(base: Path) -> list[str]:
     manifest_path = base / MANIFEST_NAME
     if not manifest_path.exists():
@@ -291,6 +299,11 @@ def _verify_integrity_manifest(base: Path) -> list[str]:
     covered: set[str] = set()
     for item in manifest.get("files", []):
         rel = str(item.get("path", "")).replace("\\", "/")
+        # Older manifests may contain user data or documentation entries.
+        # Ignore those entries during verification so a normal user change
+        # does not become a startup-blocking integrity failure.
+        if not _is_integrity_core_path(rel):
+            continue
         covered.add(rel)
         expected = str(item.get("sha256", ""))
         if not rel or not expected:
@@ -323,6 +336,8 @@ def _verify_integrity_manifest(base: Path) -> list[str]:
         if set(rel_path.parts) & skipped_dirs or path.name in skipped_files:
             continue
         rel = rel_path.as_posix()
+        if not _is_integrity_core_path(rel):
+            continue
         if rel not in covered:
             findings.append(f"发现未授权文件：{rel}")
     return findings
@@ -531,11 +546,11 @@ class DesktopClient:
         self.window.events.loaded += self._on_loaded
 
         self.tray = pystray.Icon(
-            "直播复盘侠",
+            "复盘虾",
             _tray_image(),
             APP_NAME,
             menu=pystray.Menu(
-                pystray.MenuItem("打开直播复盘侠", self._show, default=True),
+                pystray.MenuItem("打开复盘虾", self._show, default=True),
                 pystray.MenuItem("打开数据目录", self._open_data_dir),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("彻底退出", self._exit),
@@ -615,7 +630,7 @@ def main() -> int:
     url = f"http://127.0.0.1:{port}"
 
     print()
-    print("  直播复盘侠客户端")
+    print("  复盘虾客户端")
     print("  ----------------------------------------")
     print(f"  安装目录: {app_dir}")
     print(f"  数据目录: {data_dir}")

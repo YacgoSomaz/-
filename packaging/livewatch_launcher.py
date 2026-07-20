@@ -32,7 +32,7 @@ import websocket  # noqa: F401
 import websockets  # noqa: F401
 
 
-APP_NAME = "直播复盘侠"
+APP_NAME = "复盘虾"
 DEFAULT_PORT = 8848
 
 
@@ -82,7 +82,7 @@ def main() -> int:
     sys.path.insert(0, str(app_dir))
 
     print()
-    print("  直播复盘侠")
+    print("  复盘虾")
     print("  ----------------------------------------")
     print(f"  安装目录: {app_dir}")
     print(f"  弹幕后端: {os.environ.get('LIVEWATCH_DANMU_BACKEND', 'audio_only')}")

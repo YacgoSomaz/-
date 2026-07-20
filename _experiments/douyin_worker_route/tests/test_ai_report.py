@@ -399,6 +399,38 @@ class AIReportTests(unittest.TestCase):
         )
         self.assertEqual(events[-1]["type"], "done")
 
+    def test_chat_completion_stream_forces_utf8_for_sse_without_charset(self) -> None:
+        cfg = ai_report.AIConfig(
+            base_url="https://api.example.test/v1",
+            api_key="secret",
+            model="demo",
+        )
+
+        class FakeResponse:
+            status_code = 200
+            encoding = None
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def iter_lines(self, *, chunk_size, decode_unicode):
+                self_seen_encoding = self.encoding
+                self.assert_encoding = self_seen_encoding
+                payload = '{"choices":[{"delta":{"content":"直播正常"}}]}'
+                raw_lines = [f"data: {payload}".encode("utf-8"), b"data: [DONE]"]
+                for raw in raw_lines:
+                    yield raw.decode(self.encoding or "latin-1") if decode_unicode else raw
+
+        response = FakeResponse()
+        with patch("pipeline.ai_report.requests.post", return_value=response):
+            content = "".join(ai_report._chat_completion_stream(cfg, [{"role": "user", "content": "测试"}]))
+
+        self.assertEqual(response.assert_encoding, "utf-8")
+        self.assertEqual(content, "直播正常")
+
 
 if __name__ == "__main__":
     unittest.main()

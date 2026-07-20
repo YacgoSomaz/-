@@ -36,7 +36,7 @@ from .manager import RoomManager, active_room_limit
 from .package_assets import package_asset_dir
 from .web_security import LOCAL_UI_ORIGIN_REGEX
 
-app = FastAPI(title="直播复盘侠")
+app = FastAPI(title="复盘虾")
 
 # ---------- 可选 HTTP Basic 登录（公网穿透用，本地默认无密码）----------
 # 设了环境变量 LIVEWATCH_AUTH="用户名:密码" 才启用；不设则行为与从前完全一致（本地直连无门槛）。
@@ -60,7 +60,7 @@ async def _basic_auth(request: Request, call_next):
             return await call_next(request)
     return Response(
         status_code=401,
-        headers={"WWW-Authenticate": 'Basic realm="直播复盘侠"'},
+        headers={"WWW-Authenticate": 'Basic realm="复盘虾"'},
         content="需要登录",
     )
 

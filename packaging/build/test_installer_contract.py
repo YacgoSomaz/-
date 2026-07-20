@@ -56,6 +56,24 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("function InitializeSetup", SCRIPT)
         self.assertIn("ShouldLaunchInstalledApp", SCRIPT)
 
+    def test_upgrade_without_dir_switch_reuses_the_registered_install_directory(self) -> None:
+        """Old clients cannot pass /DIR, so the installer must recover the path itself."""
+        self.assertIn("DefaultDirName={code:GetDefaultInstallDir}", SCRIPT)
+        self.assertIn("function GetDefaultInstallDir", SCRIPT)
+        self.assertIn("ReadInstalledValue('Inno Setup: App Path'", SCRIPT)
+        self.assertIn("ExpandConstant('{autopf}\\LiveWatch')", SCRIPT)
+        self.assertIn("procedure InitializeWizard", SCRIPT)
+        self.assertIn("WizardForm.DirEdit.Text := InstalledDir", SCRIPT)
+        self.assertIn("RemoveBackslashUnlessRoot(Candidate)", SCRIPT)
+        self.assertIn("UsePreviousAppDir=no", SCRIPT)
+
+    def test_invalid_previous_directory_requires_explicit_reselection(self) -> None:
+        """A corrupt old registry path must not silently create another copy."""
+        self.assertIn("PreviousInstallPathInvalid", SCRIPT)
+        self.assertIn("function IsExistingInstallDir", SCRIPT)
+        self.assertIn("wpSelectDir", SCRIPT)
+        self.assertIn("请在安装目录页面选择原复盘虾目录", SCRIPT)
+
 
 if __name__ == "__main__":
     unittest.main()

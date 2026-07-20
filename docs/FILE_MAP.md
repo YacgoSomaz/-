@@ -1,6 +1,6 @@
 # 文件结构与功能地图
 
-更新时间：2026-07-16
+更新时间：2026-07-20
 
 用途：让下一位工程师或 AI 从“功能 / 故障现象”快速定位到主文件、数据来源和回归测试。完整业务现状见 [`../PROJECT_HANDOFF.md`](../PROJECT_HANDOFF.md)，具体排障步骤见 [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md)。
 
@@ -141,6 +141,18 @@ live-console-grid
 | `vendor/douyinlive/` | 固定 MIT sidecar、许可证和示例 | 二进制缺失 / 哈希不符 | 构建 SHA-256 检查 |
 
 `release/`、`staging/` 和构建日志是本机产物，不提交源码仓库。
+
+## 8.1 2026-07-20 交付定位补充
+
+| 现象 | 首先定位 | 关键结论 |
+|---|---|---|
+| 更新后仍启动旧版本 / D 盘安装失效 | `pipeline/updater.py`、`packaging/build/livewatch.iss` | 更新器必须传递真实安装目录；安装器从 `Inno Setup: App Path` 恢复并校验路径，不能只依赖桌面快捷方式 |
+| 修改素材或导出目录后完整性报错 | `pipeline/integrity_manifest.py` | 只允许启动器和 `app/pipeline/*.pyd` 核心文件进入清单，用户数据不应被校验 |
+| 放大预览报 Vue runtime 错误 | `pipeline/frontend.html`、`test_frontend_contract.py` | 使用 `onPreviewDialogOpen`，不要在模板事件中把 `nextTick` 当作 setup 暴露函数 |
+| AI 回复中文乱码 | `pipeline/ai_report.py`、`test_ai_report.py` | SSE 读取前显式设置 UTF-8；这与权限签名、安装包加密无关 |
+| 用户看到整屏红色堆栈 | `pipeline/frontend.html` | 全局错误只记录诊断并显示“操作错误，稍后再试”的短提示 |
+
+当前本地构建基线为 `1.1.25`，主线与安装器回归为 `337 passed`；源码仓库同步不代表 OSS 已发布新安装包。
 
 ## 9. 测试目录索引
 

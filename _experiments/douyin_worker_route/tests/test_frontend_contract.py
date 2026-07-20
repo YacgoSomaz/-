@@ -265,7 +265,7 @@ def test_live_console_preview_is_a_bounded_thumbnail_for_portrait_and_landscape_
     assert "previewOrientation:'unknown'" in html
     assert '@loadedmetadata="updatePreviewOrientation"' in html
     assert "function updatePreviewOrientation(event)" in html
-    assert "fetchLiveWorkbench,updatePreviewOrientation,filteredRooms" in html
+    assert "fetchLiveWorkbench,updatePreviewOrientation,onPreviewDialogOpen,filteredRooms" in html
     assert "竖屏 9:16" in html
     assert "横屏 16:9" in html
     assert ".live-console-grid{grid-template-columns:minmax(320px,360px)" in html
@@ -277,6 +277,19 @@ def test_live_console_preview_is_a_bounded_thumbnail_for_portrait_and_landscape_
     assert "max-height:72vh" in html
     assert "同一条取流的低延迟 HLS 预览" in html
     assert "live-preview-video-expanded" in html
+
+
+def test_runtime_errors_are_non_blocking_and_preview_open_does_not_call_unexposed_next_tick() -> None:
+    html = FRONTEND.read_text(encoding="utf-8")
+    assert '@open="nextTick(' not in html
+    assert '@open="onPreviewDialogOpen"' in html
+    assert "function onPreviewDialogOpen()" in html
+    assert "onPreviewDialogOpen," in html
+    assert "position:fixed;right:20px;top:20px" in html
+    assert "window.__livewatchLastError" in html
+    assert "操作错误，稍后再试" in html
+    assert "当前操作遇到问题，已跳过；请稍后重试" not in html
+    assert "inset:0;padding:16px;background:#fff;color:#c00" not in html
 
 
 def test_live_workbench_owns_the_efficiency_and_ai_replay_sub_navigation() -> None:

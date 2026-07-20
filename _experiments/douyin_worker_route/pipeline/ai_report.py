@@ -1,6 +1,6 @@
 """AI-assisted replay reports.
 
-The model is intentionally not an agent here. 直播复盘侠 gathers local evidence
+The model is intentionally not an agent here. 复盘虾 gathers local evidence
 from SQLite first, asks an OpenAI-compatible chat API to summarize bounded
 chunks, validates the structure, then asks for a final Markdown report.
 """
@@ -276,6 +276,12 @@ def _chat_completion_stream(
             if resp.status_code >= 400:
                 text = (resp.text or "")[:500]
                 raise AIReportError(f"AI 接口返回 HTTP {resp.status_code}: {text}")
+            # OpenAI-compatible providers often omit ``charset`` on SSE
+            # responses.  requests then guesses ISO-8859-1, turning UTF-8
+            # Chinese deltas into mojibake such as ``æ...``.  SSE payloads
+            # from this endpoint are JSON encoded as UTF-8, so never let
+            # the provider's missing/incorrect header choose the codec.
+            resp.encoding = "utf-8"
             # Keep chunk_size tiny so provider SSE deltas pass through instead
             # of waiting inside requests' default line buffer.
             for raw_line in resp.iter_lines(chunk_size=1, decode_unicode=True):
@@ -630,7 +636,7 @@ def _local_fallback_summary(chunk: dict[str, object], reason: str | None = None)
 def _final_report(cfg: AIConfig, overviews: list[dict[str, object]], summaries: list[dict[str, object]], truncated: bool) -> str:
     live_ops_knowledge = _load_live_ops_knowledge()
     system = (
-        "你是直播复盘侠的首席直播增长分析师，输出要像一份可直接给管理层看的咨询报告。"
+        "你是复盘虾的首席直播增长分析师，输出要像一份可直接给管理层看的咨询报告。"
         "根据结构化摘要生成中文 Markdown 报告，要求有标题层级、结论优先、数据看板、证据引用和行动清单。"
         "语气专业、克制、判断明确；禁止出现“好的”“老板”“以下是”“根据你提供”等对话式套话。"
         "第一行必须是 Markdown 一级标题。所有关键结论必须引用 evidence 中的时间或原文；没有证据就写“证据不足”。"
@@ -1251,7 +1257,7 @@ def _write_html_report(
     ]
     body = _markdown_body_html(markdown, inline_visuals=inline_visuals, inline_panels=inline_panels)
     html_doc = f"""<!doctype html>
-<html lang="zh-CN" data-report-version="2"><head><meta charset="utf-8"><title>直播复盘侠 AI 报告</title>
+<html lang="zh-CN" data-report-version="2"><head><meta charset="utf-8"><title>复盘虾 AI 报告</title>
 <style>
 *{{box-sizing:border-box}}html{{scroll-behavior:smooth}}body{{margin:0;background:linear-gradient(180deg,#eaf1f8,#f6f9fd 42%,#eef4fb);color:#172033;font:14px/1.75 "Microsoft YaHei",Arial,sans-serif}}
 .page{{max-width:1160px;margin:0 auto;padding:34px}}.hero{{background:linear-gradient(135deg,#101828,#20345d 62%,#265a75);color:#fff;border-radius:24px;padding:30px 34px;box-shadow:0 18px 48px rgba(16,24,40,.18);position:relative;overflow:hidden}}
@@ -1267,7 +1273,7 @@ figure{{margin:0;border-radius:18px;overflow:hidden;background:#f7faff;border:1p
 @media(max-width:900px){{.page{{padding:18px}}.kpis,.grid,.diagnostic-grid{{grid-template-columns:1fr}}.report-float-panel,.report-float-panel.left,.report-float-panel.right{{float:none;width:100%;max-width:100%;margin:12px 0}}}}
 @page{{size:A4;margin:10mm 9mm}}@media print{{html{{scroll-behavior:auto}}body{{background:#fff!important;color:#172033;font-size:11px;line-height:1.62;-webkit-print-color-adjust:exact;print-color-adjust:exact}}.page{{width:192mm;max-width:none;margin:0 auto;padding:0}}.hero{{border-radius:14px;padding:18px 20px;box-shadow:none;break-inside:avoid;page-break-inside:avoid}}.hero h1{{font-size:22px}}.hero p{{font-size:11px}}.hero:after{{display:none}}.jumpbar{{display:none}}.kpis{{display:grid;grid-template-columns:repeat(4,1fr)!important;gap:8px;margin-top:12px}}.kpi{{border-radius:10px;padding:8px 10px}}.kpi b{{font-size:18px}}.grid,.diagnostic-grid{{grid-template-columns:1fr 1fr;gap:9px;margin-top:10px}}.card,.diagnostic-card,.story-section,.mini-panel,figure{{box-shadow:none!important;border-color:#dfe7f2!important}}.diagnostic-card{{min-height:0;padding:12px;border-radius:12px}}.radar-chart{{height:150px}}.dim-row{{grid-template-columns:84px 28px 1fr;gap:7px;margin:5px 0}}.dim-row span{{display:none}}figure{{border-radius:10px}}figure img,.empty-shot div{{height:102px}}figcaption{{font-size:9px;padding:5px 7px}}.report-shell{{margin-top:10px}}.story-section{{break-inside:avoid;page-break-inside:avoid;border-radius:14px;padding:15px 17px;margin:0 0 10px;animation:none!important;overflow:visible}}.story-section h2{{font-size:15px;margin-bottom:10px;border-left-width:3px}}.story-section h3{{font-size:12px;margin:10px 0 5px}}.story-section p,.story-section li{{font-size:10.2px;line-height:1.62}}.story-section .lead{{font-size:11px;line-height:1.66;padding:9px 10px;border-radius:10px}}.insight-list,.story-section ul{{gap:5px;margin:7px 0}}.insight-list li,.story-section ul li{{padding:7px 9px 7px 22px;border-radius:10px;break-inside:avoid}}.insight-list li:before,.story-section ul li:before{{left:9px;top:13px;width:5px;height:5px;box-shadow:0 0 0 3px rgba(53,212,255,.10)}}.step-card{{grid-template-columns:28px 1fr;gap:8px;margin:7px 0;padding:8px 10px;border-radius:10px;break-inside:avoid}}.step-card b{{width:24px;height:24px;border-radius:8px}}.report-float-panel,.report-float-panel.left,.report-float-panel.right{{float:none!important;width:100%!important;max-width:100%!important;margin:8px 0!important;break-inside:avoid}}.report-float-panel .mini-panel,.report-float-panel .diagnostic-card{{padding:10px;border-radius:12px;margin-bottom:7px}}.mini-radar,.report-float-panel .radar-chart{{height:135px}}.mini-bar-row{{grid-template-columns:58px 1fr 24px;margin:5px 0;gap:6px}}.mini-bar-row b,.mini-bar-row em{{font-size:9px}}.mini-table-panel table,.report-float-panel table{{font-size:9px}}.mini-table-panel th,.mini-table-panel td,.report-float-panel th,.report-float-panel td,th,td{{padding:5px 6px}}.data-table-wrap{{overflow:visible;border-radius:10px}}.quote-card{{margin:8px 0;padding:8px 10px;border-radius:0 9px 9px 0}}.connector-note{{display:none}}}}
 </style></head><body><main class="page">
-<section class="hero"><h1>直播复盘侠 AI 复盘报告</h1><p>话术、互动、热度与视觉证据的综合复盘</p>
+<section class="hero"><h1>复盘虾 AI 复盘报告</h1><p>话术、互动、热度与视觉证据的综合复盘</p>
 <div class="kpis"><div class="kpi"><b>{metrics['rooms']}</b><span>复盘主播</span></div><div class="kpi"><b>{metrics['transcripts']}</b><span>话术片段</span></div><div class="kpi"><b>{metrics['chats']}</b><span>弹幕/评论</span></div><div class="kpi"><b>{metrics['peak']}</b><span>峰值在线</span></div></div><div class="jumpbar"><a href="#report">核心报告</a><a href="#words">高频词</a><a href="#visual">画面线索</a></div></section>
 <section class="report-shell" id="report"><div class="report">{body}</div></section>
 </main><script>
@@ -1765,7 +1771,7 @@ def _markdown_to_pdf(
 
     story: list[object] = []
     cover = Table(
-        [[Paragraph("<b>直播复盘侠 AI 复盘报告</b>", ParagraphStyle("CoverTitle", parent=white, fontSize=22, leading=28))],
+        [[Paragraph("<b>复盘虾 AI 复盘报告</b>", ParagraphStyle("CoverTitle", parent=white, fontSize=22, leading=28))],
          [Paragraph("话术、互动、热度与视觉证据的综合复盘", white)],
          [Paragraph(datetime.now().strftime("%Y-%m-%d %H:%M"), ParagraphStyle("CoverTime", parent=white, fontSize=9, leading=13, textColor=colors.HexColor("#d9e6ff")))]],
         colWidths=[174 * mm],
@@ -2245,7 +2251,7 @@ def _question_prompt(rids: list[str], messages: list[dict[str, str]]) -> tuple[A
     overview = json.dumps([_bundle_overview(b) for b in bundles], ensure_ascii=False)
     word_data = json.dumps(word_cloud([b.rid for b in bundles], limit=40)["words"], ensure_ascii=False)
     system = (
-        "你是直播复盘侠的直播复盘智能体。你只能根据提供的本地直播证据回答，"
+        "你是复盘虾的直播复盘智能体。你只能根据提供的本地直播证据回答，"
         "如果证据不足就明确说证据不足。回答要给出可追溯的时间点或原话。"
     )
     context = (

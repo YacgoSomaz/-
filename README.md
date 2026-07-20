@@ -1,6 +1,6 @@
-# 直播复盘侠（LiveWatch / 复盘虾）
+# 复盘虾（LiveWatch）
 
-直播复盘侠是一套 Windows 本地商业软件，用于抖音直播录制、互动采集、语音转写、实时工作台、直播效能分析、AI 复盘、短视频分析和评论线索整理。
+复盘虾是一套 Windows 本地商业软件，用于抖音直播录制、互动采集、语音转写、实时工作台、直播效能分析、AI 复盘、短视频分析和评论线索整理。
 
 当前开发主线：
 
@@ -22,14 +22,17 @@ _experiments/douyin_worker_route/
 
 账号与更新协议分别以 [`docs/ACCOUNT_PRODUCT_CONTRACT.md`](docs/ACCOUNT_PRODUCT_CONTRACT.md) 和 [`docs/DESKTOP_UPDATE_CONTRACT.md`](docs/DESKTOP_UPDATE_CONTRACT.md) 为准；产品管理后台、人工会员授权和生产备份见 [`docs/ADMIN_CONSOLE.md`](docs/ADMIN_CONSOLE.md)。不要在三个客户端中各自发明字段。
 
-## 当前状态（2026-07-15）
+## 当前状态（2026-07-20）
 
-- 主线完整回归：`292 passed`；连同 `licensing_server` 和 `packaging/build` 契约的仓库级验证：`331 passed`。
-- 线上签名更新通道当前复盘虾版本为 `1.1.14`，对应 `replay-shrimp/1.1.14/LiveWatchSetup_1.1.14.exe`。
+- 主线与 `packaging/build` 契约回归：`337 passed`，5 个已知弃用 / 依赖警告。
+- 当前本地最新构建为 `1.1.25`：`release/LiveWatchSetup_1.1.25.exe`，SHA-256 为 `a5a6569fdcb42a597b6ace01d4565733d7fde9c951f784ff06784ff89e5b058a`，大小 `338,374,466` bytes；尚未代替后台完成 OSS 上传和签名发布。
 - 较早的本地 `1.0.15` WSS sidecar 候选已经低于线上版本号，且不包含之后完成的主播身份保护和直播工作台修复，只能保留为历史构建记录，不能再发布。
-- 下一次商业构建必须使用 `1.1.15` 或更高版本，不能使用旧文档曾写过的 `1.0.16`。
+- 下一次商业构建必须使用 `1.1.25` 或更高版本，不能使用旧文档曾写过的 `1.0.x` 版本。
 - 本地开发服务已验证可在 `127.0.0.1:8899` 运行；默认命令仍可使用 8848。
 - 直播工作台支持进行中与最近完成场次。停止录制后，话术、互动、时长和可用录像不会消失。
+- 更新器会把实际安装目录传给 Inno Setup，安装弹窗会显示安装位置和下载进度；覆盖升级不能再默认落到第二份目录。
+- 完整性校验只覆盖启动器和 `app/pipeline/*.pyd` 等核心程序文件；用户素材、导出目录、模型和本地数据变化不会阻断启动。
+- AI 复盘 SSE 按 UTF-8 解码；“放大查看”使用显式打开回调，运行时异常显示为短提示，不再展示整屏原始堆栈。
 
 正式安装包通过 `https://download.anyq.site`（OSS + CDN + HTTPS）分发，产品与续费入口为 `https://anyq.site`。安装包二进制不通过源码仓库发放。
 
@@ -158,7 +161,7 @@ python -m pytest licensing_server\tests packaging\build -q
 packaging\build\一键打包复盘虾.bat
 ```
 
-脚本会要求输入版本号，并进入经校验的商业构建流程。下一次版本不得低于 `1.1.15`。
+脚本会要求输入版本号，并进入经校验的商业构建流程。下一次版本不得低于 `1.1.25`。
 
 完整参数与前置依赖见 [`packaging/build/README.md`](packaging/build/README.md)。构建时必须具备：
 
@@ -167,6 +170,7 @@ packaging\build\一键打包复盘虾.bat
 - Inno Setup 6。
 - Python、Node 和 Nuitka 构建依赖。
 - 固定哈希的 `douyinLive v2.0.24` sidecar。
+- 复盘虾图标：`packaging/build/assets/icon-options/replay-shrimp.ico`。
 
 Windows 代码签名证书只通过证书存储 / 硬件介质使用，私钥不能进入项目。商业构建完成后还要做：安装冒烟、覆盖升级、卸载保数据、单实例、更新接口和真实账号权益测试。
 
@@ -176,10 +180,12 @@ Windows 代码签名证书只通过证书存储 / 硬件介质使用，私钥不
 
 1. 构建并验收新安装包。
 2. 计算 SHA-256 和字节数。
-3. 上传到新版本对象路径，例如 `replay-shrimp/1.1.15/...exe`，不要覆盖旧路径。
+3. 上传到新版本对象路径，例如 `replay-shrimp/1.1.25/...exe`，不要覆盖旧路径。
 4. 在更新管理后台发布对应 `product_id` 的签名 `update_release`。
 5. 客户端从 `https://anyq.site/api/v1/releases/latest?...` 获取并用 `update-v1` 公钥验签。
 6. 客户端再校验固定下载域名、版本、文件大小和 SHA-256 后安装。
+
+更新器通过安装目录参数复用用户原有目录；不要只替换桌面快捷方式，也不要手动覆盖 `%LOCALAPPDATA%\LiveWatch\data`。更新失败时先查看安装位置、`update_release` 的版本 / SHA-256，再检查安装器日志。
 
 已安装新监听器的客户端还会连接 `https://anyq.site/api/v1/releases/events?product_id=...`：后台签名发布后，运行中的客户端会立即重新检查签名更新，并每 60 秒兜底检查。SSE 只是通知，不能替代签名清单。旧安装包没有监听代码，必须先完成一次基线升级后才能获得实时推送。
 
@@ -213,7 +219,7 @@ python -m pytest -q
 1. 真实主页作品有时仍停在 21～22 条，需继续验证滚动 / 游标增量能稳定超过 30 条。
 2. 约 26 条评论的视频曾只采到约 11 条，需真实验证顶级评论、回复展开、网络分页与 UI 数量诊断。
 3. Edge / Chrome 的抖音登录态仍需做三模块统一复用的安装包端到端验收。
-4. 线上已经是 `1.1.14`；下一包必须使用 `1.1.15+`，且包含主播身份与直播工作台修复。
+4. 线上签名版本仍记录为 `1.1.14`；本地 `1.1.25` 已包含主播身份、直播工作台、更新目录和错误提示修复，正式发布前必须完成 OSS、签名清单和覆盖升级验收。
 5. WSS sidecar 已进构建链，但仍需真实直播验证弹幕、点赞、进场、在线数和音视频同步。
 6. Windows 代码签名、OSS 新包上传、CDN 校验和签名更新发布仍需按正式发布流程完成。
 7. 三产品登录、续费、到期、跨产品拒绝仍需各自做安装包端到端验收。

@@ -1090,7 +1090,7 @@ def _export_watermark_rows(scope: str, room_ids: list[str]) -> list[list[str]]:
         ["房间数量", str(len(room_ids))],
         ["房间号", ", ".join(sorted(str(rid) for rid in room_ids))],
         ["导出时间", datetime.now().strftime("%Y-%m-%d %H:%M:%S")],
-        ["说明", "此文件由直播复盘侠导出，含授权溯源信息，请勿外传。"],
+        ["说明", "此文件由复盘虾导出，含授权溯源信息，请勿外传。"],
     ]
 
 

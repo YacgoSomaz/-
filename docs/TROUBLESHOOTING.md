@@ -245,3 +245,25 @@ python -m pytest -q
 - `PROJECT_HANDOFF.md`：架构、线上状态、已知问题和下一步。
 - `HANDOFF.md`：下一位 AI 的短接手卡。
 - 本文件：若新增了新的故障模式或定位路径。
+
+## 20. 2026-07-20 交付收口故障定位
+
+### 更新后仍显示旧版本 / 用户改到 D 盘
+
+检查 `pipeline/updater.py` 的 `install_dir` 是否来自当前冻结目录，和 `packaging/build/livewatch.iss` 是否读取 `Inno Setup: App Path`。更新安装器必须收到带引号的 `/DIR="实际目录"`；只上传 EXE 或只替换快捷方式都不能保证覆盖原目录。先看更新弹窗显示的安装目录，再看该目录下启动器的文件时间和版本。
+
+### 修改素材、导出路径或本地数据后完整性失败
+
+检查 `pipeline/integrity_manifest.py` 的 allowlist。当前只应校验启动器和 `app/pipeline/*.pyd` 核心文件；素材、导出、模型、SQLite 数据库、缓存和用户自定义目录不得写入完整性清单。
+
+### 点击放大查看出现 `nextTick is not a function`
+
+检查 `pipeline/frontend.html` 的模板事件必须调用显式 `onPreviewDialogOpen`，由函数内部调度 `attachExpandedLivePreviewPlayer`。不要在模板中把未暴露的 Vue `nextTick` 当作方法调用。
+
+### AI 复盘中文乱码
+
+检查 `pipeline/ai_report.py` 是否在读取 SSE `iter_lines()` 前设置 `resp.encoding = "utf-8"`。这类乱码是响应字符集声明不完整导致，不是账号权益签名或安装器加密导致。
+
+### 用户看到整屏原始错误堆栈
+
+检查 `pipeline/frontend.html` 的 `app.config.errorHandler`：它应把异常写入控制台 / `window.__livewatchLastError`，并只显示短提示“操作错误，稍后再试”。不要把完整 traceback 插入页面。

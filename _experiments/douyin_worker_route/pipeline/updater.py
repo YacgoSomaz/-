@@ -12,6 +12,7 @@ import hashlib
 import os
 import re
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -75,6 +76,7 @@ class UpdateManifest:
             "sha256": self.sha256,
             "size_bytes": self.size_bytes,
             "notes": self.notes,
+            "install_dir": str(install_directory() or ""),
         }
 
 
@@ -87,6 +89,22 @@ def _updates_dir() -> Path:
     path = config.DATA_DIR / "updates"
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def install_directory() -> Path | None:
+    """Return the directory containing the running launcher, when frozen.
+
+    The installer must be told this path explicitly.  Inno Setup otherwise
+    falls back to its default directory when a customer originally selected a
+    different location, leaving the desktop shortcut pointing at the old
+    binary.  Source-mode runs intentionally return ``None``.
+    """
+    if not bool(getattr(sys, "frozen", False)):
+        return None
+    executable = Path(sys.executable).resolve()
+    if executable.name.lower() != "livewatchlauncher.exe":
+        return None
+    return executable.parent
 
 
 def _sha256_file(path: Path) -> str:
@@ -157,6 +175,7 @@ def download_status() -> dict[str, Any]:
             "can_install": _download_state.can_install,
             "started_at": _download_state.started_at,
             "finished_at": _download_state.finished_at,
+            "install_dir": str(install_directory() or ""),
         }
 
 
@@ -308,7 +327,12 @@ def install_download(*, silent: bool = False) -> dict[str, Any]:
     return {"installer": str(installer), "latest_version": version, "silent": silent, "mandatory": mandatory}
 
 
-def run_installer(installer: Path, *, silent: bool = True) -> None:
+def run_installer(
+    installer: Path,
+    *,
+    silent: bool = True,
+    install_dir: Path | None = None,
+) -> None:
     if not installer.exists() or installer.suffix.lower() != ".exe":
         raise UpdateError("更新安装包不存在")
     args = [str(installer)]
@@ -316,6 +340,13 @@ def run_installer(installer: Path, *, silent: bool = True) -> None:
         args.extend(["/VERYSILENT", "/NORESTART", "/CLOSEAPPLICATIONS"])
     else:
         args.append("/NORESTART")
+    target_dir = install_dir or install_directory()
+    if target_dir is not None:
+        # Inno Setup requires the value itself to be quoted when the path has
+        # spaces. Quoting only the whole argv item can still be parsed as
+        # ``C:\\Program`` by Inno, creating a second install and leaving the
+        # old desktop shortcut on the previous binary.
+        args.append(f'/DIR="{Path(target_dir).resolve()}"')
     subprocess.Popen(args, close_fds=True)
 
 

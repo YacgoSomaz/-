@@ -1,15 +1,15 @@
-# 直播复盘侠项目交接报告
+# 复盘虾项目交接报告
 
-更新时间：2026-07-16
+更新时间：2026-07-20
 当前分支：`main`
 本轮接手前远端基线：`c78f543 Improve licensing admin and commercial integrity checks`（本文件所在提交之后请以 `git log -1` 为准）
 主线目录：`C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route`
 目标读者：下一位继续开发本项目的工程师或 AI Agent
 
-## 当前发布产物（2026-07-16）
+## 当前发布产物（2026-07-20）
 
-- 最新复盘虾安装包为 `release/LiveWatchSetup_1.1.16.exe`，SHA-256：`22b26c0f9f17a06279fc793cf890267983494fea81451fa60972c394dd0b5dac`，大小 `338,281,889` bytes。
-- 对应清单为 `release/LiveWatchSetup_1.1.16.release.json`。上传 OSS 的推荐对象键：`replay-shrimp/1.1.16/LiveWatchSetup_1.1.16.exe`。
+- 最新本地构建产物为 `release/LiveWatchSetup_1.1.25.exe`，SHA-256：`a5a6569fdcb42a597b6ace01d4565733d7fde9c951f784ff06784ff89e5b058a`，大小 `338,374,466` bytes。
+- 对应清单为 `release/LiveWatchSetup_1.1.25.release.json`。上传 OSS 的推荐对象键：`replay-shrimp/1.1.25/LiveWatchSetup_1.1.25.exe`。
 - OSS 上传完成后，必须在 anyq.site 发布后台提交 `replay_shrimp` 的签名 `update_release`；只上传 EXE 不会让客户端看到更新。
 - 本包扫描通过但尚未做 Windows Authenticode 签名（状态 `NotSigned`），因此 SmartScreen 提示仍可能出现。
 
@@ -121,7 +121,18 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 签名载荷仍最多有效 600 秒，客户端只信 `account_license.payload`，不信根节点 `user/products` 或旧会员字段。账号状态接口已复用同一刷新逻辑。
 - 新增停用回归测试：服务端返回 403 后本地权益立即被清理；账号相关、更新和构建契约回归 `80 passed`。修复已编入 `1.1.16` 安装包；旧版本安装后不会自动获得本轮刷新逻辑。
 
-### 0.2 本次接手累计变更清单（2026-07-13 至 2026-07-16）
+### 0.1.5 2026-07-17 至 2026-07-20 更新与运行时稳定性收口
+
+- 更新器把当前运行目录写入更新状态，并在拉起安装器时传递带引号的 `/DIR="实际安装目录"`；Inno Setup 读取已注册的 `Inno Setup: App Path`，避免用户把软件装到 D 盘后升级包又落回默认目录、桌面快捷方式继续启动旧版本。
+- 安装器固定复用既有安装目录，检测旧目录无效时要求用户在目录页明确选择原目录；覆盖升级前关闭启动器 / WebView2 / 后端进程，普通卸载保留 `%LOCALAPPDATA%\LiveWatch\data`。
+- 更新弹窗展示安装位置、下载百分比、下载完成和安装阶段；普通更新可后台下载，强制更新阻断业务操作。`update_release` 仍必须经过 `update-v1` Ed25519 验签，OSS 文件本身不是版本真相源。
+- 完整性校验收口为最小核心集合：仅校验 `LiveWatchLauncher.exe` 与 `app/pipeline/*.pyd`；用户导入素材、导出目录、模型数据、文档和运行期数据变更不会再触发启动阻断。完整性清单生成和启动器验证使用同一 allowlist。
+- 修复“放大查看”在 Vue 模板中直接调用未暴露 `nextTick` 导致的 `TypeError`：改用 `onPreviewDialogOpen` 延迟挂载预览播放器；运行时错误改为右上角短时提示“操作错误，稍后再试”，不再把原始堆栈铺满整个窗口。
+- 全面收口品牌名称为“复盘虾”：前端标题、AI 报告、导出水印、FastAPI 标题、启动器、托盘菜单、安装器、快捷方式和图标均已同步；新增 `packaging/build/assets/icon-options/replay-shrimp.ico`。
+- AI 复盘 SSE 响应强制按 UTF-8 解码，修复部分 OpenAI 兼容接口缺失 charset 时中文回复出现 `æ...` 乱码的问题。
+- 当前工作区主线与 `packaging/build` 契约回归：`337 passed`，5 个已知弃用 / 依赖警告；`git diff --check` 通过。本地 1.1.25 包已完成构建扫描，但未代替后台完成 OSS 上传和签名发布。
+
+### 0.2 本次接手累计变更清单（2026-07-13 至 2026-07-20）
 
 下列内容是本轮接手后已写入当前工作区、远端账号服务或官网分发体系的累计改动。下一位接手者应把它当作本轮变更账本，而不是重新从旧卡密路线开始。
 
@@ -162,7 +173,9 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - `packaging/build/build_release.ps1` 改为账号版构建参数：账号 API、账号公钥和固定 `replay_shrimp` 产品码必填；商业构建将业务 `pipeline` 用 Nuitka 编译，并只内置公钥。
 - 完整性签名密钥格式增加校验；发布扫描新增 `account_session.json`，防止 Cookie、数据库、音视频、导出、AI Key、session 或私钥进入包体。
 - 安装包冒烟检查兼容已编译 `pipeline*.pyd`，不再错误假定商业包内一定存在业务 `.py`。
-- 已打出历史 `1.0.15` WSS sidecar 候选，但它低于线上 `1.1.14`，不得发布；下一包必须是 `1.1.15+`。线上签名更新接口已部署，Windows 代码签名与新版真实安装验收仍待完成。
+- 已打出历史 `1.0.15` WSS sidecar 候选，但它低于线上版本，仍不得发布；当前本地最新构建为 `1.1.25`。线上签名更新接口已部署，Windows 代码签名、OSS 上传和新版真实安装验收仍待完成。
+- `integrity_manifest.py` 与 `packaging/livewatch_launcher.py` 现在共享最小核心校验范围：启动器本体和 `app/pipeline/*.pyd`；不要把用户数据、素材、导出、模型或文档重新加入清单。
+- `updater.py`、`livewatch.iss`、`livewatch_launcher.py` 和 `frontend.html` 共同负责安装目录传递、覆盖升级和下载进度展示；修改其中任一处必须同时跑更新器与安装器契约测试。
 
 #### E. 官网、支付页与安装包分发
 
@@ -491,7 +504,7 @@ python -m pytest licensing_server\tests _experiments\douyin_worker_route\tests\t
 cd C:\Users\q2414\Desktop\live_watch
 $env:LIVEWATCH_ACCOUNT_PUBLIC_KEY = "<account-v1 Ed25519 公钥，绝不是私钥>"
 $env:LIVEWATCH_UPDATE_PUBLIC_KEY = "<update-v1 Ed25519 公钥，绝不是私钥>"
-pwsh -NoProfile -File packaging\build\build_verified_release.ps1 -Version "1.1.15" -AccountApiUrl "https://anyq.site" -AccountPublicKey $env:LIVEWATCH_ACCOUNT_PUBLIC_KEY -UpdatePublicKey $env:LIVEWATCH_UPDATE_PUBLIC_KEY
+pwsh -NoProfile -File packaging\build\build_verified_release.ps1 -Version "1.1.25" -AccountApiUrl "https://anyq.site" -AccountPublicKey $env:LIVEWATCH_ACCOUNT_PUBLIC_KEY -UpdatePublicKey $env:LIVEWATCH_UPDATE_PUBLIC_KEY
 ```
 
 当前线上签名更新版本：
@@ -712,7 +725,7 @@ git diff --stat
 - 客户端已实现 `update-v1` Ed25519 验签、固定产品 / 下载域名、版本、大小与 SHA-256 校验。
 - 2026-07-16 账号服务已上线按产品隔离的 SSE 发布通知；新客户端接收后立即做签名检查，并以 60 秒轮询兜底。强制更新在运行中会阻止业务操作。
 - 2026-07-15 实测三个线上接口均为 HTTP 200，并返回 `anyq.desktop-update.v1` 签名信封：`replay_shrimp=1.1.14`、`operation_shrimp=0.1.13`、`comic_shrimp=0.1.14`。
-- 下一步不是重新设计协议，而是构建 `1.1.15+` 作为实时监听基线，从后台签名发布，使用旧版客户端完成“发现更新 → 下载 → 校验 → 覆盖安装 → 数据保留 → 新版启动”；再发布一个测试版本验证基线客户端在不重启情况下收到 SSE 并强制更新。
+- 当前本地已构建到 `1.1.25`，但仍需从后台签名发布，使用安装在自定义目录的客户端完成“发现更新 → 下载 → 校验 → 覆盖安装 → 数据保留 → 新版启动”；再发布一个测试版本验证基线客户端在不重启情况下收到 SSE 并强制更新。
 
 ### P2：代码签名未做
 
@@ -850,5 +863,23 @@ packaging/build/build_release.ps1
 2. 统一并实测 Edge / Chrome 抖音登录态在三个模块的复用
 3. 整理短视频 AI 工作台和报告历史
 4. 完善 AI 获客系统的主页监控链路
-5. 构建并签名发布 `1.1.15+`，完成账号、自动更新、覆盖安装和数据保留端到端验收
+5. 构建并签名发布 `1.1.25+`，完成账号、自动更新、覆盖安装和数据保留端到端验收
 ```
+
+## 16. 2026-07-17 线上 OSS 版本保留策略
+
+安装包不再无限堆积在 OSS。线上 `recharge-api` 已部署 `release-retention.js`，按产品分别执行以下规则：
+
+1. 以语义化版本排序，每个产品保留最新 3 个已发布版本。
+2. 超出窗口的已发布版本、以及已撤回版本进入 7 天回收期；回收期内不会删除。
+3. 回收期结束时服务端重新计算保留窗口，仍然过期才用 OSS 签名 DELETE 删除对应对象，并把发布记录标记为 `archived`。
+4. 草稿、当前最新版本、重新回到最新 3 个的版本始终受保护；长期不发布新版本不会误删当前版本。
+5. 任务启动后 10 秒首次运行，此后每 6 小时运行；失败任务每小时重试，状态保存在 SQLite `release_retention_jobs`。
+
+管理后台版本发布页的“旧版本自动清理”卡片可查看待清理/已清理/失败数量并手动触发一次检查。首次上线仅排队，不会立即删除：复盘虾 `1.1.14`、已撤回 `0.1.21`、运营虾 `0.1.13` 的回收时间为 2026-07-24。远端备份在 `/home/ubuntu/recharge-api/backups/retention-20260717011800`。
+
+## 17. 2026-07-20 本地交付收口
+
+- 当前提交范围只包含复盘虾主线、打包脚本、测试和交接文档；漫剧虾、运营虾由各自 AI 维护，不在本仓库修改。
+- 2026-07-20 验证命令：`$env:PYTHONPATH="$PWD\_experiments\douyin_worker_route"; python -m pytest _experiments\douyin_worker_route\tests packaging\build -q`，结果 `337 passed`、5 warnings。
+- 交付前必须再次确认 `release/LiveWatchSetup_1.1.25.exe` 的 SHA-256、OSS 对象键、后台 `update_release` 产品码和 `update-v1` 签名公钥；本地构建成功不等于线上已发布。

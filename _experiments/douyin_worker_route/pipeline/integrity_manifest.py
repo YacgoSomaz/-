@@ -42,11 +42,29 @@ _SKIP_FILES = {
 }
 
 
+def _is_core_file(path: Path, root: Path) -> bool:
+    """Return whether *path* belongs to the immutable application core.
+
+    User data is intentionally kept outside this allowlist.  The launcher may
+    still verify every core file, but changing an export directory, importing
+    an asset, or adding an optional tool must not make the application refuse
+    to start.
+    """
+    rel = _rel(path, root).lower()
+    if rel == "livewatchlauncher.exe":
+        return True
+    if rel.startswith("app/pipeline") and rel.count("/") == 1 and rel.endswith(".pyd"):
+        return True
+    return False
+
+
 def _rel(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
 def _should_skip(path: Path, root: Path) -> bool:
+    if not _is_core_file(path, root):
+        return True
     rel = path.relative_to(root)
     parts = set(rel.parts)
     if parts & _SKIP_DIRS:
