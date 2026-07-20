@@ -269,6 +269,11 @@ def _is_integrity_core_path(rel: str) -> bool:
 
 
 def _verify_integrity_manifest(base: Path) -> list[str]:
+    # The manifest is a commercial/frozen-build gate. Source-mode desktop
+    # runs intentionally use the checked-out pipeline and have no signed
+    # release manifest to verify.
+    if not _is_frozen():
+        return []
     manifest_path = base / MANIFEST_NAME
     if not manifest_path.exists():
         return [f"缺少完整性清单：{MANIFEST_NAME}"]
