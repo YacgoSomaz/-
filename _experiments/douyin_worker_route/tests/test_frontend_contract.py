@@ -73,6 +73,7 @@ def test_ai_replay_workspace_fits_content_viewport_without_page_scrollbar() -> N
     assert ':class="{\'content-review\':view===\'review\'}"' in html
     assert ".content.content-review{min-height:0;overflow:hidden}" in html
     assert ".ai-workspace{height:100%;max-height:100%;min-height:0}" in html
+    assert "@media(max-width:1180px){.content.content-review{overflow:auto}" in html
 
 
 def test_ai_followup_context_is_scoped_to_selected_replay() -> None:

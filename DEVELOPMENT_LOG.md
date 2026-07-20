@@ -405,3 +405,9 @@ python -m pytest _experiments\douyin_worker_route\tests packaging\build -q
 - 直播工作台侧边栏子项调整为“实时监控 → AI直播复盘 → AI达人雷达”；原“直播效能”用户可见文案统一改为“AI达人雷达”。短视频中心和 AI 获客系统继续位于该分组之后。
 - 仅改动复盘虾 `pipeline/frontend.html` 与前端契约测试，未修改漫剧虾、运营虾，也未打安装包。
 - 相关测试：`test_frontend_contract.py` 29 项通过；提交前继续执行主线与 `packaging/build` 全量回归。
+
+## 2026-07-20：AI 复盘页面高度收口
+
+- 修复 AI 复盘页出现外层页面滚动条的问题：复盘视图通过 `content-review` 接管内容区高度，工作台填满内容视口，不再把固定 `100vh` 与内容区自身滚动叠加。
+- 保留窄屏布局的自然滚动行为；桌面宽屏下报告 / 顾问区域继续在内部面板滚动，避免整页被撑高。
+- 新增 `test_ai_replay_workspace_fits_content_viewport_without_page_scrollbar`，前端契约测试共 `30 passed`；未打安装包。

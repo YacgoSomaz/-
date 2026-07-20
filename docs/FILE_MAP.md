@@ -152,6 +152,7 @@ live-console-grid
 | AI 回复中文乱码 | `pipeline/ai_report.py`、`test_ai_report.py` | SSE 读取前显式设置 UTF-8；这与权限签名、安装包加密无关 |
 | 用户看到整屏红色堆栈 | `pipeline/frontend.html` | 全局错误只记录诊断并显示“操作错误，稍后再试”的短提示 |
 | AI 复盘报告与追问面板过长 | `pipeline/frontend.html` | `aiReviewTab` 切换“AI复盘报告 / AI专场顾问”，默认先展示报告 |
+| AI 复盘页出现额外页面滚动条 | `pipeline/frontend.html` | `content-review` 让工作台填充内容视口，桌面宽屏不叠加固定 `100vh` 外层滚动 |
 | 侧边栏名称或顺序过时 | `pipeline/frontend.html` | 直播工作台子导航为“实时监控 → AI直播复盘 → AI达人雷达”，短视频中心和 AI 获客系统在其后 |
 
 当前本地构建基线为 `1.1.25`，主线与安装器回归为 `337 passed`；源码仓库同步不代表 OSS 已发布新安装包。

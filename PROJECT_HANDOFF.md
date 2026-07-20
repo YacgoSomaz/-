@@ -131,6 +131,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - 全面收口品牌名称为“复盘虾”：前端标题、AI 报告、导出水印、FastAPI 标题、启动器、托盘菜单、安装器、快捷方式和图标均已同步；新增 `packaging/build/assets/icon-options/replay-shrimp.ico`。
 - AI 复盘 SSE 响应强制按 UTF-8 解码，修复部分 OpenAI 兼容接口缺失 charset 时中文回复出现 `æ...` 乱码的问题。
 - AI 复盘页面已将“AI复盘报告”和“AI专场顾问”拆为 tab；直播工作台子导航调整为“实时监控 → AI直播复盘 → AI达人雷达”，短视频中心和 AI 获客系统保持在其后。
+- AI 复盘页面高度已收口：`content-review` 让复盘工作台填充内容视口，桌面宽屏不再出现外层页面滚动条；窄屏仍按响应式规则自然滚动。
 - 当前工作区主线与 `packaging/build` 契约回归：`337 passed`，5 个已知弃用 / 依赖警告；`git diff --check` 通过。本地 1.1.25 包已完成构建扫描，但未代替后台完成 OSS 上传和签名发布。
 
 ### 0.2 本次接手累计变更清单（2026-07-13 至 2026-07-20）

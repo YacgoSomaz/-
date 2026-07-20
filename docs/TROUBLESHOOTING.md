@@ -271,3 +271,7 @@ python -m pytest -q
 ### AI 复盘报告与顾问内容同时挤在页面
 
 这是页面结构问题，不是 AI 接口问题。检查 `aiReviewTab` 和 `.ai-review-tabs`：默认展示“AI复盘报告”，需要连续追问时切换到“AI专场顾问”。侧边栏中的直播工作台子项应保持“实时监控 → AI直播复盘 → AI达人雷达”。
+
+### AI 复盘页出现额外页面滚动条
+
+这是高度约束叠加问题，不是报告内容本身异常。复盘视图必须带 `:class="{'content-review':view==='review'}"`，并由 `.content.content-review` 隐藏外层溢出、让 `.content.content-review .ai-workspace` 使用 `height:100%`；不要再给该视图叠加独立的 `100vh` 页面滚动容器。窄屏媒体规则仍可恢复 `overflow:visible`，让内容自然向下滚动。
