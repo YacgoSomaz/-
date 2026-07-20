@@ -267,3 +267,7 @@ python -m pytest -q
 ### 用户看到整屏原始错误堆栈
 
 检查 `pipeline/frontend.html` 的 `app.config.errorHandler`：它应把异常写入控制台 / `window.__livewatchLastError`，并只显示短提示“操作错误，稍后再试”。不要把完整 traceback 插入页面。
+
+### AI 复盘报告与顾问内容同时挤在页面
+
+这是页面结构问题，不是 AI 接口问题。检查 `aiReviewTab` 和 `.ai-review-tabs`：默认展示“AI复盘报告”，需要连续追问时切换到“AI专场顾问”。侧边栏中的直播工作台子项应保持“实时监控 → AI直播复盘 → AI达人雷达”。

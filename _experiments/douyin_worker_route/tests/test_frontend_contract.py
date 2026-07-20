@@ -23,7 +23,7 @@ def test_ai_report_has_long_running_pipeline_animation() -> None:
     assert "startAiPulse" in html
     assert "ai-processing-stage" in html
     assert ":class=\"{processing:aiReporting}\"" in html
-    assert 'v-if="!aiReporting" class="ai-agent"' in html
+    assert 'v-if="!aiReporting&&aiReviewTab===\'report\'" class="ai-agent"' in html
     assert "AI处理进度" in html
     assert "复盘分析画布" in html
     assert "综合判断区" in html
@@ -310,8 +310,9 @@ def test_live_workbench_owns_the_efficiency_and_ai_replay_sub_navigation() -> No
     assert 'liveConsoleMenuOpen' in html
     assert '@click="toggleLiveConsoleMenu"' in html
     assert '@click.stop="selectLiveConsoleView(\'liveConsole\')">实时监控' in html
-    assert '@click.stop="selectLiveConsoleView(\'pre\')">AI达人雷达' in html
     assert '@click.stop="selectLiveConsoleView(\'review\')">AI直播复盘' in html
+    assert '@click.stop="selectLiveConsoleView(\'pre\')">AI达人雷达' in html
+    assert html.index('selectLiveConsoleView(\'review\')">AI直播复盘') < html.index('selectLiveConsoleView(\'pre\')">AI达人雷达')
     assert "view.value==='pre'||view.value==='review'?{key:'liveConsole'" in html
     assert "{key:'review',label:'AI复盘'" not in html
 
@@ -410,7 +411,7 @@ def test_avatar_cache_refreshes_missing_or_broken_images() -> None:
 
 def test_performance_page_has_recent_history_shortcuts() -> None:
     html = FRONTEND.read_text(encoding="utf-8")
-    assert "效能分析场次" in html
+    assert "AI达人雷达场次" in html
     assert "performanceSessions.slice(0,10)" in html
     assert "openPerformance(row.session_id)" in html
 

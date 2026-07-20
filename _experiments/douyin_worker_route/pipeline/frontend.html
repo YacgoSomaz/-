@@ -316,6 +316,11 @@ button,input,textarea{font:inherit}
 .lead-empty{height:260px;display:flex;align-items:center;justify-content:center;flex-direction:column;color:#95a1af;gap:8px}
 .lead-progress{margin-top:12px;padding:12px;border-radius:6px;background:#0f1b2c;color:#dbeafe}.lead-progress strong{display:block;margin-bottom:8px}.lead-progress .short-parse-track{background:#25334a}
 @media(max-width:1280px){.lead-grid{grid-template-columns:1fr}.lead-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+/* AI replay switches keep the report and follow-up advisor focused in separate views. */
+.ai-review-tabs{display:flex;align-items:center;gap:4px;width:max-content;max-width:100%;padding:4px;background:#eaf0f7;border-radius:9px}
+.ai-review-tabs button{border:0;border-radius:6px;background:transparent;color:#65738a;padding:8px 14px;font:800 12px/1 "Microsoft YaHei","PingFang SC",sans-serif;white-space:nowrap;cursor:pointer}
+.ai-review-tabs button.active{background:#fff;color:#3545ef;box-shadow:0 2px 8px rgba(45,65,112,.10)}
+@media(max-width:760px){.ai-review-tabs{width:100%}.ai-review-tabs button{flex:1}}
 /* Keep the AI replay console usable when the window is narrow or short.
    This lives after the legacy fixed-height rules so the responsive layout wins. */
 .ai-report-head{height:auto;min-height:46px;flex-wrap:wrap;gap:6px;padding:8px 14px}
@@ -399,8 +404,8 @@ button,input,textarea{font:inherit}
         </div>
         <div v-if="item.key==='liveConsole'&&liveConsoleMenuOpen" class="menu-sub">
           <button type="button" :class="{active:view==='liveConsole'}" @click.stop="selectLiveConsoleView('liveConsole')">实时监控</button>
-          <button type="button" :class="{active:view==='pre'}" @click.stop="selectLiveConsoleView('pre')">直播效能</button>
           <button type="button" :class="{active:view==='review'}" @click.stop="selectLiveConsoleView('review')">AI直播复盘</button>
+          <button type="button" :class="{active:view==='pre'}" @click.stop="selectLiveConsoleView('pre')">AI达人雷达</button>
         </div>
       </template>
     </nav>
@@ -950,7 +955,11 @@ button,input,textarea{font:inherit}
             </div>
           </div>
           <div class="ai-right" :class="{processing:aiReporting}">
-            <div v-if="!aiReporting" class="ai-agent">
+            <div class="ai-review-tabs" role="tablist" aria-label="AI复盘页面视图">
+              <button type="button" role="tab" :class="{active:aiReviewTab==='report'}" :aria-selected="aiReviewTab==='report'" @click="aiReviewTab='report'">AI复盘报告</button>
+              <button type="button" role="tab" :class="{active:aiReviewTab==='advisor'}" :aria-selected="aiReviewTab==='advisor'" @click="aiReviewTab='advisor'">AI专场顾问</button>
+            </div>
+            <div v-if="!aiReporting&&aiReviewTab==='report'" class="ai-agent">
               <div class="ai-agent-head"><div class="ai-agent-title">AI事件流</div><div class="ai-agent-sub">{{aiReporting?'正在处理':'等待任务'}}</div><div class="ai-progress"><div class="ai-progress-track"><div class="ai-progress-fill" :style="{width:aiProgress+'%'}"></div></div><span>{{aiProgress}}%</span></div></div>
               <div class="ai-events" ref="aiEventsEl">
                 <div v-for="(ev,i) in aiEvents" :key="i" class="ai-event" :class="{warn:ev.type==='warning',error:ev.type==='error'}"><i class="ai-event-dot"></i><div><div>{{ev.message}}</div><span class="ai-event-time">{{ev.time}}</span></div></div>
@@ -999,7 +1008,7 @@ button,input,textarea{font:inherit}
                 </div>
               </div>
             </div>
-            <div v-if="!aiReporting" class="ai-report">
+            <div v-if="!aiReporting&&aiReviewTab==='report'" class="ai-report">
               <div class="ai-report-head"><span class="ai-report-title">复盘简报</span><span class="grow"></span><div class="ai-report-actions"><el-button v-if="aiHtmlFile" text type="primary" @click="viewAiReport">查看完整报告</el-button><el-button v-if="aiHtmlFile" text type="primary" @click="downloadAiMarkdown">导出Markdown</el-button><el-button v-if="aiPdfFile" text type="primary" :loading="pdfDownloading" @click="downloadAiReport">导出PDF</el-button><el-button v-if="aiReportDir" text type="primary" @click="openAiReportDir">打开目录</el-button></div></div>
               <div v-if="aiReportHistory.length" class="history-strip"><button v-for="h in aiReportHistory.slice(0,10)" :key="h.htmlFile+h.createdAt" @click="openAiReportHistory(h)">{{h.title}} · {{h.time}}</button></div>
               <div v-if="aiBrief || aiPreview" :class="aiReporting?'ai-stream-card':'ai-report-card'">
@@ -1018,11 +1027,11 @@ button,input,textarea{font:inherit}
               <div v-else-if="aiReporting" class="ai-report-busy"><div class="ai-thinking"><i></i><i></i><i></i></div><strong>AI 正在生成复盘报告</strong><span>事件流会持续显示当前步骤，报告完成后自动呈现在这里。</span></div>
               <div v-else class="ai-empty"><el-icon><MagicStick/></el-icon><strong>等待生成简报</strong><span>完整报告生成后可下载或打开目录查看。</span></div>
             </div>
-            <div v-if="!aiReporting" class="ai-chat section-space">
+            <div v-if="!aiReporting&&aiReviewTab==='advisor'" class="ai-chat section-space">
               <div class="ai-chat-head">
                 <div class="ai-chat-titleblock">
                   <span class="ai-chat-badge">AI</span>
-                  <div><b>AI复盘顾问</b><small>基于当前主播的直播内容连续追问</small></div>
+                  <div><b>AI专场顾问</b><small>基于当前主播的直播内容连续追问</small></div>
                 </div>
                 <span class="ai-chat-state"><i></i>{{aiAsking?'正在回答':'可继续提问'}}</span>
               </div>
@@ -1078,7 +1087,7 @@ button,input,textarea{font:inherit}
             <div style="text-align:right"><el-button :loading="perfLoading" @click="fetchPerformance"><el-icon><Refresh/></el-icon>&nbsp;刷新分析</el-button><el-button type="primary" :loading="perfAnalyzing" @click="analyzeReadyPerformance">分析已结束直播</el-button></div>
           </div>
           <div class="industry">
-            <div class="industry-head"><div class="industry-name">效能分析场次</div><span class="industry-meta">按评分排序</span></div>
+            <div class="industry-head"><div class="industry-name">AI达人雷达场次</div><span class="industry-meta">按评分排序</span></div>
             <div v-if="performanceSessions.length" class="history-strip"><button v-for="row in performanceSessions.slice(0,10)" :key="row.session_id" @click="openPerformance(row.session_id)">{{row.anchor_name||'未知主播'}} · {{row.session_day || (row.live_start||'').slice(5,10) || '最近场次'}}</button></div>
             <el-table ref="preHt" :data="filteredPerformance" empty-text="暂无可分析直播数据" style="width:100%">
               <el-table-column label="主播" min-width="190"><template #default="{row}"><div class="anchor"><img v-if="row.avatar_url" :src="row.avatar_url" class="avatar" @error="handleAvatarError(row)"><div v-else class="avatar-fallback"><el-icon v-if="refreshingAnchors.has(row.rid)"><Loading/></el-icon><span v-else>{{avatarFallbackText(row)}}</span></div><div class="anchor-info"><div class="anchor-name">{{row.anchor_name}}</div></div></div></template></el-table-column>
@@ -1108,7 +1117,7 @@ button,input,textarea{font:inherit}
               <div class="perf-meta" style="margin-top:12px">
                 <div>直播时间：{{perfDetail.live_time}}</div><div>直播时长：{{perfDetail.duration_text}}</div><div>监听完整度：{{perfDetail.monitor_completeness}}%</div><div>赛道：{{perfDetail.track}}</div><div>评分模板：{{perfDetail.score_template}}</div><div>内容与互动评分：{{valueOrEmpty(perfDetail.positive_score)}}</div><div>敏感词候选：{{perfDetail.sensitive_total||0}} 条（仅复核，不计分）</div><div>数据缺失扣分：{{valueOrEmpty(perfDetail.data_missing_deduction)}}</div><div>AI 置信度：{{perfDetail.ai_confidence}}</div>
               </div>
-              <div class="perf-ai-rule">直播下播后，系统会等待 5 分钟确认没有新录音和新转写落袋；测试阶段单场超过 15 分钟即可采用 AI 效能分析。系统只给出评分和证据，不替用户判断是否合作；不同赛道建议在同类主播之间比较。</div>
+              <div class="perf-ai-rule">直播下播后，系统会等待 5 分钟确认没有新录音和新转写落袋；测试阶段单场超过 15 分钟即可启动 AI 达人雷达。系统只给出评分和证据，不替用户判断是否合作；不同赛道建议在同类主播之间比较。</div>
               <div style="margin-top:12px"><el-button v-if="canAnalyzePerformance(perfDetail)" type="primary" :loading="perfAnalyzing===perfDetail.session_id" @click="analyzePerformance(perfDetail.session_id)">开始 / 重新AI分析</el-button></div>
               <div v-if="perfDetail.ai_confidence==='低'" class="notice" style="margin-top:12px">本场数据不完整，AI 分析结果仅供参考。</div>
             </div>
@@ -1243,7 +1252,7 @@ let __updateDialogRef=null,__startUpdateDownloadRef=null;
 const {ElMessage,ElMessageBox}=ElementPlus;
 const app=createApp({setup(){
   const view=ref('dashboard'),keyword=ref(''),rooms=ref([]),pending=ref([]),dataRooms=ref([]),selData=ref([]),ht=ref(null),cloudHt=ref(null),preHt=ref(null),aiEventsEl=ref(null),aiChatEl=ref(null),maxActiveRooms=ref(5);
-  const aiDateFilter=ref(''),aiSessionFilter=ref('');
+  const aiDateFilter=ref(''),aiSessionFilter=ref(''),aiReviewTab=ref('report');
   // Element Plus 表格在「切换显示」时容器宽度未定，列宽会塌成 0、表头堆叠变高。切到该页后强制重排。
   function relayoutTables(){nextTick(()=>setTimeout(()=>{[ht,cloudHt,preHt].forEach(t=>{try{t.value&& t.value.doLayout&& t.value.doLayout()}catch(e){}})},60))}
   const clock=ref(Math.floor(Date.now()/1000));  // 每秒自增，驱动录制时长跳秒
@@ -1251,11 +1260,11 @@ const app=createApp({setup(){
   // 录制时长 HH:MM:SS；since=0 或非录制态返回空串。数据陈旧(>8s 没刷到)则冻结在最后已知时刻。
   const fmtDur=since=>{if(!since)return '';const end=(clock.value-lastOk.value>8)?lastOk.value:clock.value;const s=Math.max(0,end-since);const h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0')};
   const fmtElapsed=seconds=>{const s=Math.max(0,Math.floor(Number(seconds)||0)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),x=s%60;return (h?String(h).padStart(2,'0')+':':'')+String(m).padStart(2,'0')+':'+String(x).padStart(2,'0')};
-  const navs=[{key:'dashboard',label:'数据大盘',desc:'主播监听与录制状态',icon:'DataBoard'},{key:'liveConsole',label:'直播工作台',desc:'实时监控、直播效能与AI复盘',icon:'VideoCamera'},{key:'shortVideo',label:'短视频中心',desc:'账号作品与爆款拆解',icon:'VideoCamera'},{key:'leadRadar',label:'AI获客系统',desc:'评论线索 · 客服跟进',icon:'Promotion'},{key:'cloud',label:'数据中台',desc:'本地数据汇总与导出',icon:'Cloudy'},{key:'help',label:'帮助中心',desc:'使用说明与常见问题',icon:'QuestionFilled'},{key:'settings',label:'系统设置',desc:'本地服务与模型设置',icon:'Setting'}];
+  const navs=[{key:'dashboard',label:'数据大盘',desc:'主播监听与录制状态',icon:'DataBoard'},{key:'liveConsole',label:'直播工作台',desc:'实时监控、AI达人雷达与AI复盘',icon:'VideoCamera'},{key:'shortVideo',label:'短视频中心',desc:'账号作品与爆款拆解',icon:'VideoCamera'},{key:'leadRadar',label:'AI获客系统',desc:'评论线索 · 客服跟进',icon:'Promotion'},{key:'cloud',label:'数据中台',desc:'本地数据汇总与导出',icon:'Cloudy'},{key:'help',label:'帮助中心',desc:'使用说明与常见问题',icon:'QuestionFilled'},{key:'settings',label:'系统设置',desc:'本地服务与模型设置',icon:'Setting'}];
   const liveConsoleMenuOpen=ref(false);
   const toggleLiveConsoleMenu=()=>{liveConsoleMenuOpen.value=!liveConsoleMenuOpen.value};
   const selectLiveConsoleView=next=>{view.value=next;liveConsoleMenuOpen.value=true};
-  const activeNav=computed(()=>view.value==='pre'||view.value==='review'?{key:'liveConsole',label:'直播工作台',desc:view.value==='pre'?'直播效能':'AI直播复盘'}:(navs.find(n=>n.key===view.value)||navs[0]));
+  const activeNav=computed(()=>view.value==='pre'||view.value==='review'?{key:'liveConsole',label:'直播工作台',desc:view.value==='pre'?'AI达人雷达':'AI直播复盘'}:(navs.find(n=>n.key===view.value)||navs[0]));
   const risk=reactive({active:false,until_ts:0,reason:''}),diag=reactive({disk_text:'检查中',free_gb:0,cookie_ok:false,cookie_text:'检查中',models_ok:false,models_text:'检查中',disk_ok:true,queue_ok:true,queue_text:'检查中'}),cookieNotice=ref('');
   const liveConsole=reactive({activeTab:'monitor',aiEnabled:false,previewExpanded:false,previewRid:'',previewNonce:0,previewUrl:'',previewLoadFailed:false,previewOrientation:'unknown',loading:false,selectedRid:'',rooms:[],room:null,transcripts:[],questions:[],stats:{online:0,chats_per_min:0,recording_seconds:0,events:0}});
   let previewHls=null,expandedPreviewHls=null;
@@ -1480,7 +1489,7 @@ const app=createApp({setup(){
     {title:'第一步：添加主播',desc:'在数据大盘点「添加主播」打开解析窗口。',view:'dashboard',sel:'.page-tools .el-button--primary:last-child'},
     {title:'粘贴链接',desc:'粘贴直播间链接或直播号，点「解析主播」识别。',view:'dashboard',sel:'.page-tools .el-button--primary:last-child'},
     {title:'登录抖音',desc:'首次使用需要登录一次抖音，按提示完成即可，之后会自动记住。',view:'settings',sel:'.setting-row .el-button'},
-    {title:'查看效能分析',desc:'这里会基于已采集数据给直播评分。',view:'pre',sel:'.perf-filters'},
+    {title:'查看 AI 达人雷达',desc:'这里会基于已采集数据给直播评分。',view:'pre',sel:'.perf-filters'},
     {title:'开始录制',desc:'回到数据大盘点「全部开始」，主播开播即自动录音。',view:'dashboard',sel:'.page-tools .el-button:nth-child(4)'},
     {title:'导出数据',desc:'录完后在「AI复盘」下载 Excel 汇总表。',view:'review',sel:'.history-toolbar .el-button--primary'},
     {title:'先看个示例',desc:'还没数据？点「查看示例导出」生成一份演示 Excel 看看效果。',view:'review',sel:'.sample-export-btn'},
@@ -2302,7 +2311,7 @@ const app=createApp({setup(){
     }catch(e){ElMessage.error(e.message||'发布后复盘失败')}
     finally{shortVideo.retroLoading=false}
   }
-  async function fetchPerformance(){perfLoading.value=true;try{const r=await(await fetch('/api/performance/sessions')).json();performanceSessions.value=r.sessions||[];ensureAvatars(performanceSessions.value);relayoutTables()}catch(e){ElMessage.error('效能分析加载失败')}finally{perfLoading.value=false}}
+  async function fetchPerformance(){perfLoading.value=true;try{const r=await(await fetch('/api/performance/sessions')).json();performanceSessions.value=r.sessions||[];ensureAvatars(performanceSessions.value);relayoutTables()}catch(e){ElMessage.error('AI达人雷达加载失败')}finally{perfLoading.value=false}}
   async function openPerformance(id){perfLoading.value=true;try{const r=await(await fetch('/api/performance/sessions/'+encodeURIComponent(id))).json();perfDetail.value=r.session||null;if(perfDetail.value)ensureAvatars([perfDetail.value]);nextTick(()=>{const el=document.querySelector('.content');if(el)el.scrollTop=0})}catch(e){ElMessage.error('效能详情加载失败')}finally{perfLoading.value=false}}
   function canAnalyzePerformance(row){return ['ready','stale','failed'].includes(row?.analysis_status)}
   async function analyzePerformance(id){
@@ -2312,8 +2321,8 @@ const app=createApp({setup(){
       const r=await resp.json();if(!resp.ok)throw new Error(r.detail||'AI分析失败');
       perfDetail.value=r.session||perfDetail.value;
       await fetchPerformance();
-      ElMessage.success((r.session?.analysis_status==='done')?'AI效能分析已完成':(r.session?.analysis_status_text||'已提交AI分析'));
-    }catch(e){ElMessage.error('AI效能分析失败：'+(e.message||e))}
+      ElMessage.success((r.session?.analysis_status==='done')?'AI达人雷达已完成':(r.session?.analysis_status_text||'已提交AI分析'));
+    }catch(e){ElMessage.error('AI达人雷达失败：'+(e.message||e))}
     finally{perfAnalyzing.value=''}
   }
   async function analyzeReadyPerformance(){
@@ -2323,7 +2332,7 @@ const app=createApp({setup(){
       const r=await resp.json();if(!resp.ok)throw new Error(r.detail||'扫描失败');
       await fetchPerformance();
       ElMessage.success((r.analyzed||[]).length?'已完成 '+r.analyzed.length+' 场AI分析':'暂无满足条件的已结束直播');
-    }catch(e){ElMessage.error('扫描AI效能分析失败：'+(e.message||e))}
+    }catch(e){ElMessage.error('扫描AI达人雷达失败：'+(e.message||e))}
     finally{perfAnalyzing.value=''}
   }
   function statusClass(s){return ['done'].includes(s)?'good':['ready','stale','waiting_stable','analyzing'].includes(s)?'warn':['failed'].includes(s)?'bad':'gray'}
@@ -2860,7 +2869,7 @@ const app=createApp({setup(){
   watch(view,v=>{if(['liveConsole','pre','review'].includes(v))liveConsoleMenuOpen.value=true;if(v==='liveConsole')fetchLiveWorkbench();if(['review','cloud','settings'].includes(v))refreshData();if(v==='review')setTimeout(refreshWordCloud,120);if(v==='shortVideo'){loadShortParseCache();fetchShortBenchmarks()}if(v==='leadRadar')fetchLeadRadar();if(v==='pre')fetchPerformance();if(['pre','settings'].includes(v))refreshDiag();if(['review','cloud','pre'].includes(v))relayoutTables()});
   __updateDialogRef=updateDialog;__startUpdateDownloadRef=startUpdateDownload;const __instance=getCurrentInstance();if(__instance){__instance.appContext.config.globalProperties.updateDialog=updateDialog;__instance.appContext.config.globalProperties.startUpdateDownload=startUpdateDownload}
   const saveVideo_quality=saveVideoQuality;
-  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,aiDateFilter,aiSessionFilter,aiDateOptions,aiSessionOptions,filteredAiDataRooms,selectedDurationText,displayRecordDuration,displaySessionLabel,avatarFallbackText,navs,activeNav,liveConsoleMenuOpen,toggleLiveConsoleMenu,selectLiveConsoleView,risk,diag,cookieNotice,liveConsole,fetchLiveWorkbench,updatePreviewOrientation,onPreviewDialogOpen,filteredRooms,liveSessionLabel,refreshLivePreview,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addDialog,addText,resolved,resolving,adding,addErr,shortVideo,shortParseSteps,shortVideoSelected,shortVideoWorkQueue,shortVideoBenchmarks,shortHistoryDialog,shortTranscriptDialog,currentShortWork,currentShortReport,currentHasScore,currentHasAnalysis,currentShortPrediction,shortPredictionBucket,shortPredictionConfidence,shortWorkKey,getShortWorkReport,hasShortReportPart,shortHistoryScore,shortHistoryTitle,shortHistoryTime,shortTranscriptText,openShortTranscript,downloadShortTranscript,downloadShortReportMarkdown,openShortWork,openShortHistory,resetShortReportsForSession,authorizeShortVideoCookie,resolveShortProfile,appendShortProfileVideos,addShortVideosFromText,syncShortVideoSelected,selectAllShortCandidates,invertShortCandidates,clearShortParseCache,removeShortQueueItem,analyzeShortPositioning,analyzeAndRecommendBenchmarks,recommendShortBenchmarks,addShortBenchmark,addShortBenchmarkFromInput,searchShortBenchmark,searchShortBenchmarkAccounts,addShortAccountCandidate,useShortBenchmarkProfile,sendShortVideosToWorkspace,analyzeShortVideos,analyzeSingleShortVideo,scoreShortVideoWork,predictShortScript,learnFromBenchmark,retroShortVideoPrediction,dimensionPct,fmtTs,fmtAgo,fmtElapsed,leadRadar,leadSelectedVideos,filteredLeadRows,leadIpOptions,leadStats,fetchLeadRadar,addLeadMonitor,parseLeadProfile,selectAllLeadVideos,invertLeadVideos,runSelectedLeadVideos,runLeadMonitor,loginLeadRadar,exportLeadRadar,openLeadProfile,refreshingAnchors,handleAvatarError,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,batchControlBusy,account,accountPhone,accountCode,accountSending,accountLoggingIn,accountOpeningRecharge,sendAccountCode,loginAccount,logoutAccount,openRecharge,updateState,updateChecking,updateInstalling,checkUpdate,installUpdate,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,pdfDownloading,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportHistory,openAiReportHistory,aiReportDir,aiPdfFile,aiHtmlFile,aiQuestion,aiEtaText,aiPulse,aiElapsedSec,aiPipelineRound,aiCanvasNodes,aiCanvasLinks,aiCanvasMergeLinks,aiCanvasAllLinks,aiMergeVisible,aiFusionNode,aiCanvasCursor,aiCanvasStatus,aiTaskTotals,aiLatestMessage,aiStageText,aiEvents,aiMessages,aiWords,aiQuickQuestions,aiVisualSteps,videoQuality,videoQualityChoices,performanceSessions,perfDetail,perfLoading,perfAnalyzing,perfFilters,filteredPerformance,scoreText,metricText,rateText,valueOrEmpty,perfMetric,detailMetric,sensitiveSummaryValue,sensitiveSummaryList,messageStepCount,sensitiveTopText,statusClass,canAnalyzePerformance,analyzePerformance,analyzeReadyPerformance,openPerformance,fetchPerformance,saveVideo_quality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,askQuick,chatHtml,refreshWordCloud,freqWidth,openAiReportDir,viewAiReport,downloadAiMarkdown,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,openAddDialog,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
+  return{view,keyword,rooms,pending,dataRooms,selData,ht,aiEventsEl,aiChatEl,maxActiveRooms,aiDateFilter,aiSessionFilter,aiReviewTab,aiDateOptions,aiSessionOptions,filteredAiDataRooms,selectedDurationText,displayRecordDuration,displaySessionLabel,avatarFallbackText,navs,activeNav,liveConsoleMenuOpen,toggleLiveConsoleMenu,selectLiveConsoleView,risk,diag,cookieNotice,liveConsole,fetchLiveWorkbench,updatePreviewOrientation,onPreviewDialogOpen,filteredRooms,liveSessionLabel,refreshLivePreview,recordCount,liveCount,dataTotals,selectedTotals,diskPercent,addDialog,addText,resolved,resolving,adding,addErr,shortVideo,shortParseSteps,shortVideoSelected,shortVideoWorkQueue,shortVideoBenchmarks,shortHistoryDialog,shortTranscriptDialog,currentShortWork,currentShortReport,currentHasScore,currentHasAnalysis,currentShortPrediction,shortPredictionBucket,shortPredictionConfidence,shortWorkKey,getShortWorkReport,hasShortReportPart,shortHistoryScore,shortHistoryTitle,shortHistoryTime,shortTranscriptText,openShortTranscript,downloadShortTranscript,downloadShortReportMarkdown,openShortWork,openShortHistory,resetShortReportsForSession,authorizeShortVideoCookie,resolveShortProfile,appendShortProfileVideos,addShortVideosFromText,syncShortVideoSelected,selectAllShortCandidates,invertShortCandidates,clearShortParseCache,removeShortQueueItem,analyzeShortPositioning,analyzeAndRecommendBenchmarks,recommendShortBenchmarks,addShortBenchmark,addShortBenchmarkFromInput,searchShortBenchmark,searchShortBenchmarkAccounts,addShortAccountCandidate,useShortBenchmarkProfile,sendShortVideosToWorkspace,analyzeShortVideos,analyzeSingleShortVideo,scoreShortVideoWork,predictShortScript,learnFromBenchmark,retroShortVideoPrediction,dimensionPct,fmtTs,fmtAgo,fmtElapsed,leadRadar,leadSelectedVideos,filteredLeadRows,leadIpOptions,leadStats,fetchLeadRadar,addLeadMonitor,parseLeadProfile,selectAllLeadVideos,invertLeadVideos,runSelectedLeadVideos,runLeadMonitor,loginLeadRadar,exportLeadRadar,openLeadProfile,refreshingAnchors,handleAvatarError,wordInput,wordType,words,exporting,exportDir,proxyUrl,proxyInput,proxyTesting,batchControlBusy,account,accountPhone,accountCode,accountSending,accountLoggingIn,accountOpeningRecharge,sendAccountCode,loginAccount,logoutAccount,openRecharge,updateState,updateChecking,updateInstalling,checkUpdate,installUpdate,aiConfig,aiSaving,aiTesting,aiReporting,aiAsking,pdfDownloading,aiProgress,aiPreview,aiBrief,aiReportHtml,aiBriefHtml,aiReportHistory,openAiReportHistory,aiReportDir,aiPdfFile,aiHtmlFile,aiQuestion,aiEtaText,aiPulse,aiElapsedSec,aiPipelineRound,aiCanvasNodes,aiCanvasLinks,aiCanvasMergeLinks,aiCanvasAllLinks,aiMergeVisible,aiFusionNode,aiCanvasCursor,aiCanvasStatus,aiTaskTotals,aiLatestMessage,aiStageText,aiEvents,aiMessages,aiWords,aiQuickQuestions,aiVisualSteps,videoQuality,videoQualityChoices,performanceSessions,perfDetail,perfLoading,perfAnalyzing,perfFilters,filteredPerformance,scoreText,metricText,rateText,valueOrEmpty,perfMetric,detailMetric,sensitiveSummaryValue,sensitiveSummaryList,messageStepCount,sensitiveTopText,statusClass,canAnalyzePerformance,analyzePerformance,analyzeReadyPerformance,openPerformance,fetchPerformance,saveVideo_quality,tour,tourSteps,curTourStep,phaseText,fmtDur,isLive,anchorStatus,stateClass,refreshAll,startRoom,stopRoom,startAll,stopAll,toggleRoom,toggleVideo,delRoom,refreshAnchor,dlExcel,dlSummary,dlSelected,aiReport,askAi,askQuick,chatHtml,refreshWordCloud,freqWidth,openAiReportDir,viewAiReport,downloadAiMarkdown,downloadAiReport,exportAll,clearData,clearAllData,remint,toggleAllHist,openAddDialog,doResolve,doAdd,doAddPending,delPending,dlSample,addWord,removeWord,pickExportDir,openExportDir,saveProxy,testProxy,fetchAiConfig,saveAiConfig,testAiConfig,clearProxy,startTour,nextTour,endTour}
 }});
 window.__liveApp=app;
 app.config.errorHandler=(err,_vm,info)=>{

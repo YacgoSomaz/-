@@ -143,6 +143,7 @@ python -m pytest -q
 - 更新弹窗展示安装目录、下载阶段和进度；旧包只具备 60 秒轮询，完成一次基线升级后才具备 SSE 触发的即时检查。
 - `pipeline/integrity_manifest.py` 只校验启动器和 `app/pipeline/*.pyd` 核心文件；素材、导出、模型、数据库和用户数据不再因为正常修改触发完整性拒绝。
 - `pipeline/frontend.html` 使用显式 `onPreviewDialogOpen` 打开放大预览，修复 `nextTick is not a function`；全局异常只显示短提示“操作错误，稍后再试”，不再覆盖整屏原始堆栈。
+- AI 复盘页通过 tab 切换“AI复盘报告 / AI专场顾问”；直播工作台子导航顺序为“实时监控 → AI直播复盘 → AI达人雷达”，短视频中心和 AI 获客系统位于其后。
 - `pipeline/ai_report.py` 在 SSE 响应上强制 UTF-8，避免部分 AI 服务未声明 charset 时出现中文乱码；前端、导出和安装器品牌统一为“复盘虾”，图标为 `packaging/build/assets/icon-options/replay-shrimp.ico`。
 - 当前验证：`337 passed`、5 warnings；本地构建产物为 `1.1.25`，尚未替代线上 `1.1.14` 完成发布。
 

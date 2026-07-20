@@ -398,3 +398,10 @@ python -m pytest _experiments\douyin_worker_route\tests packaging\build -q
 ```
 
 结果：`337 passed`，5 个已知弃用 / 依赖警告。当前本地构建 `release/LiveWatchSetup_1.1.25.exe` 的 SHA-256 为 `a5a6569fdcb42a597b6ace01d4565733d7fde9c951f784ff06784ff89e5b058a`，大小 `338,374,466` bytes；本次只推送源码和文档，不自动上传 OSS。
+
+## 2026-07-20：AI 复盘页面导航收口
+
+- AI 复盘页将“AI复盘报告”和“AI专场顾问”拆为两个 tab，默认进入报告，追问功能通过第二个 tab 聚焦展示，避免两个长面板同时占满页面。
+- 直播工作台侧边栏子项调整为“实时监控 → AI直播复盘 → AI达人雷达”；原“直播效能”用户可见文案统一改为“AI达人雷达”。短视频中心和 AI 获客系统继续位于该分组之后。
+- 仅改动复盘虾 `pipeline/frontend.html` 与前端契约测试，未修改漫剧虾、运营虾，也未打安装包。
+- 相关测试：`test_frontend_contract.py` 29 项通过；提交前继续执行主线与 `packaging/build` 全量回归。
