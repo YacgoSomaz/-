@@ -68,6 +68,13 @@ def test_ai_replay_workspace_keeps_the_report_header_readable_at_narrow_widths()
     assert ".ai-workspace{gap:8px}" in html
 
 
+def test_ai_replay_workspace_fits_content_viewport_without_page_scrollbar() -> None:
+    html = FRONTEND.read_text(encoding="utf-8")
+    assert ':class="{\'content-review\':view===\'review\'}"' in html
+    assert ".content.content-review{min-height:0;overflow:hidden}" in html
+    assert ".ai-workspace{height:100%;max-height:100%;min-height:0}" in html
+
+
 def test_ai_followup_context_is_scoped_to_selected_replay() -> None:
     html = FRONTEND.read_text(encoding="utf-8")
     assert "aiChatStore" in html
