@@ -120,7 +120,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - `pipeline/account_client.py` 的 `AccountClientError` 记录 HTTP 状态并提供 `authoritative` 分类；401/403/404/409/410 等明确拒绝会立即清缓存，网络错误则保留短时签名快照，避免断网误踢。
 - 签名载荷仍最多有效 600 秒，客户端只信 `account_license.payload`，不信根节点 `user/products` 或旧会员字段。账号状态接口已复用同一刷新逻辑。
 - 新增停用回归测试：服务端返回 403 后本地权益立即被清理；账号相关、更新和构建契约回归 `80 passed`。修复已编入 `1.1.16` 安装包；旧版本安装后不会自动获得本轮刷新逻辑。
-- 2026-07-20 客户端刷新 `/api/auth/me` 已额外发送 `Cache-Control: no-cache` 和 `Pragma: no-cache`，避免中间代理重放短时权益快照。远端账号服务不属于本仓库；生产端仍必须在该接口所有响应上返回 `Cache-Control: private, no-store, max-age=0`、`Pragma: no-cache` 及按 Cookie / 产品头变化的 `Vary`，否则只改客户端不能彻底消除缓存风险。禁止把被忽略的 `.tmp-recharge-api` 本机快照直接覆盖生产。
+- 2026-07-20 客户端刷新 `/api/auth/me` 已额外发送 `Cache-Control: no-cache` 和 `Pragma: no-cache`，避免中间代理重放短时权益快照。生产账号服务也已部署同接口的 `Cache-Control: private, no-store, max-age=0`、`Pragma: no-cache` 及 `Vary: Cookie, X-Product-Code, X-Device-Hash`；响应使用直接 JSON 写入，避免 Express ETag / 304 语义复用短时签名快照。生产备份：`/home/ubuntu/recharge-api/backups/account-snapshot-cache-20260720130347`；远端账号缓存与保留策略测试 `4 passed`，公网匿名响应头已验证。禁止把被忽略的 `.tmp-recharge-api` 本机快照直接覆盖生产。
 
 ### 0.1.5 2026-07-17 至 2026-07-20 更新与运行时稳定性收口
 

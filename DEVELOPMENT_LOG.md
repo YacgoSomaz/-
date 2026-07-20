@@ -7,7 +7,7 @@
 - 只读审计确认：复盘虾启动和运行期间均每 60 秒刷新一次 `account_license`，本地授权读取也会重新验证 Ed25519 签名及 `signed_until`；不存在把过期快照继续当会员权益使用的放行逻辑。
 - `pipeline/account_client.py` 的 `/api/auth/me` 刷新请求已加入 `Cache-Control: no-cache` 与 `Pragma: no-cache`，避免中间缓存重放过期的短时签名快照。
 - 新增账号客户端回归测试，断言刷新请求携带禁缓存头；账号客户端、WebUI 与账号状态测试 `16 passed`。本轮未打包安装包。
-- `anyq.site` 的远端账号服务不在本仓库：其 `/api/auth/me` 还必须由服务端负责人设置 `Cache-Control: private, no-store, max-age=0`，并避免缓存层错误复用带 Cookie 的响应；客户端改动不能替代这项生产部署。
+- 生产 `anyq.site` 已完成相同部署：`/api/auth/me` 在登录、未登录和受众错误分支均使用 `private, no-store, max-age=0`、`Pragma: no-cache`、`Vary: Cookie, X-Product-Code, X-Device-Hash`，并绕开 Express ETag / 304 语义。部署前备份：`/home/ubuntu/recharge-api/backups/account-snapshot-cache-20260720130347`；远端 `node --check` 与账号缓存 / 版本保留测试 `4 passed`，PM2 `recharge-api` 已重载并通过公网响应头复核。
 
 ## 2026-07-17：品牌名称与安装图标统一
 
