@@ -44,6 +44,11 @@ class LauncherUpdateContractTests(unittest.TestCase):
         self.assertIn("if not _is_integrity_core_path(rel):", LAUNCHER)
         self.assertIn("Older manifests may contain user data", LAUNCHER)
 
+    def test_source_launcher_skips_commercial_manifest_gate(self) -> None:
+        integrity_fn = LAUNCHER[LAUNCHER.index("def _verify_integrity_manifest"):LAUNCHER.index("def _is_debugger_attached")]
+        self.assertIn("if not _is_frozen():", integrity_fn)
+        self.assertIn("return []", integrity_fn)
+
 
 if __name__ == "__main__":
     unittest.main()
