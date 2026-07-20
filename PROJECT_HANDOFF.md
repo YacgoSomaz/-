@@ -535,6 +535,13 @@ SHA256: 4D41794C77049D5E5E84E25A0F731F05FA81FB7BFAF5EF82174FCC3BC65FE133
 
 ---
 
+### 2026-07-20 当前注意事项
+
+- AI 模型配置已经支持文本/视觉供应商字段，并提供 `/api/ai/models` 扫描 OpenAI 兼容模型列表；不要把 API Key 写入源码或 README。
+- 评论线索采集使用 Playwright 持久化浏览器 profile；Windows 下优先 Edge，失败后回退 Chromium，登录态目录属于本机敏感数据，不入库。
+- 授权后台 `licensing_server/admin_console.py` 通过 HTML 字符串补丁扩展管理页，当前支持产品选择、卡密有效期和完整卡密一次性展示。
+- `release/` 仍在 `.gitignore`，历史上已入库的旧安装包如果删除会显示 Git 删除记录；新安装包不应再直接提交到普通 Git。
+
 ## 8. 历史卡密授权服务器与管理后台（非新产品入口）
 
 线上入口：

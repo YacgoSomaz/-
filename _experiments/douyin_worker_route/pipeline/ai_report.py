@@ -108,11 +108,13 @@ def public_config() -> dict[str, object]:
     cfg = load_config()
     extra = _read_raw_config()
     return {
+        "provider": str(extra.get("provider") or "").strip(),
         "base_url": cfg.base_url,
         "model": cfg.model,
         "has_api_key": bool(cfg.api_key),
         "ready": cfg.ready,
         "timeout_sec": cfg.timeout_sec,
+        "vision_provider": str(extra.get("vision_provider") or "volcengine").strip(),
         "vision_base_url": str(extra.get("vision_base_url") or "https://ark.cn-beijing.volces.com/api/v3").strip(),
         "vision_model": str(extra.get("vision_model") or "ep-m-20260518173100-t8kjz").strip(),
         "has_vision_api_key": bool(str(extra.get("vision_api_key") or "").strip()),
@@ -134,6 +136,7 @@ def _read_raw_config() -> dict[str, object]:
 def save_config(payload: dict[str, object]) -> dict[str, object]:
     old_raw = _read_raw_config()
     old = load_config()
+    provider = str(payload.get("provider") or old_raw.get("provider") or "").strip()
     base_url = str(payload.get("base_url") or old.base_url or DEFAULT_BASE_URL).strip()
     model = str(payload.get("model") or old.model or DEFAULT_MODEL).strip()
     timeout_sec = int(payload.get("timeout_sec") or old.timeout_sec or 180)
@@ -145,6 +148,7 @@ def save_config(payload: dict[str, object]) -> dict[str, object]:
         api_key = old.api_key
     else:
         api_key = str(raw_key).strip()
+    vision_provider = str(payload.get("vision_provider") or old_raw.get("vision_provider") or "volcengine").strip()
     vision_base_url = str(
         payload.get("vision_base_url")
         or old_raw.get("vision_base_url")
@@ -165,10 +169,12 @@ def save_config(payload: dict[str, object]) -> dict[str, object]:
     config.AI_CONFIG_PATH.write_text(
         json.dumps(
             {
+                "provider": provider,
                 "base_url": cfg.base_url,
                 "api_key": cfg.api_key,
                 "model": cfg.model,
                 "timeout_sec": cfg.timeout_sec,
+                "vision_provider": vision_provider,
                 "vision_base_url": vision_base_url,
                 "vision_api_key": vision_api_key,
                 "vision_model": vision_model,
@@ -180,6 +186,46 @@ def save_config(payload: dict[str, object]) -> dict[str, object]:
         encoding="utf-8",
     )
     return public_config()
+
+
+def _models_url(base_url: str) -> str:
+    url = base_url.strip().rstrip("/")
+    if url.endswith("/chat/completions"):
+        url = url[: -len("/chat/completions")]
+    return url.rstrip("/") + "/models"
+
+
+def list_models(payload: dict[str, object] | None = None) -> dict[str, object]:
+    """Scan OpenAI-compatible model ids for low-code AI setup."""
+    payload = payload or {}
+    old = load_config()
+    base_url = str(payload.get("base_url") or old.base_url or DEFAULT_BASE_URL).strip()
+    raw_key = payload.get("api_key")
+    api_key = old.api_key if raw_key is None or str(raw_key).strip() == "" else str(raw_key).strip()
+    if not base_url or not api_key:
+        raise AIReportError("请先填写接口地址和 API Key，再扫描模型。")
+    headers = {"Authorization": f"Bearer {api_key}", "Accept": "application/json"}
+    try:
+        resp = requests.get(_models_url(base_url), headers=headers, timeout=30)
+    except requests.RequestException as exc:
+        raise AIReportError(f"模型列表请求失败：{exc}") from exc
+    if resp.status_code >= 400:
+        raise AIReportError(f"模型列表返回 HTTP {resp.status_code}: {(resp.text or '')[:300]}")
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise AIReportError("模型列表返回格式不是 JSON。") from exc
+    rows = data.get("data") if isinstance(data, dict) else data
+    models: list[str] = []
+    if isinstance(rows, list):
+        for row in rows:
+            if isinstance(row, dict):
+                mid = str(row.get("id") or row.get("name") or "").strip()
+            else:
+                mid = str(row or "").strip()
+            if mid and mid not in models:
+                models.append(mid)
+    return {"ok": True, "models": models[:100], "count": len(models)}
 
 
 def _chat_url(base_url: str) -> str:

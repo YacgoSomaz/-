@@ -538,6 +538,14 @@ def api_ai_save_config(payload: dict[str, object] = Body(...)) -> JSONResponse:
     return JSONResponse(ai_report.save_config(payload))
 
 
+@app.post("/api/ai/models")
+def api_ai_models(payload: dict[str, object] = Body(...)) -> JSONResponse:
+    try:
+        return JSONResponse(ai_report.list_models(payload))
+    except ai_report.AIReportError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @app.post("/api/ai/test")
 def api_ai_test() -> JSONResponse:
     try:
