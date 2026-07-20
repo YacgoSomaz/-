@@ -39,10 +39,23 @@ def test_ai_report_has_long_running_pipeline_animation() -> None:
 
 def test_ai_followup_panel_is_emphasized() -> None:
     html = FRONTEND.read_text(encoding="utf-8")
-    assert "AI复盘顾问" in html
+    assert "AI专场顾问" in html
+    assert "AI复盘顾问" not in html
     assert "把复盘报告继续问深一点" in html
     assert "常用追问" in html
     assert "可继续提问" in html
+
+
+def test_ai_replay_report_and_advisor_are_switchable_tabs() -> None:
+    html = FRONTEND.read_text(encoding="utf-8")
+    assert "aiReviewTab" in html
+    assert 'class="ai-review-tabs"' in html
+    assert 'aiReviewTab===\'report\'' in html
+    assert 'aiReviewTab===\'advisor\'' in html
+    assert "AI复盘报告" in html
+    assert "AI专场顾问" in html
+    assert 'v-if="!aiReporting&&aiReviewTab===\'report\'"' in html
+    assert 'v-if="!aiReporting&&aiReviewTab===\'advisor\'"' in html
 
 
 def test_ai_replay_workspace_keeps_the_report_header_readable_at_narrow_widths() -> None:
@@ -297,7 +310,7 @@ def test_live_workbench_owns_the_efficiency_and_ai_replay_sub_navigation() -> No
     assert 'liveConsoleMenuOpen' in html
     assert '@click="toggleLiveConsoleMenu"' in html
     assert '@click.stop="selectLiveConsoleView(\'liveConsole\')">实时监控' in html
-    assert '@click.stop="selectLiveConsoleView(\'pre\')">直播效能' in html
+    assert '@click.stop="selectLiveConsoleView(\'pre\')">AI达人雷达' in html
     assert '@click.stop="selectLiveConsoleView(\'review\')">AI直播复盘' in html
     assert "view.value==='pre'||view.value==='review'?{key:'liveConsole'" in html
     assert "{key:'review',label:'AI复盘'" not in html
