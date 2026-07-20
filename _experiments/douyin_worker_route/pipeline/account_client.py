@@ -163,7 +163,14 @@ def refresh_account(
 ) -> dict[str, Any]:
     """Fetch a newly signed snapshot with the protected remote session."""
     url = _server_url(server_url)
-    headers = {"Cookie": _session_cookie(session), **_product_headers()}
+    # Entitlement snapshots are deliberately short-lived.  Ask every proxy on
+    # the route to revalidate instead of replaying a stale signed response.
+    headers = {
+        "Cookie": _session_cookie(session),
+        **_product_headers(),
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+    }
     try:
         response = get(
             f"{url}/api/auth/me",
