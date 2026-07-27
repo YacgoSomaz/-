@@ -40,6 +40,7 @@ $Route     = Join-Path $RepoRoot "_experiments\douyin_worker_route"
 $AsrModel  = Join-Path $RepoRoot "_experiments\asr_bench\sensevoice_onnx"
 $SpkModel  = Join-Path $RepoRoot "_experiments\speaker_change_analysis\models"
 $Launcher  = Join-Path $ScriptDir "livewatch_launcher.py"
+$Guard     = Join-Path $ScriptDir "livewatch_guard.py"
 $Assets    = Join-Path $ScriptDir "assets"
 $SidecarVendorDir = Join-Path $ScriptDir "vendor\douyinlive"
 $SidecarExe = Join-Path $SidecarVendorDir "douyinLive.exe"
@@ -59,6 +60,9 @@ $TmpNuitkaSource = Join-Path $RepoRoot "staging\_nuitka_source"
 $TmpNuitkaOutput = Join-Path $RepoRoot "staging\_nuitka_output"
 $TmpLauncherDir = Join-Path $RepoRoot "staging\_launcher_source"
 $TmpLauncher = Join-Path $TmpLauncherDir "livewatch_launcher.py"
+$TmpGuardDir = Join-Path $RepoRoot "staging\_guard_source"
+$TmpGuardOutput = Join-Path $RepoRoot "staging\_guard_output"
+$TmpGuard = Join-Path $TmpGuardDir "livewatch_guard.py"
 $ReleaseOut= Join-Path $RepoRoot "release"
 
 function Write-Step($msg) { Write-Host "`n==== $msg ====" -ForegroundColor Cyan }
@@ -73,7 +77,7 @@ function Invoke-Robocopy {
 
 # ---------- 0. 前置检查 ----------
 Write-Step "前置检查"
-foreach ($p in @($Route, $AsrModel, $SpkModel, $Launcher, $Checker, $PythonChecker, $SidecarExe, $SidecarLicense)) {
+foreach ($p in @($Route, $AsrModel, $SpkModel, $Launcher, $Guard, $Checker, $PythonChecker, $SidecarExe, $SidecarLicense)) {
     if (-not (Test-Path $p)) { throw "缺少构建输入: $p" }
 }
 $actualSidecarHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $SidecarExe).Hash.ToLowerInvariant()
@@ -182,7 +186,7 @@ function Initialize-IntegritySigning {
 
 # ---------- 1. 空白 staging ----------
 Write-Step "重建空白 staging"
-foreach ($d in @($Staging, $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput, $TmpLauncherDir)) {
+foreach ($d in @($Staging, $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput, $TmpLauncherDir, $TmpGuardDir, $TmpGuardOutput)) {
     if (Test-Path $d) { Remove-Item -Recurse -Force $d }
 }
 New-Item -ItemType Directory -Force -Path $Staging | Out-Null
@@ -291,6 +295,22 @@ if (-not (Test-Path (Join-Path $PyiOut "LiveWatchLauncher.exe"))) { throw "未�
 Invoke-Robocopy $PyiOut $Staging @("/E")
 Sign-ReleaseBinary (Join-Path $Staging "LiveWatchLauncher.exe")
 
+# ---------- 4.5 编译独立完整性 Guard ----------
+# Guard 与主启动器分离：先验证 Ed25519 签名清单及核心文件哈希，再启动 Launcher。
+# 用户数据、导出目录、Cookie、数据库均不在 Guard 校验范围内。
+Write-Step "Nuitka 编译完整性 Guard"
+New-Item -ItemType Directory -Force -Path $TmpGuardDir, $TmpGuardOutput | Out-Null
+$GuardCode = [System.IO.File]::ReadAllText($Guard, [System.Text.Encoding]::UTF8)
+$GuardCode = $GuardCode.Replace("__LIVEWATCH_INTEGRITY_PUBLIC_KEY__", $IntegrityKeys.Public)
+[System.IO.File]::WriteAllText($TmpGuard, $GuardCode, [System.Text.UTF8Encoding]::new($false))
+& python -m nuitka --onefile --assume-yes-for-downloads --windows-console-mode=disable `
+    --output-dir=$TmpGuardOutput --output-filename=LiveWatchGuard.exe $TmpGuard
+if ($LASTEXITCODE -ne 0) { throw "Nuitka 编译完整性 Guard 失败 exit=$LASTEXITCODE" }
+$CompiledGuard = Get-ChildItem $TmpGuardOutput -Recurse -Filter "LiveWatchGuard.exe" | Select-Object -First 1
+if (-not $CompiledGuard) { throw "Nuitka 未产出 LiveWatchGuard.exe" }
+Copy-Item $CompiledGuard.FullName (Join-Path $Staging "LiveWatchGuard.exe") -Force
+Sign-ReleaseBinary (Join-Path $Staging "LiveWatchGuard.exe")
+
 # ---------- 5. 文档 ----------
 Write-Step "拷贝文档"
 if (Test-Path (Join-Path $Assets "README_使用说明.md")) {
@@ -315,7 +335,7 @@ if ($LASTEXITCODE -ne 0) { throw "完整性清单生成失败，构建中止。"
 $env:LIVEWATCH_INTEGRITY_PRIVATE_KEY = $null
 
 # 清理 PyInstaller 临时
-Remove-Item -Recurse -Force $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput, $TmpLauncherDir -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force $TmpDist, $TmpWork, $TmpNuitkaSource, $TmpNuitkaOutput, $TmpLauncherDir, $TmpGuardDir, $TmpGuardOutput -ErrorAction SilentlyContinue
 
 # ---------- 6. 安全扫描 ----------
 Write-Step "构建产物安全扫描"

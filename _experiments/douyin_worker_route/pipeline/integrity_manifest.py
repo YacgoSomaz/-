@@ -51,11 +51,20 @@ def _is_core_file(path: Path, root: Path) -> bool:
     to start.
     """
     rel = _rel(path, root).lower()
-    if rel == "livewatchlauncher.exe":
+    if rel in {
+        "livewatchguard.exe",
+        "livewatchlauncher.exe",
+        "app/bin/node.exe",
+        "app/sidecar/douyinlive.exe",
+        "app/pipeline_data/frontend.html",
+    }:
         return True
     if rel.startswith("app/pipeline") and rel.count("/") == 1 and rel.endswith(".pyd"):
         return True
-    return False
+    # These files are shipped with the program and are never a user workspace.
+    # Cover the full folders so a modified existing resource and a newly added
+    # executable script in either folder are both rejected at startup.
+    return rel.startswith("app/pipeline_data/static/") or rel.startswith("app/pipeline_data/lexicons/")
 
 
 def _rel(path: Path, root: Path) -> str:

@@ -263,9 +263,17 @@ def _canonical_manifest_payload(manifest: dict) -> bytes:
 def _is_integrity_core_path(rel: str) -> bool:
     """Keep startup integrity checks limited to immutable program files."""
     normalized = str(rel or "").replace("\\", "/").lower()
-    if normalized == "livewatchlauncher.exe":
+    if normalized in {
+        "livewatchguard.exe",
+        "livewatchlauncher.exe",
+        "app/bin/node.exe",
+        "app/sidecar/douyinlive.exe",
+        "app/pipeline_data/frontend.html",
+    }:
         return True
-    return normalized.startswith("app/pipeline") and normalized.count("/") == 1 and normalized.endswith(".pyd")
+    if normalized.startswith("app/pipeline") and normalized.count("/") == 1 and normalized.endswith(".pyd"):
+        return True
+    return normalized.startswith("app/pipeline_data/static/") or normalized.startswith("app/pipeline_data/lexicons/")
 
 
 def _verify_integrity_manifest(base: Path) -> list[str]:

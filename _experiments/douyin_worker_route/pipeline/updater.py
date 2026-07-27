@@ -342,11 +342,11 @@ def run_installer(
         args.append("/NORESTART")
     target_dir = install_dir or install_directory()
     if target_dir is not None:
-        # Inno Setup requires the value itself to be quoted when the path has
-        # spaces. Quoting only the whole argv item can still be parsed as
-        # ``C:\\Program`` by Inno, creating a second install and leaving the
-        # old desktop shortcut on the previous binary.
-        args.append(f'/DIR="{Path(target_dir).resolve()}"')
+        # Pass one *unquoted* argv item.  ``subprocess.Popen([...])`` performs
+        # Windows quoting itself.  Embedding quotes here serializes as
+        # ``/DIR=\"E:\\LiveWatch\"`` and Inno then loses the explicit target,
+        # creating a second install at the registered/default directory.
+        args.append(f"/DIR={Path(target_dir).resolve()}")
     subprocess.Popen(args, close_fds=True)
 
 

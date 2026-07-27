@@ -20,6 +20,7 @@ import re
 import secrets
 import threading
 import time
+import uuid
 from pathlib import Path
 from urllib.parse import quote
 
@@ -554,6 +555,57 @@ def api_ai_test() -> JSONResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _official_ai_session() -> dict[str, str]:
+    session = account_manager.remote_session()
+    if session is None:
+        raise HTTPException(status_code=401, detail="请先登录复盘虾账号")
+    return session
+
+
+def _official_ai_job(task_type: str, input_text: str) -> dict[str, object]:
+    """Submit one user-authorized, bounded evidence job to anyq.site.
+
+    The browser never receives either the remote session cookie or a provider
+    credential.  anyq.site independently verifies account, product and credits.
+    """
+    try:
+        response = account_client.create_official_ai_job(
+            _official_ai_session(),
+            {
+                "product_id": config.ACCOUNT_PRODUCT_ID,
+                "task_type": task_type,
+                "input_text": input_text,
+                "idempotency_key": f"replay-local-{uuid.uuid4()}",
+            },
+        )
+    except account_client.AccountClientError as exc:
+        if exc.authoritative:
+            account_manager.clear_login()
+        raise HTTPException(status_code=400 if not exc.authoritative else 403, detail=str(exc)) from exc
+    job = response.get("job")
+    if not isinstance(job, dict):
+        raise HTTPException(status_code=502, detail="官方AI返回格式异常")
+    if str(job.get("status") or "") != "succeeded":
+        raise HTTPException(status_code=502, detail="官方AI任务未完成，请稍后重试")
+    result_text = str(job.get("result_text") or "").strip()
+    if not result_text:
+        raise HTTPException(status_code=502, detail="官方AI没有返回可用内容")
+    return {"job": job, "balance": response.get("balance"), "result_text": result_text}
+
+
+@app.get("/api/ai/official/catalog")
+def api_ai_official_catalog() -> JSONResponse:
+    """Expose only public availability/credits metadata to the local renderer."""
+    try:
+        payload = account_client.get_official_ai_catalog(_official_ai_session())
+    except account_client.AccountClientError as exc:
+        if exc.authoritative:
+            account_manager.clear_login()
+        raise HTTPException(status_code=400 if not exc.authoritative else 403, detail=str(exc)) from exc
+    # The server contract intentionally contains no remote session or provider key.
+    return JSONResponse(payload)
+
+
 @app.post("/api/ai/report")
 def api_ai_report(payload: dict[str, object] = Body(...)) -> JSONResponse:
     raw = payload.get("rids") or []
@@ -573,11 +625,29 @@ def api_ai_report_stream(payload: dict[str, object] = Body(...)) -> StreamingRes
 
     def events():
         try:
-            for event in ai_report.generate_report_events([str(x) for x in raw]):
-                yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+            source = str(payload.get("source") or "custom").strip().lower()
+            if source == "official":
+                yield "data: " + json.dumps({"type": "start", "message": "官方 ChatGPT 5.6：正在整理本机直播证据", "progress": 5}, ensure_ascii=False) + "\n\n"
+                evidence = ai_report.build_official_report_evidence([str(x) for x in raw])
+                yield "data: " + json.dumps({"type": "evidence", "message": f"已整理 {evidence['rooms']} 个主播的本机证据，正在提交官方AI", "progress": 25, "words": evidence["words"]}, ensure_ascii=False) + "\n\n"
+                result = _official_ai_job("replay_report", str(evidence["input_text"]))
+                yield "data: " + json.dumps({"type": "final_start", "message": "官方AI已返回，正在生成本地可查看报告", "progress": 82}, ensure_ascii=False) + "\n\n"
+                saved = ai_report.save_official_report(evidence, str(result["result_text"]))
+                saved.update({"type": "done", "message": "官方AI复盘已生成，可查看完整报告", "progress": 100, "ok": True, "official": True, "credits_balance": result.get("balance")})
+                yield "data: " + json.dumps(saved, ensure_ascii=False) + "\n\n"
+            elif source == "custom":
+                for event in ai_report.generate_report_events([str(x) for x in raw]):
+                    yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+            else:
+                raise ai_report.AIReportError("未知 AI 来源")
         except ai_report.AIReportError as exc:
             yield "data: " + json.dumps(
                 {"type": "error", "message": str(exc), "progress": 100},
+                ensure_ascii=False,
+            ) + "\n\n"
+        except HTTPException as exc:
+            yield "data: " + json.dumps(
+                {"type": "error", "message": str(exc.detail), "progress": 100},
                 ensure_ascii=False,
             ) + "\n\n"
         except Exception as exc:  # noqa: BLE001
@@ -621,10 +691,23 @@ def api_ai_chat_stream(payload: dict[str, object] = Body(...)) -> StreamingRespo
 
     def events():
         try:
-            for event in ai_report.answer_question_events([str(x) for x in raw], messages):  # type: ignore[arg-type]
-                yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+            source = str(payload.get("source") or "custom").strip().lower()
+            if source == "official":
+                yield "data: " + json.dumps({"type": "stage", "message": "正在整理本机直播证据"}, ensure_ascii=False) + "\n\n"
+                evidence = ai_report.build_official_advisor_evidence([str(x) for x in raw], messages)  # type: ignore[arg-type]
+                yield "data: " + json.dumps({"type": "stage", "message": f"已整理 {evidence['rooms']} 个主播、约 {evidence['evidence_chars']} 字话术证据"}, ensure_ascii=False) + "\n\n"
+                result = _official_ai_job("replay_advisor", str(evidence["input_text"]))
+                yield "data: " + json.dumps({"type": "delta", "content": result["result_text"]}, ensure_ascii=False) + "\n\n"
+                yield "data: " + json.dumps({"type": "done", "message": "官方AI回答完成", "official": True, "credits_balance": result.get("balance")}, ensure_ascii=False) + "\n\n"
+            elif source == "custom":
+                for event in ai_report.answer_question_events([str(x) for x in raw], messages):  # type: ignore[arg-type]
+                    yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
+            else:
+                raise ai_report.AIReportError("未知 AI 来源")
         except ai_report.AIReportError as exc:
             yield "data: " + json.dumps({"type": "error", "message": str(exc)}, ensure_ascii=False) + "\n\n"
+        except HTTPException as exc:
+            yield "data: " + json.dumps({"type": "error", "message": str(exc.detail)}, ensure_ascii=False) + "\n\n"
         except Exception as exc:  # noqa: BLE001
             yield "data: " + json.dumps({"type": "error", "message": f"追问异常：{exc}"}, ensure_ascii=False) + "\n\n"
 

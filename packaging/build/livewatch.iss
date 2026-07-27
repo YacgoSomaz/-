@@ -27,8 +27,9 @@ DefaultDirName={code:GetDefaultInstallDir}
 DefaultGroupName=复盘虾
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
-; 目录由 GetDefaultInstallDir 统一解析，禁止 Inno 自动复用错误的历史目录。
-UsePreviousAppDir=no
+; 保留 Inno 的正式升级识别：手动下载的更高版本应自动复用同一 AppId 的安装目录，
+; 而不是把已有复盘虾目录当成普通非空文件夹。更新器传入的 /DIR 仍优先。
+UsePreviousAppDir=yes
 OutputDir={#OutputDir}
 OutputBaseFilename=LiveWatchSetup_{#AppVersion}
 Compression=lzma2/max
@@ -38,7 +39,7 @@ SetupIconFile=assets/icon-options/replay-shrimp.ico
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayName=复盘虾
-UninstallDisplayIcon={app}\LiveWatchLauncher.exe
+UninstallDisplayIcon={app}\LiveWatchGuard.exe
 CloseApplications=force
 CloseApplicationsFilter=LiveWatchLauncher.exe
 RestartApplications=no
@@ -60,12 +61,12 @@ Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: 
 Source: "{#StagingDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
-Name: "{group}\复盘虾"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"
+Name: "{group}\复盘虾"; Filename: "{app}\LiveWatchGuard.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchGuard.exe"
 Name: "{group}\卸载复盘虾"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\复盘虾"; Filename: "{app}\LiveWatchLauncher.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchLauncher.exe"; Tasks: desktopicon
+Name: "{autodesktop}\复盘虾"; Filename: "{app}\LiveWatchGuard.exe"; WorkingDir: "{app}"; IconFilename: "{app}\LiveWatchGuard.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\LiveWatchLauncher.exe"; Description: "立即启动复盘虾"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\LiveWatchGuard.exe"; Description: "立即启动复盘虾"; Flags: nowait postinstall skipifsilent
 
 [InstallDelete]
 ; 覆盖升级时，先清理安装目录中受控的旧程序树，再写入新版本。
@@ -77,6 +78,7 @@ Type: filesandordirs; Name: "{app}\models"
 Type: filesandordirs; Name: "{app}\browsers"
 Type: filesandordirs; Name: "{app}\asr_bench"
 Type: files; Name: "{app}\LiveWatchLauncher.exe"
+Type: files; Name: "{app}\LiveWatchGuard.exe"
 Type: files; Name: "{app}\integrity_manifest.json"
 ; 清理早期本地安装包遗留的程序源码与运行资源。用户数据统一保留在
 ; {localappdata}\LiveWatch\data，不在这里删除。
@@ -102,6 +104,7 @@ Type: filesandordirs; Name: "{app}\models"
 Type: filesandordirs; Name: "{app}\browsers"
 Type: filesandordirs; Name: "{app}\asr_bench"
 Type: files; Name: "{app}\LiveWatchLauncher.exe"
+Type: files; Name: "{app}\LiveWatchGuard.exe"
 Type: files; Name: "{app}\integrity_manifest.json"
 ; 清理早期“安装到本机用户目录”的程序残留；不包含 data，用户资料仍保留。
 Type: filesandordirs; Name: "{localappdata}\LiveWatch\app"
@@ -147,11 +150,26 @@ begin
     FileExists(AddBackslash(Candidate) + 'LiveWatchLauncher.exe');
 end;
 
+function HasExplicitInstallDir(): Boolean;
+begin
+  // A packaged client passes its actual launcher directory with /DIR.  It is
+  // more authoritative than a potentially stale registry value left by an
+  // earlier install on another drive.
+  // Inno Setup exposes named setup parameters through {param:...}; unlike
+  // command-line ParamStr this also works for /DIR= paths containing spaces.
+  Result := ExpandConstant('{param:DIR|}') <> '';
+end;
+
 function GetDefaultInstallDir(Param: String): String;
 var
   InstalledDir: String;
 begin
   PreviousInstallPathInvalid := False;
+  if HasExplicitInstallDir() then
+  begin
+    Result := ExpandConstant('{param:DIR|}');
+    Exit;
+  end;
   // Inno evaluates this before showing the directory page.  Prefer the
   // registered path from the existing installation, even when an old client
   // launched this installer without an explicit /DIR switch.
@@ -170,12 +188,13 @@ procedure InitializeWizard();
 var
   InstalledDir: String;
 begin
-  // /DIR from an old updater can point at a stale default directory.  When a
-  // registered installation exists, force the directory page back to that
-  // installation so the package cannot silently create a second copy.
+  // A valid explicit /DIR comes from the running launcher and must win over a
+  // registry value: users commonly install to D:/E:, while old registry data
+  // may still reference C: or a previously abandoned copy.
   if PreviousInstallPathInvalid then
     MsgBox('检测到旧安装记录，但原目录无效。请在安装目录页面选择原复盘虾目录，避免生成第二份安装。', mbInformation, MB_OK)
-  else if ReadInstalledValue('Inno Setup: App Path', InstalledDir) and
+  else if (not HasExplicitInstallDir()) and
+          ReadInstalledValue('Inno Setup: App Path', InstalledDir) and
           IsExistingInstallDir(InstalledDir) then
     WizardForm.DirEdit.Text := InstalledDir;
 end;

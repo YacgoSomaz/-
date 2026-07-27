@@ -124,8 +124,13 @@ def test_run_installer_passes_current_directory_to_inno_setup(monkeypatch, tmp_p
     monkeypatch.setattr(updater.subprocess, "Popen", fake_popen)
     updater.run_installer(installer, silent=False)
 
+    # ``Popen([...])`` owns Windows quoting.  Adding quotes inside the argv
+    # item makes it emit ``/DIR=\"...\"`` on the raw command line, which Inno
+    # treats as a malformed directory switch.  This is the custom-install
+    # regression: an E:\\LiveWatch installation then falls back to another
+    # directory and the user keeps launching the old binary.
     assert captured == [[
         str(installer),
         "/NORESTART",
-        f'/DIR="{install_dir.resolve()}"',
+        f"/DIR={install_dir.resolve()}",
     ]]

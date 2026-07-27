@@ -12,6 +12,42 @@ from pipeline import export as export_mod
 
 
 class AIReportTests(unittest.TestCase):
+    def test_official_report_evidence_is_bounded_and_does_not_need_local_key(self) -> None:
+        transcript = export_mod.TranscriptRow(
+            room_id="123", segment_ts=1_786_000_000, duration_sec=60.0,
+            text="主播强调价格优惠，观众追问什么时候发货。", char_count=22, mp3_name="123/seq00001.mp3",
+        )
+        bundle = export_mod.RoomBundle(
+            rid="123", nickname="测试主播", transcripts=[transcript], timeline=[],
+            chats=[("用户A", "什么时候发货")], stats=[], event_counts={"chat": 1},
+        )
+        with patch.object(ai_report.export_mod, "load_speaker_labels", return_value={}), \
+             patch.object(ai_report.export_mod, "room_display_names", return_value={"123": "测试主播"}), \
+             patch.object(ai_report.export_mod, "build_bundle", return_value=bundle):
+            evidence = ai_report.build_official_report_evidence(["123"])
+
+        self.assertEqual(evidence["rooms"], 1)
+        self.assertLessEqual(len(str(evidence["input_text"])), 18_000)
+        self.assertIn("测试主播", str(evidence["input_text"]))
+        self.assertIn("价格优惠", str(evidence["input_text"]))
+
+    def test_official_report_is_saved_with_existing_local_viewer_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            old_report_dir = config.AI_REPORT_DIR
+            config.AI_REPORT_DIR = Path(td) / "reports"
+            bundle = export_mod.RoomBundle(
+                rid="123", nickname="测试主播", transcripts=[], timeline=[], chats=[], stats=[], event_counts={},
+            )
+            try:
+                saved = ai_report.save_official_report(
+                    {"bundles": [bundle], "overviews": [{"nickname": "测试主播", "online_peak": 0, "platform_pv_latest": 0, "chat_count": 0, "transcript_segments": 0}], "words": []},
+                    "## 一页总览\n- 官方模型已生成可执行建议。",
+                )
+                self.assertTrue(Path(str(saved["path"])).is_file())
+                self.assertTrue(Path(str(saved["html_path"])).is_file())
+                self.assertEqual(saved["pdf_status"], "deferred")
+            finally:
+                config.AI_REPORT_DIR = old_report_dir
     def test_config_masks_and_keeps_existing_api_key(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             old_path = config.AI_CONFIG_PATH

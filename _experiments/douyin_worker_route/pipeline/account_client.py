@@ -188,6 +188,63 @@ def refresh_account(
     return {"user": user, "products": products, "account_license": envelope}
 
 
+def _official_ai_headers(session: dict[str, str]) -> dict[str, str]:
+    """Headers for the local-only proxy to the official AI service.
+
+    The opaque remote session must never be returned to the browser renderer.
+    Each request is also bound to this compiled product by the server.
+    """
+    return {
+        "Cookie": _session_cookie(session),
+        **_product_headers(),
+        "Cache-Control": "no-store",
+        "Pragma": "no-cache",
+    }
+
+
+def get_official_ai_catalog(
+    session: dict[str, str],
+    *,
+    server_url: str | None = None,
+    get: Get = requests.get,
+) -> dict[str, Any]:
+    """Read the signed-in user's available official-AI tasks and balance."""
+    url = _server_url(server_url)
+    try:
+        response = get(
+            f"{url}/api/v1/ai/catalog",
+            params={"product_id": config.ACCOUNT_PRODUCT_ID},
+            headers=_official_ai_headers(session),
+            timeout=config.ACCOUNT_REQUEST_TIMEOUT_SEC,
+        )
+    except requests.RequestException as exc:
+        raise AccountClientError("无法连接官方AI服务，请检查网络后重试") from exc
+    return _json_response(response)
+
+
+def create_official_ai_job(
+    session: dict[str, str],
+    payload: dict[str, object],
+    *,
+    server_url: str | None = None,
+    post: Post = requests.post,
+) -> dict[str, Any]:
+    """Submit a bounded local-evidence task without exposing official keys."""
+    url = _server_url(server_url)
+    if not isinstance(payload, dict):
+        raise AccountClientError("官方AI请求格式异常")
+    try:
+        response = post(
+            f"{url}/api/v1/ai/jobs",
+            json=payload,
+            headers=_official_ai_headers(session),
+            timeout=max(config.ACCOUNT_REQUEST_TIMEOUT_SEC, 190),
+        )
+    except requests.RequestException as exc:
+        raise AccountClientError("官方AI服务暂时不可用，请稍后再试") from exc
+    return _json_response(response)
+
+
 def create_recharge_handoff(
     session: dict[str, str],
     *,

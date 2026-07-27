@@ -28,6 +28,11 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn('[UninstallDelete]', SCRIPT)
         self.assertNotIn('Name: "{app}"', SCRIPT)
 
+    def test_shortcuts_and_postinstall_start_the_compiled_guard(self) -> None:
+        self.assertIn('Filename: "{app}\\LiveWatchGuard.exe"', SCRIPT)
+        self.assertIn('IconFilename: "{app}\\LiveWatchGuard.exe"', SCRIPT)
+        self.assertIn('Type: files; Name: "{app}\\LiveWatchGuard.exe"', SCRIPT)
+
     def test_uninstall_keeps_user_data_unless_the_user_explicitly_confirms(self) -> None:
         uninstall_delete = SCRIPT.split("[UninstallDelete]", 1)[1].split("[Code]", 1)[0]
         self.assertIn("{localappdata}\\LiveWatch\\data", SCRIPT)
@@ -65,7 +70,19 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("procedure InitializeWizard", SCRIPT)
         self.assertIn("WizardForm.DirEdit.Text := InstalledDir", SCRIPT)
         self.assertIn("RemoveBackslashUnlessRoot(Candidate)", SCRIPT)
-        self.assertIn("UsePreviousAppDir=no", SCRIPT)
+        self.assertIn("UsePreviousAppDir=yes", SCRIPT)
+
+    def test_manual_higher_version_install_is_treated_as_an_upgrade_not_a_new_folder(self) -> None:
+        """The normal Inno upgrade path must remain enabled for manually downloaded installers."""
+        self.assertIn("UsePreviousAppDir=yes", SCRIPT)
+        self.assertIn("AppId={{8F2A1C7E-4B3D-49A6-9E21-7C5D0A1B2E34}", SCRIPT)
+        self.assertIn("Inno Setup: App Path", SCRIPT)
+
+    def test_explicit_updater_directory_is_never_overwritten_by_registry_fallback(self) -> None:
+        """A running custom-drive client is the authority for its own upgrade path."""
+        self.assertIn("function HasExplicitInstallDir", SCRIPT)
+        self.assertIn("{param:DIR|}", SCRIPT)
+        self.assertIn("not HasExplicitInstallDir()", SCRIPT)
 
     def test_invalid_previous_directory_requires_explicit_reselection(self) -> None:
         """A corrupt old registry path must not silently create another copy."""

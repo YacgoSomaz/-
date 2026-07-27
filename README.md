@@ -20,9 +20,9 @@ _experiments/douyin_worker_route/
 6. [`CHANGELOG.md`](CHANGELOG.md)：版本级变更摘要。
 7. [`DEVELOPMENT_LOG.md`](DEVELOPMENT_LOG.md)：按日期记录的详细开发过程。
 
-账号与更新协议分别以 [`docs/ACCOUNT_PRODUCT_CONTRACT.md`](docs/ACCOUNT_PRODUCT_CONTRACT.md) 和 [`docs/DESKTOP_UPDATE_CONTRACT.md`](docs/DESKTOP_UPDATE_CONTRACT.md) 为准；产品管理后台、人工会员授权和生产备份见 [`docs/ADMIN_CONSOLE.md`](docs/ADMIN_CONSOLE.md)。不要在三个客户端中各自发明字段。
+账号、更新和官方 AI 算力协议分别以 [`docs/ACCOUNT_PRODUCT_CONTRACT.md`](docs/ACCOUNT_PRODUCT_CONTRACT.md)、[`docs/DESKTOP_UPDATE_CONTRACT.md`](docs/DESKTOP_UPDATE_CONTRACT.md) 和 [`docs/OFFICIAL_AI_CREDITS_CONTRACT.md`](docs/OFFICIAL_AI_CREDITS_CONTRACT.md) 为准；产品管理后台、人工会员授权和生产备份见 [`docs/ADMIN_CONSOLE.md`](docs/ADMIN_CONSOLE.md)。不要在三个客户端中各自发明字段。
 
-## 当前状态（2026-07-20）
+## 当前状态（2026-07-27）
 
 - 主线与 `packaging/build` 契约回归：`337 passed`，5 个已知弃用 / 依赖警告。
 - 当前本地最新构建为 `1.1.25`：`release/LiveWatchSetup_1.1.25.exe`，SHA-256 为 `a5a6569fdcb42a597b6ace01d4565733d7fde9c951f784ff06784ff89e5b058a`，大小 `338,374,466` bytes；尚未代替后台完成 OSS 上传和签名发布。
@@ -35,6 +35,9 @@ _experiments/douyin_worker_route/
 - AI 复盘 SSE 按 UTF-8 解码；“放大查看”使用显式打开回调，运行时异常显示为短提示，不再展示整屏原始堆栈。
 - AI 复盘页面提供“AI复盘报告 / AI专场顾问”tab；直播工作台子导航为“实时监控 → AI直播复盘 → AI达人雷达”，短视频中心和 AI 获客系统位于其后。
 - AI 复盘视图已修复高度约束：桌面宽屏不会再因固定视口高度叠加外层滚动条，窄屏仍保留自然滚动。
+- AI 设置页同时支持“本地自配”和“官方 ChatGPT 5.6”语言模型来源。官方模式按服务端任务扣积分，只提交用户点击后选定直播间的有上限本机证据；不会向渲染层暴露远端会话或任何模型密钥。该入口尚未进入已发布安装包，下一次构建后才可供终端用户使用。
+- 商业构建现在会生成独立二进制 `LiveWatchGuard.exe`：它先校验带 Ed25519 签名的最小核心完整性清单，再启动桌面 Launcher；用户数据、素材、导出、模型与缓存不参与校验，避免正常使用被拦截。
+- 权益刷新默认每 10 秒向服务端重新验证。管理员停用产品后的明确拒绝会清除本地权益；服务端网络不可达不会被误判为停用。
 
 正式安装包通过 `https://download.anyq.site`（OSS + CDN + HTTPS）分发，产品与续费入口为 `https://anyq.site`。安装包二进制不通过源码仓库发放。
 

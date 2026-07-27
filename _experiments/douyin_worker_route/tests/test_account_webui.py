@@ -106,3 +106,25 @@ def test_recharge_url_api_never_returns_remote_session(tmp_path, monkeypatch) ->
     assert payload == {"ok": True, "continue_url": "https://anyq.site/account/continue#ticket=one-time-ticket"}
     assert captured["session"] == {"cookie_name": "wz_session", "cookie_value": "remote-token"}
     assert "remote-token" not in response.body.decode("utf-8")
+
+
+def test_official_ai_catalog_uses_private_session_and_does_not_leak_it(monkeypatch) -> None:
+    session = {"cookie_name": "wz_session", "cookie_value": "remote-token"}
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(account_manager, "remote_session", lambda: session)
+
+    def catalog(value: dict[str, str]) -> dict[str, object]:
+        captured["session"] = value
+        return {
+            "ok": True,
+            "balance": 100,
+            "official_ai": {"configured": True, "label": "ChatGPT 5.6"},
+            "tasks": [{"task_type": "replay_report", "credits": 60, "enabled": True}],
+        }
+
+    monkeypatch.setattr(account_client, "get_official_ai_catalog", catalog)
+    response = webui.api_ai_official_catalog()
+
+    assert captured["session"] == session
+    assert "remote-token" not in response.body.decode("utf-8")
+    assert json.loads(response.body)["balance"] == 100

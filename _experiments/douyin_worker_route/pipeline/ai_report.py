@@ -521,6 +521,102 @@ def word_cloud(rids: list[str], limit: int = WORD_LIMIT) -> dict[str, object]:
     }
 
 
+def _bounded_official_input(parts: list[str], limit: int) -> str:
+    """Keep server-side credit tasks predictably bounded by characters."""
+    result: list[str] = []
+    used = 0
+    for part in parts:
+        value = str(part or "").strip()
+        if not value:
+            continue
+        remaining = limit - used
+        if remaining <= 0:
+            break
+        if len(value) > remaining:
+            result.append(value[:remaining])
+            break
+        result.append(value)
+        used += len(value) + 2
+    return "\n\n".join(result)[:limit]
+
+
+def build_official_report_evidence(rids: list[str]) -> dict[str, object]:
+    """Prepare one bounded evidence package for a credit-billed report.
+
+    This deliberately does not read the local API-key configuration.  The
+    caller chooses the official mode explicitly and sends only the selected
+    room's local evidence through the authenticated local proxy.
+    """
+    bundles = _load_bundles(rids)
+    overviews = [_bundle_overview(bundle) for bundle in bundles]
+    words = word_cloud([bundle.rid for bundle in bundles], limit=40)["words"]
+    evidence = _all_text(bundles, limit=14_500)
+    input_text = _bounded_official_input([
+        "请根据以下本机直播证据生成一份中文直播复盘报告。不得编造未提供的数据；证据不足时请明确说明。",
+        "主播概览：" + json.dumps(overviews, ensure_ascii=False),
+        "高频词：" + json.dumps(words, ensure_ascii=False),
+        "直播转写证据：\n" + evidence,
+    ], 18_000)
+    if not evidence.strip():
+        raise AIReportError("所选主播暂无已转写话术，不能生成复盘。")
+    return {
+        "input_text": input_text,
+        "bundles": bundles,
+        "overviews": overviews,
+        "words": words,
+        "rooms": len(bundles),
+    }
+
+
+def build_official_advisor_evidence(rids: list[str], messages: list[dict[str, str]]) -> dict[str, object]:
+    """Prepare a bounded, question-specific package for AI 专场顾问."""
+    bundles = _load_bundles(rids)
+    safe_messages = _safe_question_messages(messages)
+    overviews = [_bundle_overview(bundle) for bundle in bundles]
+    words = word_cloud([bundle.rid for bundle in bundles], limit=32)["words"]
+    evidence = _all_text(bundles, limit=8_500)
+    conversation = "\n".join(
+        f"{'用户' if item['role'] == 'user' else '顾问'}：{item['content']}"
+        for item in safe_messages
+    )
+    input_text = _bounded_official_input([
+        "你是复盘虾 AI 专场顾问。只依据以下本机直播证据回答，给出可执行的中文建议；证据不足时请说明。",
+        "主播概览：" + json.dumps(overviews, ensure_ascii=False),
+        "高频词：" + json.dumps(words, ensure_ascii=False),
+        "对话：\n" + conversation,
+        "直播转写证据：\n" + evidence,
+    ], 12_000)
+    return {"input_text": input_text, "rooms": len(bundles), "evidence_chars": len(evidence)}
+
+
+def save_official_report(evidence: dict[str, object], content: str) -> dict[str, object]:
+    """Persist an official-model report using the same local export flow."""
+    bundles = evidence.get("bundles")
+    overviews = evidence.get("overviews")
+    words = evidence.get("words")
+    if not isinstance(bundles, list) or not isinstance(overviews, list) or not isinstance(words, list):
+        raise AIReportError("官方AI报告证据无效")
+    report = _clean_report_markdown(str(content or ""))
+    if len(report.strip()) < 10:
+        raise AIReportError("官方AI没有返回可用报告")
+    title = "、".join(str(getattr(bundle, "nickname", "") or getattr(bundle, "rid", "")) for bundle in bundles[:3])
+    if len(bundles) > 3:
+        title += f"等{len(bundles)}个主播"
+    filename = _safe_report_name(f"AI复盘_{title}_{datetime.now().strftime('%Y%m%d_%H%M%S')}") + ".md"
+    config.AI_REPORT_DIR.mkdir(parents=True, exist_ok=True)
+    path = config.AI_REPORT_DIR / filename
+    path.write_text(report, encoding="utf-8")
+    html_filename = filename[:-3] + ".html"
+    html_path = config.AI_REPORT_DIR / html_filename
+    _write_html_report(report, html_path, overviews=overviews, words=words, visual_assets=[])
+    return {
+        "path": str(path), "pdf_path": str(path.with_suffix(".pdf")), "html_path": str(html_path),
+        "dir": str(path.parent), "filename": filename, "pdf_filename": filename[:-3] + ".pdf",
+        "html_filename": html_filename, "brief": _local_brief(report), "preview": report[:8000],
+        "rooms": len(bundles), "pdf_status": "deferred", "used_ai": True,
+    }
+
+
 def _local_brief(report: str, limit: int = 220) -> str:
     plain = re.sub(r"```[\s\S]*?```", " ", report or "")
     plain = re.sub(r"^#{1,6}\s*", "", plain, flags=re.M)

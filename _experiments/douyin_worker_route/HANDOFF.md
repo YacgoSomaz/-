@@ -1,6 +1,6 @@
 # 直播复盘侠主线快速接手卡
 
-更新时间：2026-07-20
+更新时间：2026-07-27
 本目录是当前主程序目录：
 
 ```text
@@ -28,6 +28,11 @@ C:\Users\q2414\Desktop\live_watch\THIRD_PARTY_NOTICES.md
 ```
 
 重要更新：较早的商业包 `1.0.15` 已把 MIT `jwwsjlm/douyinLive v2.0.24` 固定为本机 WSS sidecar，但当前线上签名更新版本已经是 `1.1.14`。不要恢复旧的 `vendor/DouyinLiveWebFetcher` / `run_worker.py`；真实直播间互动端到端与 Windows 代码签名仍待完成。`1.0.15` 之后又修复了主播身份、直播工作台和历史场次，当前本地最新构建基线为 `1.1.25`，下一次构建不能低于该版本。
+
+2026-07-27 新增两条必须遵守的主线：
+
+- 官方 AI 只通过本机 Python 代理调用 anyq.site，浏览器前端不得得到模型 Key、上游 URL 或远端 Cookie。复盘报告与 AI 专场顾问的契约、积分与错误码统一见 `docs/OFFICIAL_AI_CREDITS_CONTRACT.md`；本地自配模型仍保留。
+- 商业包必须从 `LiveWatchGuard.exe` 启动，不能把快捷方式改回 `LiveWatchLauncher.exe`。Guard 在启动器之前验证 Ed25519 签名清单和最小核心哈希；用户数据、模型、素材、导出、数据库、Cookie 不参与完整性校验。
 
 直播工作台现已同时支持进行中和最近完成场次。停止录制会写入 `recording_sessions`，前端按 `session_id` 保留该场的话术、互动、时长和可用录像；升级前历史数据从 `recording_timeline` 推断。禁止再把“非 recording 状态”直接等同于空工作台。
 

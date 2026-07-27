@@ -42,6 +42,10 @@ class LauncherUpdateContractTests(unittest.TestCase):
     def test_launcher_integrity_is_limited_to_immutable_core_allowlist(self) -> None:
         self.assertIn("def _is_integrity_core_path", LAUNCHER)
         self.assertIn("if not _is_integrity_core_path(rel):", LAUNCHER)
+        self.assertIn('"app/pipeline_data/frontend.html"', LAUNCHER)
+        self.assertIn('"app/sidecar/douyinlive.exe"', LAUNCHER)
+        self.assertIn('"app/bin/node.exe"', LAUNCHER)
+        self.assertIn('normalized.startswith("app/pipeline_data/static/")', LAUNCHER)
         self.assertIn("Older manifests may contain user data", LAUNCHER)
 
     def test_source_launcher_skips_commercial_manifest_gate(self) -> None:

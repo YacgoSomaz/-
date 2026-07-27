@@ -1,6 +1,6 @@
 # 复盘虾项目交接报告
 
-更新时间：2026-07-20
+更新时间：2026-07-27
 当前分支：`main`
 本轮接手前远端基线：`c78f543 Improve licensing admin and commercial integrity checks`（本文件所在提交之后请以 `git log -1` 为准）
 主线目录：`C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route`
@@ -8,10 +8,18 @@
 
 ## 当前发布产物（2026-07-20）
 
-- 最新本地构建产物为 `release/LiveWatchSetup_1.1.25.exe`，SHA-256：`a5a6569fdcb42a597b6ace01d4565733d7fde9c951f784ff06784ff89e5b058a`，大小 `338,374,466` bytes。
-- 对应清单为 `release/LiveWatchSetup_1.1.25.release.json`。上传 OSS 的推荐对象键：`replay-shrimp/1.1.25/LiveWatchSetup_1.1.25.exe`。
+- 历史本地构建基线为 `release/LiveWatchSetup_1.1.25.exe`。本次源码变更尚未替代后台完成新包构建、OSS 上传或 `update_release` 发布；不要把本仓库的提交误认为已上线安装包。
 - OSS 上传完成后，必须在 anyq.site 发布后台提交 `replay_shrimp` 的签名 `update_release`；只上传 EXE 不会让客户端看到更新。
 - 本包扫描通过但尚未做 Windows Authenticode 签名（状态 `NotSigned`），因此 SmartScreen 提示仍可能出现。
+
+## 0.0.2 2026-07-27 官方 AI、授权与启动保护
+
+- 官方语言模型不再需要终端用户填写 Key：复盘虾可由用户主动选择 `official`，但浏览器只请求本机 `webui.py`；Python 代理再以受保护的账号会话请求 anyq.site。模型地址、官方 Key、远端 Cookie、产品价格和权益裁决都不返回给浏览器。用户本地 `custom` OpenAI 兼容配置继续保留，不能被官方模式静默替换。
+- 官方任务固定为 `replay_report` 与 `replay_advisor`，仅接收选中直播间的有上限本机证据：报告 18,000 字、专场顾问 12,000 字。服务端负责会员、余额、积分、幂等、上游失败退款与结果时效；字段详见 `docs/OFFICIAL_AI_CREDITS_CONTRACT.md`。
+- `ACCOUNT_REFRESH_INTERVAL_SEC` 默认已从 60 秒缩短为 10 秒。服务端明确 4xx 拒绝会清掉本机会话和权益快照；普通网络故障仍保留尚未过期的签名快照，不能把断网误判成停用。
+- 构建链新增独立 Nuitka 二进制 `LiveWatchGuard.exe`。它内置完整性公钥，启动前验证签名清单与最小核心文件哈希，再启动 `LiveWatchLauncher.exe`。桌面快捷方式、开始菜单和安装后启动都必须指向 Guard；不要再直接指向 Launcher。
+- 完整性范围仍严格限制在最小程序核心，绝不包含用户数据、Cookie、数据库、素材、导出、模型和缓存。Guard 不等于服务端授权：会员、积分和官方 AI 仍必须以 anyq.site 服务端二次裁决。
+- 更新安装目录规则：Inno Setup 保持同 AppId 的正式升级识别，运行中的更新传入的实际 `/DIR` 优先于旧注册表路径。验证时必须覆盖 C/D/E 盘自定义目录，确认不会生成第二份安装目录。
 
 建议阅读顺序：`README.md` → 本文件 → `_experiments/douyin_worker_route/HANDOFF.md` → `docs/FILE_MAP.md` → `docs/TROUBLESHOOTING.md` → `CHANGELOG.md` → `DEVELOPMENT_LOG.md`。
 
@@ -133,6 +141,7 @@ C:\Users\q2414\Desktop\live_watch\_experiments\douyin_worker_route\pipeline
 - AI 复盘 SSE 响应强制按 UTF-8 解码，修复部分 OpenAI 兼容接口缺失 charset 时中文回复出现 `æ...` 乱码的问题。
 - AI 复盘页面已将“AI复盘报告”和“AI专场顾问”拆为 tab；直播工作台子导航调整为“实时监控 → AI直播复盘 → AI达人雷达”，短视频中心和 AI 获客系统保持在其后。
 - AI 复盘页面高度已收口：`content-review` 让复盘工作台填充内容视口，桌面宽屏不再出现外层页面滚动条；窄屏仍按响应式规则自然滚动。
+- 官方语言模型已接入源码：AI 设置中可在“本地自配”和“官方 ChatGPT 5.6”之间主动选择。官方报告/专场顾问仅通过本地 Python 代理访问 `anyq.site`，不向 WebView 返回会话或模型密钥；报告输入最多 18,000 字、顾问最多 12,000 字，返回仍落地为本机 HTML/Markdown。详见 `docs/OFFICIAL_AI_CREDITS_CONTRACT.md`；本轮尚未打新安装包。
 - 当前工作区主线与 `packaging/build` 契约回归：`337 passed`，5 个已知弃用 / 依赖警告；`git diff --check` 通过。本地 1.1.25 包已完成构建扫描，但未代替后台完成 OSS 上传和签名发布。
 
 ### 0.2 本次接手累计变更清单（2026-07-13 至 2026-07-20）

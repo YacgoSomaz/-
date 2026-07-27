@@ -160,3 +160,37 @@ def test_refresh_account_bypasses_intermediary_caches() -> None:
         "Pragma": "no-cache",
     }
     assert result["account_license"]["payload"] == "fresh-signed-payload"
+
+
+def test_official_ai_requests_keep_remote_session_private_and_bind_product() -> None:
+    captured: dict[str, object] = {}
+
+    def post(url: str, **kwargs: object) -> _Response:
+        captured["url"] = url
+        captured.update(kwargs)
+        return _Response({"ok": True, "job": {"id": "job-1", "status": "succeeded", "result_text": "报告"}})
+
+    result = account_client.create_official_ai_job(
+        {"cookie_name": "wz_session", "cookie_value": "opaque-remote-session"},
+        {"product_id": "replay_shrimp", "task_type": "replay_report", "input_text": "本地证据", "idempotency_key": "local-123"},
+        server_url="https://anyq.example",
+        post=post,
+    )
+
+    assert captured["url"] == "https://anyq.example/api/v1/ai/jobs"
+    assert captured["headers"] == {
+        "Cookie": "wz_session=opaque-remote-session",
+        "X-Product-Code": "replay_shrimp",
+        "Cache-Control": "no-store",
+        "Pragma": "no-cache",
+    }
+    assert captured["json"] == {"product_id": "replay_shrimp", "task_type": "replay_report", "input_text": "本地证据", "idempotency_key": "local-123"}
+    assert result["job"]["result_text"] == "报告"
+
+
+def test_official_ai_catalog_requires_valid_local_session() -> None:
+    with pytest.raises(account_client.AccountClientError, match="本地登录会话"):
+        account_client.get_official_ai_catalog(
+            {"cookie_name": "", "cookie_value": "nope"},
+            server_url="https://anyq.example",
+        )

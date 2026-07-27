@@ -50,6 +50,21 @@ def test_release_build_generates_integrity_manifest_before_scanning():
     assert "完整性校验失败" in launcher
 
 
+def test_commercial_build_places_a_compiled_guard_before_the_launcher() -> None:
+    repo_root = Path(__file__).resolve().parents[3]
+    script = (repo_root / "packaging" / "build" / "build_release.ps1").read_text(encoding="utf-8")
+    guard = (repo_root / "packaging" / "build" / "livewatch_guard.py").read_text(encoding="utf-8")
+
+    assert "LiveWatchGuard.exe" in script
+    assert "--onefile" in script
+    assert "livewatch_guard.py" in script
+    assert "Sign-ReleaseBinary (Join-Path $Staging \"LiveWatchGuard.exe\")" in script
+    assert "LiveWatchGuard.exe" in guard
+    assert "Ed25519PublicKey" in guard
+    assert "_verify_install_integrity" in guard
+    assert "LiveWatchLauncher.exe" in guard
+
+
 def test_release_launcher_bundles_license_crypto_dependencies():
     repo_root = Path(__file__).resolve().parents[3]
     script = (repo_root / "packaging" / "build" / "build_release.ps1").read_text(encoding="utf-8")

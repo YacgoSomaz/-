@@ -2,6 +2,23 @@
 
 本文档记录项目从研究验证到商业安装包的主要演进。它用于交接，不替代 Git 提交历史。
 
+## 2026-07-22：官方语言模型接入复盘虾
+
+- 复盘虾保留“本地自配 OpenAI 兼容模型”原有能力，并新增用户主动选择的“官方 ChatGPT 5.6”模式；官方模式的模型地址、模型标识、API Key 和远端 Cookie 均不会进入浏览器前端或安装包。
+- 本地 `pipeline/account_client.py` 通过受保护的手机号登录会话访问 `GET /api/v1/ai/catalog` 与 `POST /api/v1/ai/jobs`，固定携带 `X-Product-Code: replay_shrimp`、禁缓存头；服务端仍是会员、积分、任务价格和扣费的唯一可信来源。
+- `replay_report` 每次只把已选直播间整理成最多 18,000 字本机证据包，默认 60 积分；`replay_advisor` 最多 12,000 字，默认 8 积分。客户端不自动降级：官方模式不可用、无权益或积分不足会显示服务端错误，用户须明确切回本地自配模式。
+- 官方报告返回后继续写入本地 Markdown/HTML，PDF 保持按需导出；因此既有报告历史、查看和下载流程不变。AI 设置页可读取官方余额、价格和模型可用状态，本地 API Key 配置仅在选择“本地自配”时显示。
+- 回归：账号客户端、WebUI 与 AI 报告相关测试 `31 passed`，`py_compile` 与 `git diff --check` 通过。本轮未打包安装包；用户要使用该客户端入口需在下一次商业安装包中带入。
+
+## 2026-07-27：官方 AI、10 秒权益刷新与启动 Guard 收口
+
+- 复盘虾增加官方 AI 代理链路：浏览器仅调用本机 `webui.py`，本机使用受保护的远端登录会话调用 anyq.site；浏览器、安装包前端和本地设置均不持有官方模型 Key、上游 URL 或远端 Cookie。官方任务固定为 `replay_report` / `replay_advisor`，产品固定为 `replay_shrimp`，由服务端核验会员、积分和任务状态。
+- `pipeline/ai_report.py` 增加受限证据包构建与官方报告落盘；`pipeline/webui.py` 增加官方目录、报告和专场顾问入口；`pipeline/account_client.py` 只代理固定产品的服务端请求。详细字段、积分与错误行为以 `docs/OFFICIAL_AI_CREDITS_CONTRACT.md` 为唯一规范。
+- 账号刷新间隔调整为默认 10 秒，仍保留最低 10 秒的环境变量下限。远端 4xx 明确拒绝会清除会话和权益快照；瞬时网络失败不会当作停用，避免断网误踢。
+- 商业构建增加独立 Nuitka 一文件 `LiveWatchGuard.exe`。Guard 内置完整性公钥，先验签 `integrity_manifest.json` 并校验最小核心 allowlist，再启动 Launcher；安装快捷方式、安装后启动和卸载显示图标统一指向 Guard。用户资料不在 Guard 完整性范围内。
+- Inno Setup 目录规则修正为：正式升级自动复用同 AppId 的已有目录；运行中更新传入的 `/DIR` 为更高优先级的实际安装目录。这一规则是后续更新正确覆盖用户 D/E 盘目录的基础。
+- 清理未跟踪的 `nuitka-crash-report.xml`，不把构建故障诊断、运行数据、密钥、模型或安装包提交到仓库。
+
 ## 2026-07-20：账号权益快照缓存防护
 
 - 只读审计确认：复盘虾启动和运行期间均每 60 秒刷新一次 `account_license`，本地授权读取也会重新验证 Ed25519 签名及 `signed_until`；不存在把过期快照继续当会员权益使用的放行逻辑。
